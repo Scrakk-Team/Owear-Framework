@@ -70,7 +70,32 @@ fs.mkdirSync(path.dirname(binDst), { recursive: true })
 fs.copyFileSync(binSrc, binDst)
 if (process.platform !== 'win32') fs.chmodSync(binDst, 0o755)
 
-// módulos stock, planos junto al binario → el kernel los busca en <exe_dir>/modules
+// Nombres de los módulos (.owm) según los manifiestos — para distinguir un
+// módulo de una DLL de soporte (zlib / OpenSSL / runtime MSVC).
+const moduleNames = new Set(
+  fs
+    .readdirSync(path.join(ROOT, 'api'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(ROOT, 'api', d.name, 'owear.module.json')))
+    .map((d) => d.name)
+)
+
+/// Copia una DLL de soporte junto al exe (dedup). Windows la busca en el
+/// directorio de la aplicación, no en el de los módulos.
+const copySupport = (src) => {
+  const dst = path.join(PKG, 'bin', path.basename(src))
+  if (!fs.existsSync(dst)) fs.copyFileSync(src, dst)
+}
+
+// Dependencias que el build deja JUNTO AL EXE (vcpkg applocal: z.dll, libssl,
+// libcrypto, runtime MSVC…). En Windows son necesarias para arrancar.
+if (T.ext === '.dll') {
+  const exeDir = path.dirname(binSrc)
+  for (const f of fs.readdirSync(exeDir)) {
+    if (f.toLowerCase().endsWith('.dll')) copySupport(path.join(exeDir, f))
+  }
+}
+
+// Módulos stock → bin/modules. Sus DLLs de soporte → junto al exe.
 const apiDir = path.join(BUILD, 'api')
 let mods = 0
 if (fs.existsSync(apiDir)) {
@@ -87,10 +112,15 @@ if (fs.existsSync(apiDir)) {
     }
   }
   walk(apiDir)
-  if (found.length) fs.mkdirSync(path.join(PKG, 'bin', 'modules'), { recursive: true })
   for (const p of found) {
-    fs.copyFileSync(p, path.join(PKG, 'bin', 'modules', path.basename(p)))
-    mods++
+    const stem = path.basename(p, path.extname(p))
+    if (moduleNames.has(stem)) {
+      fs.mkdirSync(path.join(PKG, 'bin', 'modules'), { recursive: true })
+      fs.copyFileSync(p, path.join(PKG, 'bin', 'modules', path.basename(p)))
+      mods++
+    } else {
+      copySupport(p)
+    }
   }
 }
 
