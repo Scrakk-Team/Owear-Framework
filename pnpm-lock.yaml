@@ -86,6 +86,9 @@ importers:
       '@owear/linux-x64-gnu':
         specifier: workspace:*
         version: link:../runtime-linux-x64-gnu
+      '@owear/win32-x64':
+        specifier: workspace:*
+        version: link:../runtime-win32-x64
 
   packages/core:
     devDependencies:

@@ -1,6 +1,6 @@
 {
   "name": "@owear/linux-x64-gnu",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Owear runtime — kernel nativo + módulos stock (.owm) + headers. Linux x64 (glibc).",
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",
