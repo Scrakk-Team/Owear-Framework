@@ -51,15 +51,14 @@ exponer Node a la UI sin IPC por defecto.
     getTitle, eval, setVisible, setZoom, devtools, findInPage, findStop`.
   - Renderer: `ow.invoke('webview', 'create', { url, x, y, width, height })` +
     eventos `ow.on('webview.loadChanged|urlChanged|titleChanged|loadFailed')`.
-  - Linux (WebKitGTK): `GtkFixed` superpuesto + contexto WebKit compartido con
-    data dir por app; base para Windows/macOS.
-  - `examples/starter`: navegador embebido al final (barra atrás/adelante/
-    recargar/URL) colocado sobre `#wv-slot`.
+  - Linux (WebKitGTK): cada hija en su propio contenedor overlay (solo
+    intercepta su rectángulo) + contexto WebKit compartido con data dir por app
+    y **un WebProcess por vista**; base para Windows/macOS.
   - **Foco automático**: las hijas **no roban el foco al cargar** (arrancan con
     `can_focus=FALSE`); el click sobre una hija se lo da y el click fuera de las
     hijas vuelve a la principal.
-- `examples/starter`: usa `titleBarOverlay` y oculta sus propios botones,
-  reservando el hueco con `--ow-overlay-width/height`.
+- `examples/starter`: **rediseño en curso** (WIP) — fuentes, layout con
+  containers y uso de las APIs nuevas (`titleBarOverlay`, navegador embebido).
 - Dev: `OW_TITLEBAR_OVERLAY[=_HEIGHT]` para probar el overlay con `OW_DEMO=1`.
 - Marcador de build en el log del kernel (`OWEAR KERNEL BUILD ...`) y
   `PCreate: estilo=... custom=...` para diagnóstico.
