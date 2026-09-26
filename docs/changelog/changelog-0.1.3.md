@@ -55,6 +55,9 @@ exponer Node a la UI sin IPC por defecto.
     data dir por app; base para Windows/macOS.
   - `examples/starter`: navegador embebido al final (barra atrás/adelante/
     recargar/URL) colocado sobre `#wv-slot`.
+  - **Foco automático**: click en cualquier webview le da el foco (el teclado no
+    se queda en la hija); al crear/ocultar/destruir una hija, vuelve a la
+    principal.
 - `examples/starter`: usa `titleBarOverlay` y oculta sus propios botones,
   reservando el hueco con `--ow-overlay-width/height`.
 - Dev: `OW_TITLEBAR_OVERLAY[=_HEIGHT]` para probar el overlay con `OW_DEMO=1`.
