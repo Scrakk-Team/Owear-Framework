@@ -13,6 +13,7 @@ set(OW_BUILTIN_SOURCES_linux
     ${CMAKE_SOURCE_DIR}/api/window/src/window_extra.cpp)
 
 set(OW_BUILTIN_SOURCES_win
+    ${CMAKE_SOURCE_DIR}/api/webview/src/webview.cpp
     ${CMAKE_SOURCE_DIR}/api/window/src/window_extra_win.cpp)
 
 set(OW_BUILTIN_SOURCES_mac

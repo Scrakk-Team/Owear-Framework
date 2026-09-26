@@ -8,7 +8,7 @@
     {
       "name": "webview",
       "factory": "WebviewModuleDescriptor",
-      "platforms": ["linux"],
+      "platforms": ["linux", "win"],
       "functions": [
         "create", "destroy", "setBounds", "load", "back", "forward", "reload",
         "stop", "canBack", "canForward", "getURL", "getTitle", "eval",
@@ -17,6 +17,7 @@
     }
   ],
   "sources": {
-    "linux": ["src/webview.cpp"]
+    "linux": ["src/webview.cpp"],
+    "win": ["src/webview.cpp"]
   }
 }
