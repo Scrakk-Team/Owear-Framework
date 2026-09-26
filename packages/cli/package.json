@@ -21,7 +21,7 @@
   "homepage": "https://owear.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/owear/owear.git",
+    "url": "git+https://github.com/Scrakk-Team/Owear-Framework.git",
     "directory": "packages/cli"
   },
   "publishConfig": {
