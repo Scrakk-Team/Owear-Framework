@@ -56,7 +56,7 @@ exponer Node a la UI sin IPC por defecto.
     y **un WebProcess por vista**; base para Windows/macOS.
   - Windows (WebView2): cada hija en su **HWND hijo propio** + controller de
     WebView2 parentado ahí (z-order/bounds fiables); environment con user data
-    dir propio. `titleBarOverlay` en Windows dibuja los botones con el **tema del
+    dir propio. `titleBarOverlay` en Windows dibuja los botones estilo Win10/11 (GDI+, ventana layered, no el look Win7 del tema del
     SO** (`DrawThemeBackground`) y expone `__owTitlebarOverlay` al renderer.
   - **Foco automático**: las hijas **no roban el foco al cargar** (arrancan con
     `can_focus=FALSE`); el click sobre una hija se lo da y el click fuera de las
