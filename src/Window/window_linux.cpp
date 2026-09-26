@@ -80,11 +80,11 @@ struct Window::Impl::PlatformData {
 
     // ── webviews embebidas (hijas de la ventana) ────────────────────────
     struct EmbeddedView {
-        GtkWidget* view = nullptr;
+        GtkWidget* box = nullptr;   // contenedor overlay (GtkEventBox) de la hija
+        GtkWidget* view = nullptr;  // WebKitWebView
         int x = 0, y = 0, w = 0, h = 0;
         bool visible = true;
     };
-    GtkWidget* viewFixed = nullptr;          // GtkFixed contenedor de las hijas
     WebKitWebContext* viewCtx = nullptr;     // contexto compartido de las hijas
     std::map<uint32_t, EmbeddedView> views;  // id → webview embebida
     uint32_t nextViewId = 1;
@@ -682,13 +682,7 @@ bool Window::Impl::PCreate() {
     pdata->overlay = gtk_overlay_new();
     gtk_container_add(GTK_CONTAINER(win), pdata->overlay);
 
-    // Webviews embebidas: GtkFixed transparente superpuesto + contexto WebKit
-    // compartido (con su propio data dir por app).
-    pdata->viewFixed = gtk_fixed_new();
-    gtk_widget_set_halign(pdata->viewFixed, GTK_ALIGN_FILL);
-    gtk_widget_set_valign(pdata->viewFixed, GTK_ALIGN_FILL);
-    gtk_overlay_add_overlay(GTK_OVERLAY(pdata->overlay), pdata->viewFixed);
-    gtk_widget_show(pdata->viewFixed);
+    // Contexto WebKit compartido para las webviews embebidas (data dir por app).
     {
         const std::string d = ViewDataDir("data");
         const std::string c = ViewDataDir("cache");
@@ -1030,7 +1024,7 @@ void Window::Impl::PBeginResizeDrag(const std::string& edge) {
 
 // ── webviews embebidas (API) ─────────────────────────────────────────────────
 std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
-    if (!pdata || !pdata->viewFixed || !pdata->viewCtx)
+    if (!pdata || !pdata->overlay || !pdata->viewCtx)
         return "{\"message\":\"contenedor de webviews no disponible\"}";
 
     auto parsed = json::Parse(optionsJson);
@@ -1078,13 +1072,23 @@ std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
             webkit_settings_set_user_agent(st, ua.c_str());
     }
 
-    gtk_fixed_put(GTK_FIXED(pdata->viewFixed), GTK_WIDGET(view), x, y);
-    gtk_widget_set_size_request(GTK_WIDGET(view), w, h);
-    gtk_widget_show(GTK_WIDGET(view));
-    pdata->views[id] =
-        PlatformData::EmbeddedView{GTK_WIDGET(view), x, y, w, h, true};
+    // Contenedor propio por hija (GtkEventBox transparente) como overlay child:
+    // así solo intercepta SU rectángulo y el resto va a la webview principal.
+    GtkWidget* box = gtk_event_box_new();
+    gtk_event_box_set_visible_window(GTK_EVENT_BOX(box), FALSE);
+    gtk_widget_set_halign(box, GTK_ALIGN_START);
+    gtk_widget_set_valign(box, GTK_ALIGN_START);
+    gtk_widget_set_margin_start(box, x);
+    gtk_widget_set_margin_top(box, y);
+    gtk_widget_set_size_request(box, w, h);
+    gtk_overlay_add_overlay(GTK_OVERLAY(pdata->overlay), box);
+    gtk_container_add(GTK_CONTAINER(box), GTK_WIDGET(view));
+    gtk_widget_show_all(box);
 
-    // Al crearla, el foco se queda en la principal (la hija no lo roba).
+    pdata->views[id] =
+        PlatformData::EmbeddedView{box, GTK_WIDGET(view), x, y, w, h, true};
+
+    // La hija no roba el foco: se queda en la principal.
     if (webview) gtk_widget_grab_focus(GTK_WIDGET(webview->NativeWidget()));
 
     if (!url.empty()) webkit_web_view_load_uri(view, url.c_str());
@@ -1149,8 +1153,9 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
             ev.w = (int)a.AsArray()[2].AsInt();
             ev.h = (int)a.AsArray()[3].AsInt();
         }
-        gtk_fixed_move(GTK_FIXED(pdata->viewFixed), ev.view, ev.x, ev.y);
-        gtk_widget_set_size_request(ev.view, ev.w, ev.h);
+        gtk_widget_set_margin_start(ev.box, ev.x);
+        gtk_widget_set_margin_top(ev.box, ev.y);
+        gtk_widget_set_size_request(ev.box, ev.w, ev.h);
         return "null";
     }
     if (op == "load") {
@@ -1185,7 +1190,7 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
     }
     if (op == "setVisible") {
         ev.visible = argBool(0, true);
-        gtk_widget_set_visible(ev.view, ev.visible);
+        gtk_widget_set_visible(ev.box, ev.visible);
         // Al ocultar una hija, el foco vuelve a la principal.
         if (!ev.visible && webview)
             gtk_widget_grab_focus(GTK_WIDGET(webview->NativeWidget()));
@@ -1217,7 +1222,7 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
         return "null";
     }
     if (op == "destroy") {
-        gtk_widget_destroy(ev.view);
+        gtk_widget_destroy(ev.box);
         pdata->views.erase(it);
         if (webview) gtk_widget_grab_focus(GTK_WIDGET(webview->NativeWidget()));
         return "null";
