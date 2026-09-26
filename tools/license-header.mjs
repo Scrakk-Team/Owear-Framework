@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // ─────────────────────────────────────────────────────────────────────────────
 // tools/license-header.mjs — añade la cabecera SPDX Apache-2.0 a los ficheros
 // de código tracked que aún no la tienen.
