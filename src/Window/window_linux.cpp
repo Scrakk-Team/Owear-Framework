@@ -430,6 +430,16 @@ bool Window::Impl::PCreate() {
     const bool frameless = opts.titleBarStyle != TitleBarStyle::Default;
     pdata->isWayland = DisplayIsWayland();
 
+    // CSD (client-side decorations) con un titlebar vacío de alto 0: así GTK
+    // dibuja la SOMBRA del tema del escritorio (y sus esquinas) alrededor de la
+    // ventana, sin quitar contenido. Es lo que hace Electron en Linux. El
+    // fondo sigue siendo transparente para que mande el contenido web.
+    if (frameless) {
+        GtkWidget* tb = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        gtk_widget_set_size_request(tb, -1, 0);
+        gtk_window_set_titlebar(GTK_WINDOW(win), tb);
+    }
+
     // Esquinas redondeadas (Linux): ventana con visual RGBA y fondo
     // transparente. La superficie visible la pinta el contenido web, que
     // redondeamos por CSS (ver más abajo). En Wayland no existe el shaping,
@@ -629,7 +639,9 @@ void Window::Impl::PApplyTitleBar() {
         break;
     case TitleBarStyle::Hidden:
     case TitleBarStyle::Custom:
-        gtk_window_set_decorated(GTK_WINDOW(pdata->window), FALSE);
+        // No hacemos set_decorated(FALSE): usamos CSD con un titlebar vacío
+        // (ver PCreate) para conservar la SOMBRA del tema. Desactivar la
+        // decoración apagaría el CSD.
         break;
     }
     // En PCreate la barra se construye al final (cuando el webview ya existe
