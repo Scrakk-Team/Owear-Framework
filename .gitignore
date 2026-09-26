@@ -15,6 +15,7 @@ node_modules/
 # Estado de tooling / dev
 .scrakk/
 .owear/
+.xwin-cache/
 
 # CMake / IDE
 .cache/

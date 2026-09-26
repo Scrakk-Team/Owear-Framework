@@ -13,6 +13,11 @@ compilación cruzada Linux → Windows.
   generar `owear.exe` + módulos desde Linux, sin Visual Studio ni CI.
 - `tools/windows/dev-*.ps1`: bucle de desarrollo local en Windows sin publicar
   paquetes a npm.
+- `tools/windows-cross/build.sh` + `serve.sh`: compilan el kernel de Windows
+  desde Linux y sirven el resultado por HTTP; `tools/windows/dev-pull.ps1` lo
+  descarga en `C:\owear-dev\deps\win32-x64`.
+- CLI: con `OW_KERNEL_BIN` fijado, los módulos stock se toman de `<exe>/modules`
+  (mismo build), no del paquete npm.
 
 ## Fixed
 

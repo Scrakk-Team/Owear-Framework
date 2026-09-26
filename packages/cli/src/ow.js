@@ -65,6 +65,13 @@ function runtimePackageDir() {
  * - monorepo:     cada build/<preset>/api/<nombre>/ (el loader NO recursiona)
  */
 function stockModulesPath() {
+  // Dev: si el usuario fija el kernel (OW_KERNEL_BIN), sus módulos viven junto
+  // a él (<exe>/modules). Es la fuente correcta: kernel y módulos del mismo build.
+  const kb = process.env.OW_KERNEL_BIN
+  if (kb) {
+    const m = path.join(path.dirname(kb), 'modules')
+    if (fs.existsSync(m)) return m
+  }
   const rt = runtimePackageDir()
   if (rt) {
     const m = path.join(rt, 'bin', 'modules')
