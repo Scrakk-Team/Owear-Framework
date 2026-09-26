@@ -1,0 +1,66 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build de los paquetes de runtime (kernel + módulos + headers) por plataforma.
+# Los compila GitHub (runners nativos) y los sube como artifacts, para que el
+# usuario final NO tenga que instalar MSVC/CMake/vcpkg/OpenSSL.
+#
+# Publicar: descarga el artifact y `npm publish` (o añade NPM_TOKEN como secret
+# y descomenta el paso de publish).
+#
+name: Build runtime packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  linux:
+    name: runtime · @owear/linux-x64-gnu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deps del kernel
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
+            libssl-dev zlib1g-dev ninja-build
+      - name: Build + pack
+        run: |
+          cmake --preset linux-release
+          cmake --build --preset linux-release
+          node tools/pack-runtime.mjs --target linux-x64-gnu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-linux-x64-gnu
+          path: packages/runtime-linux-x64-gnu
+          if-no-files-found: error
+
+  windows:
+    name: runtime · @owear/win32-x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deps (zlib + openssl vía vcpkg preinstalado)
+        run: vcpkg install zlib openssl --triplet x64-windows
+        shell: cmd
+      - name: Configure
+        shell: cmd
+        run: cmake --preset windows-release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+      - name: Build
+        run: cmake --build --preset windows-release
+      - name: Pack runtime
+        run: node tools/pack-runtime.mjs --target win32-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-win32-x64
+          path: packages/runtime-win32-x64
+          if-no-files-found: error

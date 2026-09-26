@@ -1,0 +1,4 @@
+# artefactos generados por `node tools/pack-runtime.mjs --target win32-x64` (no se commitean)
+bin/
+include/
+LICENSE

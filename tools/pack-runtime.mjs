@@ -50,9 +50,14 @@ const T = TARGETS[target]
 
 const BUILD = path.join(ROOT, 'build', T.preset)
 const PKG = path.join(ROOT, 'packages', T.pkg)
-const binSrc = path.join(BUILD, 'src', T.exe)
-if (!fs.existsSync(binSrc)) {
-  die(`falta ${path.relative(ROOT, binSrc)} — compila primero:\n    cmake --preset ${T.preset} && cmake --build --preset ${T.preset}`)
+const binCandidates = [
+  path.join(BUILD, 'src', T.exe),
+  path.join(BUILD, 'src', 'Release', T.exe), // MSVC multi-config
+  path.join(BUILD, 'src', 'Debug', T.exe),
+]
+const binSrc = binCandidates.find((p) => fs.existsSync(p))
+if (!binSrc) {
+  die(`falta el binario en ${path.relative(ROOT, path.join(BUILD, 'src'))} — compila primero:\n    cmake --preset ${T.preset} && cmake --build --preset ${T.preset}`)
 }
 if (!fs.existsSync(path.join(PKG, 'package.json'))) die(`no existe packages/${T.pkg}/package.json`)
 
@@ -69,16 +74,23 @@ if (process.platform !== 'win32') fs.chmodSync(binDst, 0o755)
 const apiDir = path.join(BUILD, 'api')
 let mods = 0
 if (fs.existsSync(apiDir)) {
-  for (const d of fs.readdirSync(apiDir, { withFileTypes: true })) {
-    if (!d.isDirectory() || d.name === 'CMakeFiles') continue
-    const dir = path.join(apiDir, d.name)
-    for (const f of fs.readdirSync(dir)) {
-      if (f.endsWith(T.ext) || f.endsWith('.owm')) {
-        fs.mkdirSync(path.join(PKG, 'bin', 'modules'), { recursive: true })
-        fs.copyFileSync(path.join(dir, f), path.join(PKG, 'bin', 'modules', f))
-        mods++
+  const found = []
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) {
+        if (e.name === 'CMakeFiles') continue
+        walk(p)
+      } else if (e.name.endsWith(T.ext) || e.name.endsWith('.owm')) {
+        found.push(p)
       }
     }
+  }
+  walk(apiDir)
+  if (found.length) fs.mkdirSync(path.join(PKG, 'bin', 'modules'), { recursive: true })
+  for (const p of found) {
+    fs.copyFileSync(p, path.join(PKG, 'bin', 'modules', path.basename(p)))
+    mods++
   }
 }
 
