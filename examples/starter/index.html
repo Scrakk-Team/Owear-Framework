@@ -45,37 +45,40 @@
         </div>
       </section>
 
-      <section class="grid">
-        <article class="card">
-          <header class="card__head">
-            <h2>Entorno</h2>
-            <span class="badge" id="env-window">—</span>
-          </header>
-          <dl class="kv">
-            <div><dt>Plataforma</dt><dd id="env-platform">—</dd></div>
-            <div><dt>Motor</dt><dd id="env-engine">—</dd></div>
-            <div><dt>Escala</dt><dd id="env-dpr">—</dd></div>
-          </dl>
-          <p class="ua" id="env-ua">—</p>
-        </article>
+      <!-- Contenedor con fondo propio que agrupa las cards -->
+      <section class="board">
+        <section class="grid">
+          <article class="card">
+            <header class="card__head">
+              <h2>Entorno</h2>
+              <span class="badge" id="env-window">—</span>
+            </header>
+            <dl class="kv">
+              <div><dt>Plataforma</dt><dd id="env-platform">—</dd></div>
+              <div><dt>Motor</dt><dd id="env-engine">—</dd></div>
+              <div><dt>Escala</dt><dd id="env-dpr">—</dd></div>
+            </dl>
+            <p class="ua" id="env-ua">—</p>
+          </article>
 
-        <article class="card card--grow">
-          <header class="card__head">
-            <h2>Consola</h2>
-            <button class="linkbtn" data-action="clear">Limpiar</button>
-          </header>
-          <pre id="console" class="console">Listo. Pulsa «Abrir archivo…» para invocar un módulo nativo.</pre>
-        </article>
-      </section>
+          <article class="card card--grow">
+            <header class="card__head">
+              <h2>Consola</h2>
+              <button class="linkbtn" data-action="clear">Limpiar</button>
+            </header>
+            <pre id="console" class="console">Listo. Pulsa «Abrir archivo…» para invocar un módulo nativo.</pre>
+          </article>
+        </section>
 
-      <section class="card">
-        <header class="card__head"><h2>Cómo funciona</h2></header>
-        <p class="hint">
-          Cada botón invoca un módulo nativo con <code>ow.invoke()</code>.
-        </p>
-        <pre class="code"><code>const path = await ow.invoke('dialog', 'open', 'open', 'Abrir archivo')
+        <section class="card">
+          <header class="card__head"><h2>Cómo funciona</h2></header>
+          <p class="hint">
+            Cada botón invoca un módulo nativo con <code>ow.invoke()</code>.
+          </p>
+          <pre class="code"><code>const path = await ow.invoke('dialog', 'open', 'open', 'Abrir archivo')
 const text = await ow.invoke('fs', 'readText', path)
 await ow.invoke('notification', 'show', 'Listo', 'Leídos ' + text.length + ' bytes')</code></pre>
+        </section>
       </section>
     </main>
 

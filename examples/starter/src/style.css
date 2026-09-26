@@ -37,6 +37,15 @@
   src: url("./assets/dancing-script.woff2") format("woff2");
 }
 
+/* UI (JetBrains Mono, self-hosted, variable 400–700) */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/jetbrains-mono.woff2") format("woff2");
+}
+
 * {
   box-sizing: border-box;
 }
@@ -50,7 +59,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 14px/1.55 "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo,
+    Consolas, monospace;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -239,6 +249,17 @@ h1 {
   background: transparent;
 }
 
+/* Contenedor con fondo propio que agrupa las cards de abajo */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
 .grid {
   display: grid;
   grid-template-columns: minmax(240px, 300px) 1fr;
@@ -328,7 +349,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 14px;
-  font: 12.5px/1.6 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font: 12.5px/1.6 "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
@@ -372,7 +393,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  font: 12.5px/1.7 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font: 12.5px/1.7 "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   color: var(--text);
   user-select: text;
   -webkit-user-select: text;
