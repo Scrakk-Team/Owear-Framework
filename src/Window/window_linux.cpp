@@ -573,6 +573,13 @@ gboolean OnViewLoadFailed(WebKitWebView* view, WebKitLoadEvent, gchar* uri,
     return FALSE;
 }
 
+// Foco en click: sin esto, al pulsar la webview principal el foco se quedaba en
+// la hija (GTK no lo devolvía) y el teclado seguía yendo a la hija.
+gboolean OnViewButtonPress(GtkWidget* w, GdkEventButton*, gpointer) {
+    gtk_widget_grab_focus(w);
+    return FALSE; // deja que WebKit procese el click
+}
+
 } // namespace
 
 Window::~Window() = default;
@@ -742,6 +749,12 @@ bool Window::Impl::PCreate() {
 
     // ── eventos de navegación (siempre activos) ────────────────────────
     GtkWidget* view = GTK_WIDGET(webview->NativeWidget());
+
+    // Foco en click en la webview PRINCIPAL: recupera el foco al pulsarla
+    // (sin esto, tras usar una hija el teclado se quedaba en la hija).
+    gtk_widget_set_can_focus(view, TRUE);
+    g_signal_connect(view, "button-press-event", G_CALLBACK(OnViewButtonPress),
+                     nullptr);
 
     if (frameless) {
         // WebView transparente: el fondo lo pone el HTML redondeado y las
@@ -1020,6 +1033,9 @@ std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
     g_signal_connect(view, "load-failed", G_CALLBACK(OnViewLoadFailed), this);
     g_signal_connect(view, "notify::uri", G_CALLBACK(OnViewUriChanged), this);
     g_signal_connect(view, "notify::title", G_CALLBACK(OnViewTitleChanged), this);
+    gtk_widget_set_can_focus(GTK_WIDGET(view), TRUE);
+    g_signal_connect(view, "button-press-event", G_CALLBACK(OnViewButtonPress),
+                     nullptr);
 
     if (transparent) {
         GdkRGBA t = {0, 0, 0, 0};
@@ -1035,6 +1051,9 @@ std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
     gtk_widget_show(GTK_WIDGET(view));
     pdata->views[id] =
         PlatformData::EmbeddedView{GTK_WIDGET(view), x, y, w, h, true};
+
+    // Al crearla, el foco se queda en la principal (la hija no lo roba).
+    if (webview) gtk_widget_grab_focus(GTK_WIDGET(webview->NativeWidget()));
 
     if (!url.empty()) webkit_web_view_load_uri(view, url.c_str());
 
@@ -1135,6 +1154,9 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
     if (op == "setVisible") {
         ev.visible = argBool(0, true);
         gtk_widget_set_visible(ev.view, ev.visible);
+        // Al ocultar una hija, el foco vuelve a la principal.
+        if (!ev.visible && webview)
+            gtk_widget_grab_focus(GTK_WIDGET(webview->NativeWidget()));
         return "null";
     }
     if (op == "setZoom") {
@@ -1165,6 +1187,7 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
     if (op == "destroy") {
         gtk_widget_destroy(ev.view);
         pdata->views.erase(it);
+        if (webview) gtk_widget_grab_focus(GTK_WIDGET(webview->NativeWidget()));
         return "null";
     }
     return "{\"message\":\"op desconocida: " + op + "\"}";
