@@ -25,8 +25,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace ow {
 
@@ -173,6 +175,81 @@ std::string ShadeHex(const std::string& hex, double amt) {
     std::snprintf(buf, sizeof(buf), "#%02x%02x%02x", adj(hx(1)), adj(hx(3)),
                   adj(hx(5)));
     return buf;
+}
+
+// ── radio de esquina del tema (para el redondeo del contenido web) ──────────
+std::string TrimWs(const std::string& s) {
+    size_t a = s.find_first_not_of(" \t\r\n");
+    size_t b = s.find_last_not_of(" \t\r\n");
+    return a == std::string::npos ? std::string{} : s.substr(a, b - a + 1);
+}
+
+/// Busca `decoration { ... border-radius: Npx ... }` en un CSS del tema.
+int ParseDecorationRadius(const std::filesystem::path& p) {
+    std::ifstream f(p);
+    if (!f) return -1;
+    std::string css((std::istreambuf_iterator<char>(f)),
+                    std::istreambuf_iterator<char>());
+    // Quita comentarios /* ... */ (si no, se cuelan en el selector).
+    for (size_t c = css.find("/*"); c != std::string::npos; c = css.find("/*")) {
+        const size_t end = css.find("*/", c + 2);
+        css.erase(c, (end == std::string::npos ? css.size() : end + 2) - c);
+    }
+    size_t i = 0;
+    while ((i = css.find('{', i)) != std::string::npos) {
+        size_t start = 0;
+        if (size_t c = css.rfind('}', i); c != std::string::npos) start = c + 1;
+        for (char sep : {';', '@'}) {
+            if (size_t c = css.rfind(sep, i); c != std::string::npos && c >= start)
+                start = c + 1;
+        }
+        const std::string sel = TrimWs(css.substr(start, i - start));
+        const size_t e = css.find('}', i);
+        if (e == std::string::npos) break;
+        if (sel == "decoration" || sel == "decoration:backdrop") {
+            const std::string body = css.substr(i + 1, e - i - 1);
+            if (size_t br = body.find("border-radius"); br != std::string::npos) {
+                if (size_t colon = body.find(':', br); colon != std::string::npos) {
+                    if (size_t d = body.find_first_of("0123456789", colon);
+                        d != std::string::npos)
+                        return std::atoi(body.c_str() + d);
+                }
+            }
+        }
+        i = e + 1;
+    }
+    return -1;
+}
+
+/// Radio de esquina de la ventana según el tema activo (fallback 10).
+int ThemeWindowRadius() {
+    GtkSettings* s = gtk_settings_get_default();
+    gchar* name = nullptr;
+    g_object_get(s, "gtk-theme-name", &name, nullptr);
+    const std::string theme = name ? name : "";
+    g_free(name);
+    if (theme.empty()) return 10;
+
+    std::vector<std::filesystem::path> roots;
+    if (const char* home = std::getenv("HOME")) {
+        roots.push_back(std::filesystem::path(home) / ".themes");
+        roots.push_back(std::filesystem::path(home) / ".local/share/themes");
+    }
+    const char* xdg = std::getenv("XDG_DATA_DIRS");
+    std::string dirs = (xdg && *xdg) ? xdg : "/usr/local/share:/usr/share";
+    for (size_t a = 0, b = 0; a <= dirs.size(); a = b + 1) {
+        b = dirs.find(':', a);
+        if (b == std::string::npos) b = dirs.size();
+        if (b > a) roots.emplace_back(dirs.substr(a, b - a) + "/themes");
+    }
+
+    for (const auto& r : roots) {
+        for (const char* css : {"gtk.css", "gtk-dark.css"}) {
+            const int rad = ParseDecorationRadius(r / theme / "gtk-3.0" / css);
+            if (rad > 0) return rad;
+        }
+    }
+    return 10;
 }
 
 void OnTbMinimize(GtkButton*, gpointer ud) {
@@ -570,15 +647,23 @@ bool Window::Impl::PCreate() {
                 // así que el `border-radius` del body no basta: hay que clipear
                 // la raíz con `clip-path`. Si no, las esquinas web (cuadradas)
                 // tapan las esquinas redondeadas nativas del tema.
-                static const char* kRoundCss =
+                // Radio del tema (NO hardcodeado): se lee el
+                // `decoration { border-radius: N }` del CSS del tema activo.
+                // GTK no lo expone por API, así que se parsea con fallback 10.
+                const int radius = ThemeWindowRadius();
+                const std::string r = std::to_string(radius);
+                const std::string roundCss =
                     "html{background:transparent!important;"
-                    "clip-path:inset(0 round 12px)!important}"
-                    "body{border-radius:12px!important;overflow:hidden!important}";
+                    "clip-path:inset(0 round " + r + "px)!important}"
+                    "body{border-radius:" + r + "px!important;"
+                    "overflow:hidden!important}";
                 WebKitUserStyleSheet* ss = webkit_user_style_sheet_new(
-                    kRoundCss, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+                    roundCss.c_str(), WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
                     WEBKIT_USER_STYLE_LEVEL_USER, nullptr, nullptr);
                 webkit_user_content_manager_add_style_sheet(ucm, ss);
                 webkit_user_style_sheet_unref(ss);
+                log::Info("window", "radius de esquina del tema: " +
+                                        std::to_string(radius) + "px");
             }
         }
 
