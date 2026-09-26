@@ -22,6 +22,7 @@
 #include <windowsx.h>
 
 #include <atomic>
+#include <cstdio>
 #include <map>
 #include <cstring>
 
@@ -203,11 +204,18 @@ bool Window::Impl::PCreate() {
     if (opts.frameless || opts.titleBarStyle == TitleBarStyle::Hidden)
         style = WS_POPUP | WS_THICKFRAME | WS_SYSMENU |
                 (opts.resizable ? WS_MAXIMIZEBOX | WS_MINIMIZEBOX : 0);
-    else if (pdata->customTitlebar)
-        // Custom: SIN WS_CAPTION (el caption lo hace el web + overlay nativo),
-        // pero con los flags que dan resize/snap (técnica Chromium/Kubyshkin).
-        style = WS_THICKFRAME | WS_SYSMENU |
-                (opts.resizable ? WS_MAXIMIZEBOX | WS_MINIMIZEBOX : 0);
+    // Custom: conservamos WS_OVERLAPPEDWINDOW (Electron hace lo mismo: así DWM
+    // mantiene esquinas redondeadas/sombra y las animaciones min/max en Win11).
+    // El caption se oculta con WM_NCCALCSIZE + SWP_FRAMECHANGED (abajo), no
+    // quitando WS_CAPTION.
+
+    {
+        char sbuf[16];
+        std::snprintf(sbuf, sizeof(sbuf), "0x%08lX",
+                      static_cast<unsigned long>(style));
+        log::Info("window", std::string("PCreate: estilo=") + sbuf +
+                                " custom=" + (pdata->customTitlebar ? "1" : "0"));
+    }
 
     std::wstring title = Utf8ToWide(opts.title);
     HWND hwnd = CreateWindowExW(0, kOwWindowClass, title.c_str(), style,

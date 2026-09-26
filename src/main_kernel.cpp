@@ -10,13 +10,21 @@
 #include <ow/App.h>
 #include <ow/Window.h>
 
+#include "Core/Log.hpp"
+
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 
 int main(int argc, char** argv) {
     // stderr sin buffer: redirigido a fichero en CI, el CRT de MSVC puede
     // bufferizarlo y perder todo si el proceso muere o se cuelga.
     std::setvbuf(stderr, nullptr, _IONBF, 0);
+
+    // Marcador de build: permite confirmar qué kernel está corriendo (los
+    // logs van a stderr, y `ow dev` los hereda en la terminal).
+    ow::log::Info("app", std::string("OWEAR KERNEL BUILD ") + __DATE__ + " " +
+                             __TIME__);
 
     ow::AppOptions opts;
     if (const char* id = std::getenv("OW_APP_ID")) opts.id = id;
