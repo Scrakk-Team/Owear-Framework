@@ -1,0 +1,21 @@
+{
+  "name": "owear-example-cursor-xray",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Inspector de pantalla/cursor en Owear — usa los módulos nativos del kernel y uno propio.",
+  "scripts": {
+    "dev": "ow dev",
+    "build": "ow build"
+  },
+  "dependencies": {
+    "@owear/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@owear/cli": "workspace:*",
+    "@owear/vite-plugin": "workspace:*",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}
