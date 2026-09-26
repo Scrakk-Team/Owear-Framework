@@ -1,0 +1,4 @@
+# artefactos generados por `node tools/pack-runtime.mjs` (no se commitean)
+bin/
+include/
+LICENSE

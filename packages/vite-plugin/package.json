@@ -13,6 +13,18 @@
   "dependencies": {
     "@owear/cli": "workspace:*"
   },
+  "scripts": {
+    "typecheck": "node --check src/index.js"
+  },
   "files": ["src"],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "homepage": "https://owear.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/owear/owear.git",
+    "directory": "packages/vite-plugin"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

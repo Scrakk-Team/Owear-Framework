@@ -1,17 +1,29 @@
 {
   "name": "@owear/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI de Owear: create, dev, build",
   "type": "module",
   "bin": {
     "ow": "./src/ow.js",
     "owear-build-native": "./src/owear-build-native.js"
   },
+  "optionalDependencies": {
+    "@owear/linux-x64-gnu": "workspace:*"
+  },
   "files": ["src", "template"],
   "scripts": {
     "typecheck": "node --check src/ow.js && node --check src/owear-build-native.js"
   },
   "license": "Apache-2.0",
+  "homepage": "https://owear.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/owear/owear.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   }

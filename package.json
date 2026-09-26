@@ -7,7 +7,10 @@
     "build:native": "cmake --preset linux-release && cmake --build --preset linux-release",
     "test:native": "ctest --test-dir build/linux-release --output-on-failure",
     "build:packages": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "apis:gen": "node tools/gen-apis.mjs",
+    "apis:check": "node tools/gen-apis.mjs --check && node tools/check-apis.mjs",
+    "pack:runtime": "node tools/pack-runtime.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

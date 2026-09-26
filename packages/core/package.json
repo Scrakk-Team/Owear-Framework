@@ -19,6 +19,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "license": "Apache-2.0",
+  "homepage": "https://owear.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/owear/owear.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },

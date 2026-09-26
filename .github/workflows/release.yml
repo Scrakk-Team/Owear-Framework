@@ -24,20 +24,30 @@ jobs:
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
-      # binarios del kernel por plataforma: los artefactos deben publicarse
-      # antes como @owear-linux-x64-gnu / @owear-win32-x64 / @owear-darwin-*
-      # desde runners nativos (ver docs/ROADMAP.md F4+).
-      - name: Verifica paquetes de runtime presentes en el registro
+      # ── Kernel nativo (el runtime de Linux se empaqueta desde aquí) ──────────
+      - name: Deps del kernel (Linux)
         run: |
-          for pkg in @owear/linux-x64-gnu @owear/win32-x64 @owear/darwin-arm64; do
-            npm view "$pkg" version >/dev/null 2>&1 || {
-              echo "::warning::$pkg no publicado aún — @owear/core lo declarará como optional y la instalación fallará en ese SO"
-            }
-          done
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
+            libssl-dev zlib1g-dev ninja-build
+      - name: Build del kernel
+        run: |
+          cmake --preset linux-release
+          cmake --build --preset linux-release
+      - name: Empaquetar runtime @owear/linux-x64-gnu
+        run: node tools/pack-runtime.mjs --target linux-x64-gnu
+
+      - name: Aviso — runtimes de Windows/macOS
+        run: |
+          echo "::notice::@owear/win32-x64 y @owear/darwin-* se publican desde runners nativos (ver docs/ROADMAP.md). En este job solo se publica el de Linux."
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm -r build
       - run: pnpm -r typecheck
+      # sanity: los generados de APIs están al día y los manifiestos sincronizados
+      - run: node tools/gen-apis.mjs --check
+      - run: node tools/check-apis.mjs
 
       - name: Publish (scoped → público)
         run: pnpm -r publish --access public --no-git-checks

@@ -1,2 +1,8 @@
 packages:
   - packages/*
+  - examples/*
+# esbuild necesita su postinstall para verificar/instalar el binario nativo.
+# Sin esto, pnpm 11 aborta el install con ERR_PNPM_IGNORED_BUILDS y
+# `verify-deps-before-run` tumba también `pnpm dev`.
+allowBuilds:
+  esbuild: true
