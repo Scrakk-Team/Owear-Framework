@@ -1,5 +1,6 @@
 <!doctype html><body style='font-family:monospace;background:#181825;color:#cdd6f4;padding:14px'>
 <div id=r>probando builtins…</div><script>
+const IS_WIN = navigator.userAgent.includes('Windows');
 window.__R = {};
 const t = async (name, fn) => {
   try { window.__R[name] = JSON.stringify(await fn()); }
@@ -65,6 +66,78 @@ const t = async (name, fn) => {
     const buf = new Uint8Array(await ow.readShared(shot.__ow_shm));
     const isPng = buf[0]===0x89 && buf[1]===0x50;
     return `PNG=${isPng} ${shot.width}x${shot.height}`;
+  });
+
+  // ── builtin ow-window por el BRIDGE (no por el control socket) ──────────
+  // Regresión: el bridge interceptaba el módulo entero y sólo resolvía los
+  // drags, así que minimize/maximize/close/setTitle/respondCloseRequest daban
+  // "función desconocida" desde el renderer (la titlebar del template no
+  // funcionaba). Estos tests bloquean que vuelva a pasar.
+  await t('owwin.dispatcher', async () => {
+    const m = await ow.invoke('ow-window','isMaximized', W);
+    const title = await ow.invoke('ow-window','setTitle', W, 'Owear E2E');
+    const f = await ow.invoke('ow-window','focus', W);
+    return `isMaximized=${m} setTitle=${title} focus=${f}`;
+  });
+
+  // respondCloseRequest con un requestId que no existe es un no-op declarado
+  // (RespondJsClose ignora ids desconocidos): prueba que la ruta del veto JS
+  // es alcanzable desde el renderer sin cerrar ninguna ventana.
+  await t('owwin.respondCloseRequest', async () =>
+    'no-op ok: ' + await ow.invoke('ow-window','respondCloseRequest', W, 999999, false));
+
+  // Validación del borde: 'diagonal' no es un borde posible → debe rechazar
+  // SIN llegar a la capa nativa (seguro en las 3 plataformas).
+  await t('owwin.resizeEdge.invalid', async () => {
+    try {
+      await ow.invoke('ow-window','beginResizeDrag','diagonal');
+    } catch (e) {
+      return 'rechaza diagonal ✓ (' + e.message.slice(0,50) + ')';
+    }
+    // si llegamos aquí la validación no actuó: debe contar como FALLO, y el
+    // runner sólo marca fallo con prefijo ERR/timeout/FAIL, así que lanzamos.
+    throw new Error('aceptó un borde inválido (la validación no actuó)');
+  });
+
+  // Borde válido: la respuesta ecoa el borde EFECTIVO (antes se ignoraba el
+  // argumento y todo redimensionaba por abajo-derecha).
+  // En Windows `PBeginResizeDrag` hace PostMessage(WM_NCLBUTTONDOWN), que
+  // entra en el bucle modal de resize del sistema y no vuelve hasta el
+  // button-up: arrancar el drag colgaría el E2E, así que ahí sólo probamos la
+  // validación (arriba) y el eco se verifica en Linux/macOS (macOS es no-op).
+  if (!IS_WIN) {
+    await t('owwin.resizeEdge.valid', async () => {
+      const r = await ow.invoke('ow-window','beginResizeDrag','top-left');
+      // aserción real: antes el borde pedido se ignoraba y siempre se
+      // redimensionaba por abajo-derecha, así que esto debe fallar si vuelve.
+      if (!r || r.edge !== 'top-left')
+        throw new Error('borde pedido top-left pero el eco fue ' + JSON.stringify(r));
+      return 'eco=' + r.edge + ' (coincide con el pedido)';
+    });
+  } else {
+    window.__R['owwin.resizeEdge.valid'] = 'SKIP (bucle modal WM_NCLBUTTONDOWN)';
+  }
+
+  // [data-ow-resize] del bridge → beginResizeDrag(atributo): fija el contrato
+  // del lado JS que consume el borde validado arriba.
+  await t('owwin.domResizeAttr', async () => {
+    const el = document.createElement('div');
+    el.setAttribute('data-ow-resize', 'top-left');
+    el.style.cssText = 'position:fixed;top:0;left:0;width:8px;height:8px';
+    document.body.appendChild(el);
+    const orig = ow.invoke;
+    let seen = null;
+    ow.invoke = function (m, f) {
+      seen = m + '/' + f + '(' + Array.prototype.slice.call(arguments, 2).join(',') + ')';
+      return Promise.resolve(null);
+    };
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    ow.invoke = orig;
+    el.remove();
+    const want = 'ow-window/beginResizeDrag(top-left)';
+    if (seen !== want)
+      throw new Error('el bridge debía invocar ' + want + ' pero invocó ' + seen);
+    return 'captura=' + seen;
   });
 
   window.__done = 1;

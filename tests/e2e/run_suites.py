@@ -75,6 +75,13 @@ def run_suite(conn, page, timeout_s=60):
             pass
         time.sleep(0.5)
 
+    # Sin resultados no es "todo bien": la página puede haber muerto (p.ej. el
+    # veto de veto.html falló y el kernel cerró la ventana) o su script rompió
+    # antes de marcar __done. Antes esto daba "0 OK / 0 fallos" y CI en verde.
+    if result is None:
+        return 0, 1, [f"FAIL {page}: sin resultados tras {timeout_s}s "
+                      f"(¿ventana cerrada o script roto?)"]
+
     ok = fail = 0
     lines = []
     for k, v in sorted((result or {}).items()):
@@ -90,13 +97,153 @@ def run_suite(conn, page, timeout_s=60):
     return ok, fail, lines
 
 
+# ── camino del SDK / proceso principal (control socket) ──────────────────────
+#
+# Este cliente habla el MISMO NDJSON que @owear/core, así que estas pruebas
+# cubren exactamente lo que hace el proceso principal (Node): module.list,
+# module.invoke y el veto de cierre con `win.on('closeRequested')`.
+
+
+class SdkClient:
+    """Cliente NDJSON con ids propios y cola de eventos."""
+
+    def __init__(self, conn):
+        self.conn = conn
+        self._id = 5000
+        self.events = []
+
+    def call(self, cmd, params=None, timeout=15):
+        self._id += 1
+        want = self._id
+        self.conn.write_line(json.dumps(
+            {"id": want, "cmd": cmd, "params": params or {}}).encode())
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            line = self.conn.read_line(timeout_s=0.2)
+            if not line:
+                continue
+            try:
+                m = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(m, dict):
+                continue
+            if m.get("event"):
+                self.events.append(m)          # los eventos no llevan id
+                continue
+            if m.get("id") == want:
+                if m.get("ok"):
+                    return m.get("result")
+                raise RuntimeError(m.get("error") or "error de control")
+        raise RuntimeError(f"timeout esperando {cmd}")
+
+    def wait_event(self, name, timeout=4.0):
+        """Payload del primer `window.event` con ese `name`. None si no llega."""
+        deadline = time.time() + timeout
+        while True:
+            for i, e in enumerate(self.events):
+                p = e.get("params") or {}
+                if e.get("event") == "window.event" and p.get("name") == name:
+                    del self.events[i]
+                    return p
+            if time.time() >= deadline:
+                return None
+            line = self.conn.read_line(timeout_s=0.2)
+            if not line:
+                continue
+            try:
+                m = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(m, dict):
+                self.events.append(m)
+
+
+def run_sdk_checks(conn):
+    """Comprueba el camino del proceso principal contra el kernel vivo."""
+    c = SdkClient(conn)
+    ok = fail = 0
+    lines = []
+    state = {}
+
+    def check(name, fn):
+        nonlocal ok, fail
+        try:
+            val = fn()
+            ok += 1
+            lines.append(f"OK   {name:26s} -> {str(val)[:70]}")
+        except Exception as e:                                  # noqa: BLE001
+            fail += 1
+            lines.append(f"FAIL {name:26s} -> {str(e)[:70]}")
+
+    def t_list():
+        mods = c.call("module.list")
+        names = [m["name"] for m in mods]
+        # ow-window es builtin (App.cpp): está aunque no haya OW_MODULES_DIR
+        assert "ow-window" in names, f"falta ow-window; módulos: {names}"
+        return f"{len(names)} módulos"
+
+    def t_create():
+        res = c.call("window.create",
+                     {"width": 420, "height": 300, "url": "about:blank"})
+        state["wid"] = res["windowId"]
+        return f"windowId={res['windowId']}"
+
+    def t_invoke():
+        # ow-window espera [windowId, ...] en el array de args
+        return c.call("module.invoke",
+                      {"module": "ow-window", "method": "isMaximized",
+                       "args": [state["wid"]]})
+
+    def t_invoke_err():
+        try:
+            c.call("module.invoke", {"module": "no-existe", "method": "x"})
+        except RuntimeError as e:
+            assert "función desconocida" in str(e), str(e)
+            return "error propagado correctamente"
+        raise AssertionError("un módulo inexistente no devolvió error")
+
+    def t_veto():
+        c.call("window.close", {"windowId": state["wid"]})
+        ev = c.wait_event("closeRequested")
+        assert ev, "el SDK no recibió closeRequested"
+        rid = (ev.get("payload") or {}).get("requestId")
+        assert isinstance(rid, int), f"closeRequested sin requestId: {ev}"
+        c.call("window.respondCloseRequest",
+               {"windowId": state["wid"], "requestId": rid, "allow": False})
+        b = c.call("window.getBounds", {"windowId": state["wid"]})
+        return f"vetado (requestId={rid}), sigue viva {b['width']}x{b['height']}"
+
+    def t_allow():
+        c.call("window.close", {"windowId": state["wid"]})
+        ev = c.wait_event("closeRequested")
+        assert ev, "no llegó el segundo closeRequested"
+        rid = (ev.get("payload") or {}).get("requestId")
+        c.call("window.respondCloseRequest",
+               {"windowId": state["wid"], "requestId": rid, "allow": True})
+        assert c.wait_event("closed"), "allow=true no destruyó la ventana"
+        return "cerrada tras allow=true"
+
+    check("sdk.module.list", t_list)
+    check("sdk.window.create", t_create)
+    check("sdk.module.invoke", t_invoke)
+    check("sdk.module.invoke.error", t_invoke_err)
+    check("sdk.closeRequested.veto", t_veto)
+    check("sdk.closeRequested.allow", t_allow)
+    return ok, fail, lines
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pages", nargs="+",
-                    default=["all.html", "builtins.html"])
+                    default=["all.html", "builtins.html", "veto.html"])
     ap.add_argument("--port", type=int, default=8123)
     ap.add_argument("--pid", type=int, default=0,
                     help="PID del kernel (Windows: pipe directa)")
+    ap.add_argument("--sdk", action="store_true",
+                    help="incluye el camino del SDK/proceso principal "
+                         "(module.invoke, closeRequested). Verificado en Linux: "
+                         "actívalo en otras plataformas tras un pase en verde")
     args = ap.parse_args()
 
     conn = owconn.find_kernel_conn(pid=args.pid)
@@ -108,6 +255,13 @@ def main():
         total_ok += ok
         total_fail += fail
         print("\n".join(lines))
+
+    if args.sdk:
+        ok, fail, lines = run_sdk_checks(conn)
+        total_ok += ok
+        total_fail += fail
+        print("\n".join(lines))
+
     print(f"\nTOTAL: {total_ok} OK / {total_fail} FALLOS")
     sys.exit(1 if total_fail else 0)
 

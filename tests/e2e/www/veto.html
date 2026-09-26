@@ -1,0 +1,53 @@
+<!doctype html><body style='font-family:monospace;background:#1e1e2e;color:#cdd6f4;padding:14px'>
+<div id=r>probando veto de cierre desde el renderer…</div><script>
+// veto.html — F3.4 ejercicio COMPLETO del veto de cierre por el bridge.
+//
+// Antes: el bridge interceptaba todo `ow-window`, así que ni `close` ni
+// `respondCloseRequest` llegaban al builtin y este flujo era imposible desde
+// el renderer. Ahora:
+//   1) el renderer pide cerrar con ow.invoke('ow-window','close')
+//   2) recibe `closeRequested` con requestId
+//   3) responde allow=false → la ventana DEBE seguir viva
+//   4) comprobamos que sigue viva pasado el timeout del kernel
+//      (OW_CLOSE_TIMEOUT_MS, 1000 ms por defecto): si el veto no hubiera
+//      funcionado, la ventana moriría a ~1 s y esta página nunca marcaría
+//      __done=1 → el runner reporta el fallo por timeout.
+window.__R = {};
+const t = async (name, fn) => {
+  try { window.__R[name] = JSON.stringify(await fn()); }
+  catch (e) { window.__R[name] = 'ERR: ' + e.message; }
+};
+(async () => {
+  const W = window.__owWindowId;
+
+  await t('ow-window.veto', async () => new Promise((res, rej) => {
+    let settled = false;
+    // `done` resuelve (éxito), `fail` RECHAZA. Importante: resolver con un
+    // string tipo 'ERR …' no sirve, porque el JSON.stringify de `t` lo deja
+    // entre comillas y el runner (que busca el prefijo ERR sin comillas) lo
+    // contaría como OK. Los fallos tienen que viajar como excepción.
+    const done = (v) => { if (!settled) { settled = true; res(v); } };
+    const fail = (m) => { if (!settled) { settled = true; rej(new Error(m)); } };
+    let seen = null;
+
+    ow.on('closeRequested', async (p) => {
+      seen = p;
+      try {
+        await ow.invoke('ow-window','respondCloseRequest', W, p.requestId, false);
+      } catch (e) {
+        return fail('respondCloseRequest: ' + e.message);
+      }
+      // más allá del timeout del kernel: si seguimos aquí, el veto mandó
+      setTimeout(() => done('veto ok (requestId=' + p.requestId + ')'), 1400);
+    });
+
+    ow.invoke('ow-window','close', W)
+      .catch((e) => fail('close: ' + e.message));
+
+    setTimeout(() => fail(seen ? 'ni veto ni cierre en 4 s'
+                               : 'sin closeRequested'), 4000);
+  }));
+
+  window.__done = 1;
+})();
+</script></body>
