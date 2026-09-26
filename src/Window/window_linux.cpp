@@ -25,16 +25,100 @@ namespace ow {
 
 namespace {
 std::atomic<uint64_t> g_nextWindowToken{1};
+
+/// ¿El punto (x,y) está cerca de un borde? Devuelve el borde en `edge`.
+bool EdgeFromPoint(double x, double y, int w, int h, GdkWindowEdge& edge) {
+    const double m = 5.0;
+    const bool left = x <= m, right = x >= w - m;
+    const bool top = y <= m, bottom = y >= h - m;
+    if (top && left) { edge = GDK_WINDOW_EDGE_NORTH_WEST; return true; }
+    if (top && right) { edge = GDK_WINDOW_EDGE_NORTH_EAST; return true; }
+    if (bottom && left) { edge = GDK_WINDOW_EDGE_SOUTH_WEST; return true; }
+    if (bottom && right) { edge = GDK_WINDOW_EDGE_SOUTH_EAST; return true; }
+    if (top) { edge = GDK_WINDOW_EDGE_NORTH; return true; }
+    if (bottom) { edge = GDK_WINDOW_EDGE_SOUTH; return true; }
+    if (left) { edge = GDK_WINDOW_EDGE_WEST; return true; }
+    if (right) { edge = GDK_WINDOW_EDGE_EAST; return true; }
+    return false;
+}
+
+const char* CursorForEdge(GdkWindowEdge e) {
+    switch (e) {
+    case GDK_WINDOW_EDGE_NORTH_WEST: return "nw-resize";
+    case GDK_WINDOW_EDGE_NORTH:      return "n-resize";
+    case GDK_WINDOW_EDGE_NORTH_EAST: return "ne-resize";
+    case GDK_WINDOW_EDGE_WEST:       return "w-resize";
+    case GDK_WINDOW_EDGE_EAST:       return "e-resize";
+    case GDK_WINDOW_EDGE_SOUTH_WEST: return "sw-resize";
+    case GDK_WINDOW_EDGE_SOUTH:      return "s-resize";
+    case GDK_WINDOW_EDGE_SOUTH_EAST: return "se-resize";
+    }
+    return nullptr;
+}
 } // namespace
 
 struct Window::Impl::PlatformData {
     GtkWidget* window = nullptr;
     bool fullscreen = false;
+    bool resizeFilter = false;
     uint64_t token = 0;
 };
 
+namespace {
+
+/// Filtro GDK: resize por borde en ventanas sin decoración. El contenido web
+/// captura los eventos, así que no llegan al toplevel por bubbling; el filtro
+/// se ejecuta antes de que se despachen a los widgets.
+GdkFilterReturn ResizeEventFilter(GdkXEvent*, GdkEvent* event, gpointer data) {
+    auto* impl = static_cast<Window::Impl*>(data);
+    if (!impl->pdata || !impl->pdata->window) return GDK_FILTER_CONTINUE;
+    GtkWidget* w = impl->pdata->window;
+    GdkWindow* top = gtk_widget_get_window(w);
+    GdkWindow* evwin = event->any.window;
+    if (!top || !evwin || gdk_window_get_toplevel(evwin) != top)
+        return GDK_FILTER_CONTINUE;
+
+    // Coordenadas del evento en el espacio del toplevel.
+    gint evx = 0, evy = 0, tx = 0, ty = 0;
+    gdk_window_get_origin(evwin, &evx, &evy);
+    gdk_window_get_origin(top, &tx, &ty);
+    const double xoff = evx - tx, yoff = evy - ty;
+
+    if (event->type == GDK_MOTION_NOTIFY) {
+        GdkWindowEdge e;
+        const bool near = EdgeFromPoint(
+            event->motion.x + xoff, event->motion.y + yoff,
+            gtk_widget_get_allocated_width(w), gtk_widget_get_allocated_height(w), e);
+        const char* name = near ? CursorForEdge(e) : nullptr;
+        GdkCursor* cur = name
+            ? gdk_cursor_new_from_name(gdk_display_get_default(), name)
+            : nullptr;
+        gdk_window_set_cursor(top, cur);
+        if (cur) g_object_unref(cur);
+        return GDK_FILTER_CONTINUE;
+    }
+
+    if (event->type == GDK_BUTTON_PRESS && event->button.button == 1) {
+        GdkWindowEdge e;
+        if (!EdgeFromPoint(event->button.x + xoff, event->button.y + yoff,
+                           gtk_widget_get_allocated_width(w),
+                           gtk_widget_get_allocated_height(w), e))
+            return GDK_FILTER_CONTINUE;
+        gtk_window_begin_resize_drag(GTK_WINDOW(w), e, 1,
+                                     (gint)event->button.x_root,
+                                     (gint)event->button.y_root,
+                                     event->button.time);
+        return GDK_FILTER_REMOVE;
+    }
+    return GDK_FILTER_CONTINUE;
+}
+
+} // namespace
+
 Window::~Window() = default;
 Window::Impl::~Impl() {
+    if (pdata && pdata->resizeFilter)
+        gdk_window_remove_filter(nullptr, ResizeEventFilter, this);
     alive->store(false); // callbacks diferidos (outbox/timer) dejan de tocar this
     delete pdata;
 }
@@ -48,6 +132,27 @@ bool Window::Impl::PCreate() {
     pdata->window = win;
     gtk_window_set_title(GTK_WINDOW(win), opts.title.c_str());
     gtk_window_set_default_size(GTK_WINDOW(win), opts.width, opts.height);
+
+    const bool frameless = opts.titleBarStyle != TitleBarStyle::Default;
+
+    // Esquinas redondeadas (Linux): ventana con visual RGBA y fondo
+    // transparente. La superficie visible la pinta el contenido web, que
+    // redondeamos por CSS (ver más abajo). En Wayland no existe el shaping,
+    // así que se hace con alpha + overflow del propio HTML.
+    if (frameless) {
+        gtk_widget_set_app_paintable(win, TRUE);
+        if (GdkScreen* screen = gtk_widget_get_screen(win)) {
+            if (GdkVisual* vis = gdk_screen_get_rgba_visual(screen))
+                gtk_widget_set_visual(win, vis);
+        }
+        GtkCssProvider* css = gtk_css_provider_new();
+        gtk_css_provider_load_from_data(
+            css, "window { background-color: transparent; }", -1, nullptr);
+        gtk_style_context_add_provider(gtk_widget_get_style_context(win),
+                                       GTK_STYLE_PROVIDER(css),
+                                       GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        g_object_unref(css);
+    }
 
     if (!opts.resizable) gtk_window_set_resizable(GTK_WINDOW(win), FALSE);
     if (opts.minWidth > 0 || opts.minHeight > 0)
@@ -115,6 +220,34 @@ bool Window::Impl::PCreate() {
 
     // ── eventos de navegación (siempre activos) ────────────────────────
     GtkWidget* view = GTK_WIDGET(webview->NativeWidget());
+
+    if (frameless) {
+        // WebView transparente: el fondo lo pone el HTML redondeado y las
+        // esquinas dejan ver el escritorio (ventana RGBA).
+        if (WEBKIT_IS_WEB_VIEW(view)) {
+            GdkRGBA transparent = {0, 0, 0, 0};
+            webkit_web_view_set_background_color(WEBKIT_WEB_VIEW(view), &transparent);
+            if (WebKitUserContentManager* ucm =
+                    webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(view))) {
+                static const char* kRoundCss =
+                    "html{background:transparent!important}"
+                    "body{border-radius:10px!important;overflow:hidden!important}";
+                WebKitUserStyleSheet* ss = webkit_user_style_sheet_new(
+                    kRoundCss, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+                    WEBKIT_USER_STYLE_LEVEL_USER, nullptr, nullptr);
+                webkit_user_content_manager_add_style_sheet(ucm, ss);
+                webkit_user_style_sheet_unref(ss);
+            }
+        }
+
+        // Resize sin decoración: filtro GDK (el WebView captura los eventos,
+        // así que no llegan al toplevel por bubbling).
+        if (opts.resizable) {
+            pdata->resizeFilter = true;
+            gdk_window_add_filter(nullptr, ResizeEventFilter, this);
+        }
+    }
+
     if (WEBKIT_IS_WEB_VIEW(view)) {
         g_signal_connect(view, "load-changed",
             G_CALLBACK(+[](WebKitWebView* v, WebKitLoadEvent ev, gpointer ud) {
