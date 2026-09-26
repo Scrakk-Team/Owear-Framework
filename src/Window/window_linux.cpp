@@ -436,8 +436,21 @@ bool Window::Impl::PCreate() {
     // fondo sigue siendo transparente para que mande el contenido web.
     if (frameless) {
         GtkWidget* tb = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-        gtk_widget_set_size_request(tb, -1, 0);
+        gtk_widget_set_name(tb, "ow-titlebar");
         gtk_window_set_titlebar(GTK_WINDOW(win), tb);
+        // GTK le pone la clase .titlebar del tema (con su min-height) → dejaba
+        // un "hueco fantasma" arriba. Provider en el propio titlebar (un
+        // provider en la ventana NO afecta a los hijos) para anularlo.
+        GtkCssProvider* tbcss = gtk_css_provider_new();
+        gtk_css_provider_load_from_data(
+            tbcss,
+            "#ow-titlebar { min-height: 0; padding: 0; margin: 0; border: 0;"
+            " background: transparent; }",
+            -1, nullptr);
+        gtk_style_context_add_provider(gtk_widget_get_style_context(tb),
+                                       GTK_STYLE_PROVIDER(tbcss),
+                                       GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        g_object_unref(tbcss);
     }
 
     // Esquinas redondeadas (Linux): ventana con visual RGBA y fondo
@@ -458,8 +471,8 @@ bool Window::Impl::PCreate() {
         }
         GtkCssProvider* css = gtk_css_provider_new();
         gtk_css_provider_load_from_data(
-            css,
-            "window, overlay { background-color: transparent; }", -1, nullptr);
+            css, "window, overlay { background-color: transparent; }", -1,
+            nullptr);
         gtk_style_context_add_provider(gtk_widget_get_style_context(win),
                                        GTK_STYLE_PROVIDER(css),
                                        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
