@@ -565,9 +565,15 @@ bool Window::Impl::PCreate() {
             webkit_web_view_set_background_color(WEBKIT_WEB_VIEW(view), &transparent);
             if (WebKitUserContentManager* ucm =
                     webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(view))) {
+                // Redondeo del contenido web. OJO: el fondo del `body` se
+                // propaga al canvas (html transparente) y se pinta CUADRADO,
+                // así que el `border-radius` del body no basta: hay que clipear
+                // la raíz con `clip-path`. Si no, las esquinas web (cuadradas)
+                // tapan las esquinas redondeadas nativas del tema.
                 static const char* kRoundCss =
-                    "html{background:transparent!important}"
-                    "body{border-radius:10px!important;overflow:hidden!important}";
+                    "html{background:transparent!important;"
+                    "clip-path:inset(0 round 12px)!important}"
+                    "body{border-radius:12px!important;overflow:hidden!important}";
                 WebKitUserStyleSheet* ss = webkit_user_style_sheet_new(
                     kRoundCss, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
                     WEBKIT_USER_STYLE_LEVEL_USER, nullptr, nullptr);
