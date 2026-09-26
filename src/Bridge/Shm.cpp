@@ -4,7 +4,7 @@
 // src/Bridge/Shm.cpp — registro de regiones compartidas.
 //
 // Implementación v1 (Linux/macOS/Windows): archivo respaldado en
-// $XDG_RUNTIME_DIR/owear-shm/<id> + mmap MAP_SHARED del proceso kernel.
+// <runtime-dir>/owear-shm-<id> + mmap MAP_SHARED del proceso kernel.
 // El WebView lee vía scheme `ow-shm://<id>` que sirve el puntero mapeado
 // SIN copiar (g_bytes_new_static / IStream sobre memoria / NSData bytesNoCopy).
 //

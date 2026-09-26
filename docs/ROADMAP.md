@@ -36,11 +36,23 @@ completas pendientes de verificación en su SO destino).
 - [x] Veto de `closeRequested` desde JS/SDK (`requestId` +
       `ow-window.respondCloseRequest` + timeout configurable
       OW_CLOSE_TIMEOUT_MS, default 1 s). Verificado: veto ✓ allow ✓ timeout ✓
+- [x] Veto de `closeRequested` desde el SDK: la ventana reenvía el evento por
+      el control socket, así que el main puede vetar con `win.closeRespond`.
+      Cubierto por E2E (`sdk.closeRequested.veto` / `.allow`)
 - [x] Overlay nativo Windows (WM_NCCALCSIZE técnica Chromium; VERIFICAR-EN-CI)
 - [x] Base64 fallback para binarios pequeños
 
 ## F4 — Distribución ✅
-- [x] Runtime Manager Node: descarga oficial nodejs.org + SHA256 + cache XDG
+- [x] Runtime Manager Node: resolución en cascada OW_NODE_BIN → Node del
+      SISTEMA (PATH / ubicaciones del SO) → caché → descarga oficial
+      nodejs.org + SHA256. La versión elegida se registra con su procedencia
+      (`env|system|cache|downloaded`); el sistema gana al caché
+- [x] El main de la app se compila a JavaScript (`ow dev`/`ow build` con
+      esbuild, que viene con vite): funciona con cualquier Node instalado,
+      porque node no ejecuta .ts hasta la 22.6
+- [x] Módulos nativos desde el proceso principal (`module.invoke` +
+      `module.list` en el control socket, `invokeNative`/`listNativeModules`
+      en el SDK): el main usa fs/process/net igual que el renderer
 - [x] Sidecar Node (fork/exec / CreateProcess) con OW_CONTROL_SOCKET
 - [x] ControlServer UDS/named-pipe (~20 comandos)
 - [x] `@owear/core` SDK (app, BrowserWindow tipado)

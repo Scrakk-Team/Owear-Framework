@@ -28,10 +28,21 @@ WebKitGTK (Linux).
 
 ## Inicio rápido
 
+> **Estado:** los paquetes `@owear/*` todavía no se publican en npm. El runtime
+> de Linux (`@owear/linux-x64-gnu`) ya se empaqueta con `tools/pack-runtime.mjs`
+> (kernel + módulos stock + headers) y está listo para publicar; Windows/macOS se
+> empaquetan desde runners nativos. Mientras tanto se trabaja desde un checkout
+> del monorepo: `ow dev` compila el kernel la primera vez (necesita las deps del
+> sistema de `.github/workflows/ci.yml`).
+
 ```bash
-pnpm dlx @owear/cli create mi-app   # scaffold
-cd mi-app && pnpm install && pnpm dev
+# desde un checkout de Owear
+pnpm install
+node packages/cli/src/ow.js create mi-app   # scaffoldea desde el template
 ```
+
+El flujo publicado (pendiente de release) es el habitual:
+`pnpm dlx @owear/cli create mi-app && cd mi-app && pnpm install && pnpm dev`.
 
 Escribe C++ nativo junto a tu frontend:
 
@@ -79,8 +90,16 @@ ctest --test-dir build/linux-release --output-on-failure
 
 - `include/ow/` — contratos públicos (cambiarlos rompe las 3 plataformas: anti-drift)
 - `src/<Módulo>/<archivo>_<plat>.cpp` — una implementación por plataforma, seleccionada por CMake
+- `api/<nombre>/` — **una carpeta por API** con su manifiesto `owear.module.json`
+  (fuente única de verdad). Ver [APIs](docs/APIS.md)
+- `tools/gen-apis.mjs` — genera el descubrimiento (CMake) y el registro de builtins desde los manifiestos
 - `packages/` — SDK npm (`@owear/core`, `@owear/cli`, `@owear/vite-plugin`)
-- `docs/` — [Roadmap](docs/ROADMAP.md) · [Protocolo](docs/BRIDGE.md)
+- `docs/` — [Roadmap](docs/ROADMAP.md) · [Protocolo](docs/BRIDGE.md) · [API](docs/API.md) · [APIs](docs/APIS.md)
+
+## Contribuir
+
+Reglas de arquitectura, cómo añadir una API y cómo escribir tests E2E:
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licencia
 
