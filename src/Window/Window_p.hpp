@@ -72,6 +72,10 @@ public:
     uint64_t jsCloseSeq = 0;            // secuencia de peticiones
     uint64_t jsCloseRequestId = 0;      // 0 = sin petición pendiente
     bool jsCloseResponded = false;
+    /// Resuelve un `ow.invoke` pendiente del renderer (respuesta ASÍNCRONA).
+    /// Lo usa el puente Node: `node.respond` → resuelve el invoke del renderer.
+    static void ResolveInvoke(WindowId windowId, uint64_t invokeId, bool ok,
+                              std::string_view json);
     /// Flujo central de cierre: veto nativo → aviso JS/SDK → timeout → destroy.
     /// Devuelve true si el cierre continúa (destruye), false si fue vetado.
     bool BeginCloseFlow();

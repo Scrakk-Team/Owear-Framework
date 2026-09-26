@@ -192,7 +192,31 @@ nadie responde en `OW_CLOSE_TIMEOUT_MS` (default 1000 ms) cierra igualmente.
 El renderer debe responder con el `requestId` recibido (un id desconocido es
 un no-op, no un error).
 
-## 2.9 Módulos propios (.owm) — ABI-C
+## 2.9 `node` (builtin — puente al proceso principal / Node)
+
+Permite al renderer **usar Node** (p. ej. el extension host de VS Code) **sin
+IPC por defecto**: solo las features que lo necesitan pagan el salto extra.
+
+```ts
+// main (app/main.ts): registra handlers
+app.handle('extension.activate', (id) => { /* … */ return { ok: true } })
+
+// renderer: los invoca y recibe eventos
+const r = await ow.invoke('node', 'call', { fn: 'extension.activate', args: [id] })
+ow.on('extension.event', (payload) => { /* … */ })
+```
+
+```ts
+// main → renderer (opcional: windowId para dirigir a una ventana)
+app.send('extension.event', { … })
+```
+
+Resolución **asíncrona**: el kernel reenvía `node/call` al main por el control
+socket (`node.request`) y el main responde con `node.respond`; los eventos del
+main van con `node.emit` → `ow.on(name)`. El resto de la API (fs, process/pty…)
+sigue yendo **directo renderer → kernel → módulo**, sin pasar por Node.
+
+## 2.10 Módulos propios (.owm) — ABI-C
 
 ```cpp
 #include <ow/Json.h>
@@ -237,6 +261,11 @@ app.quit(exitCode?): Promise<void>
 app.info(): Promise<{ pid; version; socket }>
 app.ensureNodeRuntime(range?: string): Promise<{ path; version; source }>
   // 'latest'|'lts'|'v22'|…   source: env|system|cache|downloaded
+app.handle(fn, handler): () => void
+  // registra un handler invocable desde el renderer con
+  // ow.invoke('node','call',{fn,args}); devuelve unsubscribe
+app.send(name, payload?, windowId?): Promise<void>
+  // empuja un evento a los renderers (ow.on(name)); windowId opcional
 app.__channel                                        // acceso crudo al canal
 ```
 

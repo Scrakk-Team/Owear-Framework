@@ -1,0 +1,16 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "node",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Puente al proceso principal (Node): el renderer llama handlers registrados en app/main.ts (app.handle) con ow.invoke('node','call',{fn,args}) y recibe eventos (app.send) con ow.on. Opt-in, para features que necesitan Node (p. ej. el extension host). Resolucion asincrona via el control socket.",
+  "descriptors": [
+    {
+      "name": "node",
+      "factory": "NodeBridgeDescriptorImpl",
+      "core": true,
+      "platforms": ["linux", "win", "mac"],
+      "functions": ["call"]
+    }
+  ]
+}

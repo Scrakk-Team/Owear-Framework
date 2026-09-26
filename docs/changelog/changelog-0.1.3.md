@@ -4,8 +4,9 @@
 # 0.1.3
 
 Arreglo de la ventana de Windows (en blanco / "no responde"), toolchain de
-compilación cruzada Linux → Windows, y **`titleBarOverlay`** (botones nativos
-de ventana dentro de la titlebar custom) en Linux.
+compilación cruzada Linux → Windows, **`titleBarOverlay`** (botones nativos de
+ventana dentro de la titlebar custom) en Linux, y un **puente Node** para
+exponer Node a la UI sin IPC por defecto.
 
 ## Added
 
@@ -33,6 +34,16 @@ de ventana dentro de la titlebar custom) en Linux.
     leído del tema** (`decoration { border-radius: N }`).
   - **Resize en Wayland**: zonas `GtkEventBox` en bordes/esquinas (el filtro GDK
     es solo X11, en Wayland no dispara).
+- **Puente Node (`node`)** — el renderer puede **usar Node sin IPC por defecto**:
+  - `ow.invoke('node', 'call', { fn, args })` ejecuta un handler del proceso
+    principal registrado con `app.handle(fn, handler)`; el main responde y puede
+    empujar eventos con `app.send(name, payload?, windowId?)` → `ow.on(name)`.
+  - Resolución **asíncrona** (el kernel reenvía `node.request` al main por el
+    control socket; el main contesta con `node.respond`). Modularizado con el
+    manifiesto `api/node/owear.module.json` (builtin `node`, función `call`).
+  - **Opt-in**: los caminos calientes (fs, terminal/PTY…) siguen yendo directo
+    renderer → kernel → módulo nativo, sin Node en medio. Pensado para exponer
+    Node a la UI (p. ej. el extension host de VS Code).
 - `examples/starter`: usa `titleBarOverlay` y oculta sus propios botones,
   reservando el hueco con `--ow-overlay-width/height`.
 - Dev: `OW_TITLEBAR_OVERLAY[=_HEIGHT]` para probar el overlay con `OW_DEMO=1`.

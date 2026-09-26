@@ -38,6 +38,7 @@ set(OW_KERNEL_SOURCES
     Core/Log.cpp
     Core/ModuleLoader.cpp
     Core/WindowModule.cpp
+    Core/NodeBridge.cpp
     Core/BuiltinRegistry.generated.cpp   # generado por tools/gen-apis.mjs
     Bridge/Codec.cpp
     Bridge/BridgeScript.cpp

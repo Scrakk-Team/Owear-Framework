@@ -35,6 +35,13 @@ public:
     /// Evento hacia todos los clientes conectados (SDK JS).
     void BroadcastEvent(const std::string& name, std::string_view paramsJson);
 
+    /// Renderer → main (puente Node): reenvía `node.call` al proceso principal
+    /// por el socket y guarda reqId → (ventana, invokeId). El main responde con
+    /// `node.respond` (o empuja eventos con `node.emit`). Es la vía para que el
+    /// renderer use Node (p. ej. el extension host), sin IPC por defecto.
+    void ForwardNodeCall(WindowId windowId, uint64_t invokeId,
+                         const std::string& fn, std::string_view argsJson);
+
     // ── transporte (plataforma) ────────────────────────────────────
     /// Crea el endpoint escuchando. Devuelve false si el SO lo impide.
     virtual bool PlatformListen() = 0;
@@ -60,6 +67,14 @@ private:
                        std::string_view paramsJson, std::string& resultJson,
                        std::string& error);
     void WireWindowEvents(WindowId id, Window* w);
+
+    /// node.call pendientes de respuesta del main: reqId → (ventana, invokeId).
+    struct PendingNodeCall {
+        WindowId windowId;
+        uint64_t invokeId;
+    };
+    std::map<uint64_t, PendingNodeCall> pendingNodeCalls_;
+    uint64_t nextNodeReqId_ = 1;
 };
 
 } // namespace ow

@@ -69,6 +69,21 @@ void ControlServer::BroadcastEvent(const std::string& name, std::string_view par
     SendLine(0, line);
 }
 
+void ControlServer::ForwardNodeCall(WindowId windowId, uint64_t invokeId,
+                                    const std::string& fn,
+                                    std::string_view argsJson) {
+    const uint64_t reqId = nextNodeReqId_++;
+    pendingNodeCalls_[reqId] = PendingNodeCall{windowId, invokeId};
+
+    json::Object p;
+    p.emplace_back("reqId", json::Value(static_cast<int64_t>(reqId)));
+    p.emplace_back("fn", json::Value(fn));
+    auto parsed = json::Parse(argsJson);
+    p.emplace_back("args",
+                   parsed.value ? std::move(*parsed.value) : json::Value(nullptr));
+    BroadcastEvent("node.request", json::Value(std::move(p)).Serialize());
+}
+
 void ControlServer::HandleClientDisconnected(uint64_t) {}
 
 void ControlServer::WireWindowEvents(WindowId id, Window* w) {
@@ -421,6 +436,45 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         resultJson = "null";
         return true;
     }
+    // ── puente Node (renderer ↔ proceso principal) ───────────────────────
+    // El renderer llama handlers del main; estos comandos van en sentido
+    // inverso (main → kernel → renderer).
+    if (cmd == "node.respond") {
+        const V* rid = params.Find("reqId");
+        if (!rid || !rid->IsNumber()) {
+            error = "reqId requerido";
+            return false;
+        }
+        const V* okv = params.Find("ok");
+        const bool ok = (!okv || okv->IsBool()) ? (!okv ? true : okv->AsBool()) : true;
+        const V* r = params.Find("result");
+        std::string resJson = r ? r->Serialize() : "null";
+        auto it = pendingNodeCalls_.find(static_cast<uint64_t>(rid->AsInt()));
+        if (it != pendingNodeCalls_.end()) {
+            Window::Impl::ResolveInvoke(it->second.windowId, it->second.invokeId,
+                                        ok, resJson);
+            pendingNodeCalls_.erase(it);
+        }
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "node.emit") {
+        const V* name = params.Find("name");
+        const V* payload = params.Find("payload");
+        const V* wid = params.Find("windowId");
+        const std::string nameS =
+            (name && name->IsString()) ? name->AsString() : "node.event";
+        const std::string payloadJson = payload ? payload->Serialize() : "null";
+        if (wid && wid->IsNumber()) {
+            auto it = LiveWindows().find(static_cast<WindowId>(wid->AsInt()));
+            if (it != LiveWindows().end()) it->second->EmitToJS(nameS, payloadJson);
+        } else {
+            for (auto& [id, w] : LiveWindows()) w->EmitToJS(nameS, payloadJson);
+        }
+        resultJson = "null";
+        return true;
+    }
+
     if (cmd == "window.eval") {
         const V* js = params.Find("js");
         if (!js || !js->IsString()) { error = "js requerido"; return false; }

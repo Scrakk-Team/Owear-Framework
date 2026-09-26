@@ -155,6 +155,32 @@ function socketPathFromEnv(): string {
 
 let readyPromise: Promise<void> | null = null
 
+// ── Puente Node (renderer ↔ main) ───────────────────────────────────────────
+// El renderer llama `ow.invoke('node','call',{fn,args})`; el kernel lo reenvía
+// al main por el control socket; aquí se despacha al handler registrado con
+// app.handle y se responde con `node.respond`. Es OPT-IN: solo para features
+// que necesitan Node (p. ej. el extension host).
+type NodeHandler = (...args: any[]) => unknown | Promise<unknown>
+const nodeHandlers = new Map<string, NodeHandler>()
+
+channel.on('node.request', (params: any) => {
+  const { reqId, fn, args } = params ?? {}
+  const handler = nodeHandlers.get(fn)
+  const argsArr = Array.isArray(args) ? args : args === undefined ? [] : [args]
+  Promise.resolve()
+    .then(() => (handler ? handler(...argsArr) : undefined))
+    .then(
+      (result) => channel.call('node.respond', { reqId, ok: true, result }),
+      (err) =>
+        channel.call('node.respond', {
+          reqId,
+          ok: false,
+          result: { message: err instanceof Error ? err.message : String(err) },
+        })
+    )
+    .catch(() => undefined)
+})
+
 export const app = {
   /** Conecta con el kernel. Resuelve cuando el canal de control está listo. */
   whenReady(): Promise<void> {
@@ -185,6 +211,26 @@ export const app = {
 
   /** Acceso crudo al canal (para módulos custom del SDK). */
   __channel: channel,
+
+  /**
+   * Registra un handler invocable desde el renderer con
+   * `ow.invoke('node', 'call', { fn, args })`. Devuelve un unsubscribe.
+   * Es la vía para exponer Node a la UI (extension host, libs Node-only).
+   */
+  handle(fn: string, handler: NodeHandler): () => void {
+    nodeHandlers.set(fn, handler)
+    return () => {
+      if (nodeHandlers.get(fn) === handler) nodeHandlers.delete(fn)
+    }
+  },
+
+  /**
+   * Empuja un evento a los renderers, recibible con `ow.on(name, cb)`.
+   * `windowId` opcional para dirigirlo a una ventana concreta.
+   */
+  send(name: string, payload?: unknown, windowId?: number): Promise<void> {
+    return channel.call('node.emit', { name, payload, windowId })
+  },
 }
 
 /**

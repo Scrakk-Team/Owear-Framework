@@ -103,6 +103,41 @@ void Window::Impl::HandleWebViewMessage(std::string_view text) {
             return;
         }
 
+        // Puente Node: `node.call` es ASÍNCRONO (kernel → main Node → kernel →
+        // renderer). Se reenvía y NO se responde aquí; el `node.respond` del
+        // main resolverá el invoke con Window::Impl::ResolveInvoke. Es la vía
+        // para que el renderer use Node (extension host, libs Node-only).
+        if (msg.module == "node" && msg.method == "call") {
+            auto parsed = json::Parse(std::string_view(msg.json));
+            std::string fn;
+            std::string argsJson = "[]";
+            if (parsed.value && parsed.value->IsArray() &&
+                !parsed.value->AsArray().empty()) {
+                const auto& a = parsed.value->AsArray();
+                if (a[0].IsObject()) {
+                    if (const auto* f = a[0].Find("fn"); f && f->IsString())
+                        fn = f->AsString();
+                    if (const auto* ar = a[0].Find("args"); ar)
+                        argsJson = ar->Serialize();
+                } else if (a[0].IsString()) {
+                    fn = a[0].AsString();
+                    if (a.size() > 1) argsJson = a[1].Serialize();
+                }
+            }
+            if (fn.empty()) {
+                std::string js =
+                    "window.__ow && window.__ow._apply(" +
+                    std::to_string(msg.id) + ",false," +
+                    json::JsLiteral(std::string("{\"message\":\"node.call: fn requerido\"}")) +
+                    ")";
+                if (webview) webview->EvalJS(js);
+                return;
+            }
+            ControlServer::Get().ForwardNodeCall(msg.window == 0 ? id : msg.window,
+                                                 msg.id, fn, argsJson);
+            return;
+        }
+
         ow_request_t req{};
         req.json = msg.json.c_str();
         req.json_len = static_cast<uint32_t>(msg.json.size());
@@ -143,6 +178,18 @@ void Window::Impl::HandleWebViewMessage(std::string_view text) {
         }
         FireEvent(msg.name, msg.json);
     }
+}
+
+// Resuelve un `ow.invoke` del renderer de forma ASÍNCRONA (puente Node).
+void Window::Impl::ResolveInvoke(WindowId windowId, uint64_t invokeId, bool ok,
+                                 std::string_view json) {
+    auto it = LiveWindows().find(windowId);
+    if (it == LiveWindows().end()) return;
+    Window* w = it->second;
+    std::string js = "window.__ow && window.__ow._apply(" +
+                     std::to_string(invokeId) + ',' + (ok ? "true" : "false") + ',' +
+                     json::JsLiteral(std::string(json)) + ")";
+    if (w->impl_ && w->impl_->webview) w->impl_->webview->EvalJS(js);
 }
 
 void Window::Impl::HandleInternalInvoke(const bridge::Message& msg) {
