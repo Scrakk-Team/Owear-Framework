@@ -32,3 +32,20 @@ siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/).
 ## Secciones
 
 `### Added` · `### Changed` · `### Fixed` · `### Removed` · `### Security`
+
+## npm y autenticación
+
+Hoy `release.yml` publica con el secreto **`NPM_TOKEN`** (granular con bypass 2FA)
+y firma con **provenance**.
+
+**Migración a Trusted Publishing (OIDC, sin token)** — recomendado, porque los
+tokens bypass-2FA pierden el publish directo ~enero 2027:
+
+1. En npmjs.com → cada paquete → **Settings → Trusted Publisher**:
+   - Provider: **GitHub Actions**
+   - Repository: `Scrakk/Owear-Framework`
+   - Workflow: `release.yml`
+   - Environment: (vacío)
+2. Hecho eso, en `release.yml` **quita** el `env: NODE_AUTH_TOKEN` del paso de
+   publish (el `id-token: write` ya está) y borra el secreto `NPM_TOKEN`.
+
