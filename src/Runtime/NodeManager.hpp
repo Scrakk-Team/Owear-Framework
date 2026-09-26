@@ -19,9 +19,36 @@ namespace ow {
 
 class NodeManager {
 public:
-    /// Garantiza un binario node que satisfaga `range` ("latest"|"lts"|"v22"|...).
-    /// Devuelve la ruta al ejecutable node.
+    /// Runtime Node localizado, con su procedencia.
+    struct Runtime {
+        std::filesystem::path bin;  ///< ruta al ejecutable node
+        std::string version;        ///< "v22.12.0"
+        std::string source;         ///< "env" | "system" | "cache" | "downloaded"
+    };
+
+    /// Localiza un runtime Node EN CASCADA, sin descargar si ya hay uno local:
+    ///   OW_NODE_BIN → Node del SISTEMA (PATH / ubicaciones del SO) → caché
+    ///   → descarga (Ensure).
+    /// El sistema se prefiere al caché a propósito: usar el Node que el usuario
+    /// ya tiene evita descargas, y además es la única vía que funciona en
+    /// Windows, donde la extracción .zip del runtime gestionado no existe.
+    static Result<Runtime> Resolve(const std::string& range);
+
+    /// Descarga/verifica/extrae la release oficial (nodejs.org) y la cachea.
+    /// Sólo baja: para el caso normal usa Resolve().
     static Result<std::filesystem::path> Ensure(const std::string& range);
+
+    /// Versión mínima aceptada ("v20.0.0"), alineada con `engines` del SDK.
+    static std::string MinVersion();
+
+    /// Ejecuta `<bin> --version`; devuelve "v22.12.0" o vacío si no es un node usable.
+    static std::string QueryVersion(const std::filesystem::path& bin);
+
+    /// OW_NODE_BIN: ruta explícita del usuario (prioridad absoluta).
+    static std::optional<std::filesystem::path> FindExplicit();
+
+    /// Node del sistema: PATH + ubicaciones conocidas por SO.
+    static std::optional<std::filesystem::path> FindSystem();
 
     /// Lanza `node <entryJs>` como proceso hijo (sidecar).
     /// Env: OW_CONTROL_SOCKET, PATH con node al frente. Devuelve pid o -1.
