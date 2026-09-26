@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # 🖱️ Cursor X-Ray — Owear
 
 Inspector de pantalla y cursor. Responde en código a la pregunta

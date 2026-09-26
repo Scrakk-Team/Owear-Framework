@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // F3.1 — roundtrip del registro SHM (put → data → shutdown).
 #include "../src/Bridge/Shm.hpp"
 #include <cstring>

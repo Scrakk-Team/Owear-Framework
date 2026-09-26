@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // app/main.ts — proceso principal MÍNIMO (sidecar Node).
 //
 // Tesis del ejemplo: en Owear el main es OPCIONAL. El juego vive entero en el

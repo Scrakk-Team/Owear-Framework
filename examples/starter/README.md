@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # Owear Starter
 
 Starter **profesional** de Owear: UI real, titlebar propia y llamadas a los

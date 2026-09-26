@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // app/main.ts — proceso principal (sidecar Node), estilo Electron.
 //
 // Sólo gestiona el ciclo de vida de la ventana. La app en sí vive en el

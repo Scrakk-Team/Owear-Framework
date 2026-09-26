@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)

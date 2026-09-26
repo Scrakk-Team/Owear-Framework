@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 #include "ow/Base64.h"
 #include "ow/Bridge/Codec.h"
 #include <cassert>

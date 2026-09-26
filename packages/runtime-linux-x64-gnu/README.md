@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # @owear/linux-x64-gnu
 
 Runtime de Owear para **Linux x64 (glibc)**: el binario del kernel nativo, los

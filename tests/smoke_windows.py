@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # Smoke E2E de Windows (runner CI): habla NDJSON con el control socket del
 # kernel por el named pipe \\.\pipe\owear-<pid>, vía WinAPI directa con
 # ctypes (la capa CRT/open() da EINVAL leyendo pipes aquí).

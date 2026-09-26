@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # ── tray ── libayatana-appindicator (opcional) ──────────────────────────────
 # pkg_check_modules se confunde con "-0.1" en el nombre → usamos pkg-config directo.
 if(OW_PLATFORM STREQUAL "linux")

@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // Tipos de la API que el kernel inyecta en cada documento (`window.ow`).
 // Mantenidos a mano contra docs/API.md §1.
 

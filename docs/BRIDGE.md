@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # Protocolo de Bridge y Control
 
 ## 1. Renderer ↔ Kernel (bridge inyectado)

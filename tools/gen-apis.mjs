@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // ─────────────────────────────────────────────────────────────────────────────
 // tools/gen-apis.mjs — genera el "pegamento" desde los manifiestos de API.
 //

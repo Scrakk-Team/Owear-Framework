@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # ── API process ──────────────────────────────────────────────────────────────
 # spawn de procesos con pipes de stdout/stderr/stdin + PTY Manager real.
 #   Linux/Mac: forkpty(3)          Windows: ConPTY (CreatePseudoConsole)

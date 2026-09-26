@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // app/main.ts — ventana mínima (el ejemplo vive en el renderer).
 import { app, BrowserWindow } from '@owear/core'
 

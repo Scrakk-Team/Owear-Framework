@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // ─────────────────────────────────────────────────────────────────────────────
 // tools/check-apis.mjs — valida que los manifiestos no mientan.
 //

@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # ── Owear kernel + plataforma ────────────────────────────────────────────────
 # Selección de fuentes POR PLATAFORMA vía CMake (nunca #ifdef de features).
 # Cambiar los contratos en include/ow/ rompe las 3 plataformas aquí, en compile-time.

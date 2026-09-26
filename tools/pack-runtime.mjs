@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // ─────────────────────────────────────────────────────────────────────────────
 // tools/pack-runtime.mjs — ensambla el paquete npm de runtime (kernel + módulos
 // stock + headers) para la plataforma actual, listo para `npm publish`.

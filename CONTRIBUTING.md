@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # Contribuir a Owear
 
 Gracias por el interés. Este documento cubre lo que no se deduce leyendo el

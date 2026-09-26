@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # ── Todas las APIs de Owear ──────────────────────────────────────────────────
 # Cada folder api/<nombre>/ es una API independiente con sus propios módulos
 # y target .owm propio (actualización modular). Las APIs acopladas al WebView

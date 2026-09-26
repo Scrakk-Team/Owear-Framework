@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # ── API fs ────────────────────────────────────────────────────────────────────
 # Operaciones de filesystem completas: básicas, metadatos, handles fd-style
 # y watcher multiplataforma (inotify / ReadDirectoryChangesW / kqueue).

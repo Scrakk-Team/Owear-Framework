@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 if(OW_PLATFORM STREQUAL "mac")
     set(OW_MENU_LIBS "-framework Cocoa")
 endif()

@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # __APP_NAME__
 
 App de escritorio construida con **[Owear](https://owear.dev)**: el WebView del

@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # API Reference completa — Owear 0.1.0
 
 > Mantenida a mano contra el árbol de trabajo (no autogenerada): puede quedar

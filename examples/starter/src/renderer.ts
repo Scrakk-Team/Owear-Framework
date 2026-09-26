@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // src/renderer.ts — corre dentro del WebView. `ow` lo inyecta el kernel.
 //
 // Aquí no hay `ipcRenderer` ni handlers en el main: el renderer llama a los

@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // src/renderer.ts — el juego entero.
 //
 // Tesis del ejemplo: en Owear el renderer NO está incomunicado. Habla DIRECTO

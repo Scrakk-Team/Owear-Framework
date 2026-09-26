@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # Roadmap Owear
 
 Estado: F0–F4 construidos (Linux verificado end-to-end; Windows/macOS fuentes

@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # APIs de Owear — manifiestos y registro
 
 Toda API vive en su carpeta `api/<nombre>/` y se declara en un **manifiesto**

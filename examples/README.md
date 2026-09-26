@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # Ejemplos de Owear
 
 Apps completas y ejecutables que muestran el modelo de Owear en la práctica.

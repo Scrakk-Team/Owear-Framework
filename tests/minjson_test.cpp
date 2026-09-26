@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // Test de minjson: parseo, escapes, surrogate pairs, serialización.
 #include "ow/detail/minjson.hpp"
 #include <cassert>

@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # 🐍 Owear Snake
 
 Un Snake completo y jugable. No es un "hola mundo": el objetivo es mostrar en

@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 # Tests unitarios (assert-based, cero deps). Un ejecutable por suite.
 
 set(OW_TEST_LIBS owear_core)

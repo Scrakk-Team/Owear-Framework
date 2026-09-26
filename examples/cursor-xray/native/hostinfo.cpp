@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 // native/hostinfo.cpp — módulo nativo PROPIO (.owm).
 //
 // ¿Por qué existe este módulo? Porque el conjunto stock NO trae información del
