@@ -18,9 +18,11 @@ enum class TitleBarStyle {
 
 struct TitleBarOverlay {
     bool enabled = false;
-    std::string color = "#00000000";       // fondo bajo los botones nativos
-    std::string symbolColor = "#ffffff";   // color de glifos (min/max/close)
-    int height = 36;                       // alto en px lógicos
+    std::string color = "#00000000";  // fondo del área (alpha 0 = transparente)
+    // Color de glifos. Vacío = lo decide el tema/SO (en Linux manda la distro;
+    // como en Electron, symbolColor es solo Windows).
+    std::string symbolColor;
+    int height = 32;  // alto de la banda en px lógicos (default de Electron)
 };
 
 struct WindowOptions {

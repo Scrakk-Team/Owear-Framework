@@ -67,9 +67,8 @@ const char* CursorForEdge(GdkWindowEdge e) {
 struct Window::Impl::PlatformData {
     GtkWidget* window = nullptr;
     GtkWidget* overlay = nullptr;     // GtkOverlay contenedor (si overlay activo)
-    GtkWidget* overlayBar = nullptr;  // GtkEventBox que dibuja los botones
-    int hoverBtn = -1;
-    int pressBtn = -1;
+    GtkWidget* overlayBar = nullptr;  // GtkBox con los botones del tema
+    GtkWidget* overlayMaxBtn = nullptr;
     bool webviewReady = false;
     bool isWayland = false;
     bool fullscreen = false;
@@ -131,195 +130,53 @@ GdkFilterReturn ResizeEventFilter(GdkXEvent*, GdkEvent* event, gpointer data) {
 namespace {
 
 // ── overlay nativo (titleBarOverlay) ─────────────────────────────────────────
-// Botones DIBUJADOS con Cairo, idénticos a Electron/Chromium (Windows), en vez
-// de usar los iconos del tema GTK. Constantes de
-// window_frame_util.h: ancho 45, separación visual 1, icono 10px.
+// Usamos los botones de ventana DEL TEMA (GTK `titlebutton`, los mismos que
+// pinta GtkHeaderBar) para que el estilo, el tamaño y el espaciado los defina
+// la distro. Nada de métricas hardcodeadas. Iconos simbólicos estándar de
+// freedesktop (los mismos nombres que usa Electron en Linux).
 
-constexpr int kCaptionBtnW = 45;    // WindowFrameUtil::kWindowsCaptionButtonWidth
-constexpr int kCaptionSpacing = 1;  // ...kWindowsCaptionButtonVisualSpacing
-constexpr int kCaptionIcon = 10;    // PaintSymbol: symbol_size_pixels = 10
-constexpr int kCaptionCount = 3;
-
-struct RGBA { double r = 0, g = 0, b = 0, a = 0; bool ok = false; };
-
-/// "#RGB"/"#RRGGBB"/"#RRGGBBAA" → RGBA en [0,1].
-RGBA ParseColor(const std::string& in) {
-    RGBA c;
+/// "#RGB"/"#RRGGBB"/"#RRGGBBAA" → "#rrggbb" (o "" si transparente/inválido).
+std::string CssHex(const std::string& in) {
     std::string s = in;
     if (!s.empty() && s[0] == '#') s = s.substr(1);
     if (s.size() == 3) s = {s[0], s[0], s[1], s[1], s[2], s[2]};
-    if (s.size() != 6 && s.size() != 8) return c;
-    auto hx = [](const std::string& x) {
-        return std::strtoul(x.c_str(), nullptr, 16) / 255.0;
-    };
-    c.r = hx(s.substr(0, 2));
-    c.g = hx(s.substr(2, 2));
-    c.b = hx(s.substr(4, 2));
-    c.a = s.size() == 8 ? hx(s.substr(6, 2)) : 1.0;
-    c.ok = true;
-    return c;
+    if (s.size() != 6 && s.size() != 8) return {};
+    if (s.size() == 8 && std::strtoul(s.substr(6, 2).c_str(), nullptr, 16) == 0)
+        return {}; // alpha 0 ⇒ dejar transparente
+    return "#" + s.substr(0, 6);
 }
 
-/// Rect del botón i (izq→der): min, max/restore, close. El primero no lleva
-/// la separación (que va dentro del ancho de los siguientes, como Electron).
-void CaptionLayout(int i, int& x, int& w) {
-    x = 0;
-    for (int k = 0; k < i; ++k) x += kCaptionBtnW + (k > 0 ? kCaptionSpacing : 0);
-    w = kCaptionBtnW + (i > 0 ? kCaptionSpacing : 0);
-}
-
-int CaptionTotalWidth() {
-    int x = 0, w = 0;
-    CaptionLayout(kCaptionCount - 1, x, w);
-    return x + w;
-}
-
-int CaptionButtonAt(int x) {
-    for (int i = kCaptionCount - 1; i >= 0; --i) {
-        int bx, bw;
-        CaptionLayout(i, bx, bw);
-        if (x >= bx && x < bx + bw) return i;
-    }
-    return -1;
-}
-
-/// Dibuja los 3 botones (fondo hover/pressed + icono de 10px) como Electron.
-gboolean OnCaptionDraw(GtkWidget* w, cairo_t* cr, gpointer ud) {
+void OnTbMinimize(GtkButton*, gpointer ud) {
     auto* impl = static_cast<Window::Impl*>(ud);
-    auto* pd = impl->pdata;
-    const int h = gtk_widget_get_allocated_height(w);
-    const int total = CaptionTotalWidth();
-    const RGBA bg = ParseColor(impl->opts.titleBarOverlay.color);
-    RGBA fg = ParseColor(impl->opts.titleBarOverlay.symbolColor);
-    if (!fg.ok) fg = RGBA{1, 1, 1, 1, true};
-    const bool maximized =
-        pd->window && gtk_window_is_maximized(GTK_WINDOW(pd->window));
-
-    // Fondo del strip (titleBarOverlay.color; por defecto transparente).
-    cairo_set_source_rgba(cr, bg.r, bg.g, bg.b, bg.a);
-    cairo_rectangle(cr, 0, 0, total, h);
-    cairo_fill(cr);
-
-    for (int i = 0; i < kCaptionCount; ++i) {
-        int x, bw;
-        CaptionLayout(i, x, bw);
-        const int bxi = x + (i > 0 ? kCaptionSpacing : 0);
-        const int bwi = bw - (i > 0 ? kCaptionSpacing : 0);
-        const bool hot = pd->hoverBtn == i;
-        const bool press = pd->pressBtn == i;
-
-        // Fondo: close → #E81123 (opaco/0x98); resto → foreground 0x1A/0x33.
-        if (hot || press) {
-            if (i == 2)
-                cairo_set_source_rgba(cr, 0xE8 / 255.0, 0x11 / 255.0,
-                                      0x23 / 255.0, press ? 0x98 / 255.0 : 1.0);
-            else
-                cairo_set_source_rgba(cr, fg.r, fg.g, fg.b,
-                                      press ? 0x33 / 255.0 : 0x1A / 255.0);
-            cairo_rectangle(cr, bxi, 0, bwi, h);
-            cairo_fill(cr);
-        }
-
-        const bool closeHot = i == 2 && (hot || press);
-        if (closeHot) cairo_set_source_rgb(cr, 1, 1, 1);
-        else cairo_set_source_rgb(cr, fg.r, fg.g, fg.b);
-        cairo_set_line_width(cr, 1.0);
-
-        const double sx = x + (bw - kCaptionIcon) / 2.0;
-        const double sy = (h - kCaptionIcon) / 2.0;
-        const double p = 0.5;
-        const double S = kCaptionIcon;
-
-        if (i == 0) {  // minimize: línea horizontal
-            cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
-            cairo_move_to(cr, sx, sy + S / 2.0);
-            cairo_line_to(cr, sx + S, sy + S / 2.0);
-            cairo_stroke(cr);
-        } else if (i == 1 && !maximized) {  // maximize: cuadrado
-            cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
-            cairo_rectangle(cr, sx + p, sy + p, S - 1, S - 1);
-            cairo_stroke(cr);
-        } else if (i == 1) {  // restore: dos cuadrados (detrás recortado)
-            const double sep = 2;
-            cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
-            cairo_save(cr);
-            cairo_rectangle(cr, sx, sy, S, S);
-            cairo_rectangle(cr, sx, sy + sep, S - sep, S - sep);
-            cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
-            cairo_clip(cr);
-            cairo_rectangle(cr, sx + sep + p, sy + p, S - sep - 1, S - sep - 1);
-            cairo_stroke(cr);
-            cairo_restore(cr);
-            cairo_rectangle(cr, sx + p, sy + sep + p, S - sep - 1, S - sep - 1);
-            cairo_stroke(cr);
-        } else {  // close: X
-            cairo_set_antialias(cr, CAIRO_ANTIALIAS_DEFAULT);
-            cairo_move_to(cr, sx + p, sy + p);
-            cairo_line_to(cr, sx + S - p, sy + S - p);
-            cairo_move_to(cr, sx + S - p, sy + p);
-            cairo_line_to(cr, sx + p, sy + S - p);
-            cairo_stroke(cr);
-        }
-    }
-    return FALSE;
+    if (impl->pdata && impl->pdata->window)
+        gtk_window_iconify(GTK_WINDOW(impl->pdata->window));
 }
 
-gboolean OnCaptionMotion(GtkWidget* w, GdkEventMotion* e, gpointer ud) {
-    auto* pd = static_cast<Window::Impl*>(ud)->pdata;
-    const int i = CaptionButtonAt(static_cast<int>(e->x));
-    if (i != pd->hoverBtn) {
-        pd->hoverBtn = i;
-        gtk_widget_queue_draw(w);
-    }
-    return FALSE;
-}
-
-gboolean OnCaptionLeave(GtkWidget* w, GdkEventCrossing*, gpointer ud) {
-    auto* pd = static_cast<Window::Impl*>(ud)->pdata;
-    if (pd->hoverBtn != -1) {
-        pd->hoverBtn = -1;
-        gtk_widget_queue_draw(w);
-    }
-    return FALSE;
-}
-
-gboolean OnCaptionPress(GtkWidget* w, GdkEventButton* e, gpointer ud) {
-    if (e->button != 1) return FALSE;
-    auto* pd = static_cast<Window::Impl*>(ud)->pdata;
-    const int i = CaptionButtonAt(static_cast<int>(e->x));
-    if (i < 0) return FALSE;
-    pd->pressBtn = i;
-    gtk_widget_queue_draw(w);
-    return TRUE;
-}
-
-gboolean OnCaptionRelease(GtkWidget* w, GdkEventButton* e, gpointer ud) {
-    if (e->button != 1) return FALSE;
+void OnTbMaximize(GtkButton*, gpointer ud) {
     auto* impl = static_cast<Window::Impl*>(ud);
+    if (!impl->pdata || !impl->pdata->window) return;
+    GtkWindow* w = GTK_WINDOW(impl->pdata->window);
+    if (gtk_window_is_maximized(w)) gtk_window_unmaximize(w);
+    else gtk_window_maximize(w);
+}
+
+void OnTbClose(GtkButton*, gpointer ud) {
+    static_cast<Window::Impl*>(ud)->BeginCloseFlow();
+}
+
+/// Cambia el icono del botón maximizar según el estado (nombre estándar).
+void UpdateOverlayMaxIcon(Window::Impl* impl, bool maximized) {
     auto* pd = impl->pdata;
-    const int i = CaptionButtonAt(static_cast<int>(e->x));
-    const int pressed = pd->pressBtn;
-    pd->pressBtn = -1;
-    gtk_widget_queue_draw(w);
-    if (pressed < 0 || pressed != i) return TRUE;
-    GtkWindow* win = GTK_WINDOW(pd->window);
-    if (i == 0)
-        gtk_window_iconify(win);
-    else if (i == 1) {
-        if (gtk_window_is_maximized(win)) gtk_window_unmaximize(win);
-        else gtk_window_maximize(win);
-    } else if (i == 2) {
-        impl->BeginCloseFlow();
-    }
-    return TRUE;
+    if (!pd || !pd->overlayMaxBtn) return;
+    GtkWidget* img = gtk_button_get_image(GTK_BUTTON(pd->overlayMaxBtn));
+    if (img)
+        gtk_image_set_from_icon_name(
+            GTK_IMAGE(img),
+            maximized ? "window-restore-symbolic" : "window-maximize-symbolic",
+            GTK_ICON_SIZE_BUTTON);
 }
 
-void RedrawCaptionBar(Window::Impl* impl) {
-    if (impl->pdata && impl->pdata->overlayBar)
-        gtk_widget_queue_draw(impl->pdata->overlayBar);
-}
-
-/// Crea (idempotente) la barra de botones dibujada dentro del GtkOverlay.
+/// Crea (idempotente) la barra con los botones del tema dentro del GtkOverlay.
 void BuildOverlayBar(Window::Impl* impl) {
     auto* pd = impl->pdata;
     if (!pd || !pd->overlay || pd->overlayBar) return;
@@ -327,45 +184,71 @@ void BuildOverlayBar(Window::Impl* impl) {
 
     const int h = impl->opts.titleBarOverlay.height > 0
                       ? impl->opts.titleBarOverlay.height
-                      : 36;
-    const int total = CaptionTotalWidth();
+                      : 32;
 
-    GtkWidget* area = gtk_event_box_new();
-    gtk_style_context_add_class(gtk_widget_get_style_context(area), "ow-caption-bar");
-    gtk_widget_set_halign(area, GTK_ALIGN_END);
-    gtk_widget_set_valign(area, GTK_ALIGN_START);
-    gtk_widget_set_size_request(area, total, h);
-    gtk_widget_set_can_focus(area, FALSE);
-    gtk_widget_add_events(area, GDK_POINTER_MOTION_MASK | GDK_BUTTON_PRESS_MASK |
-                                    GDK_BUTTON_RELEASE_MASK |
-                                    GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+    // GtkBox transparente del alto de banda (`height`). Los botones NO se
+    // estiran: conservan su tamaño natural y se centran verticalmente, así el
+    // estilo lo decide el tema de la distro.
+    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_style_context_add_class(gtk_widget_get_style_context(box),
+                                "ow-titlebar-overlay");
+    gtk_widget_set_halign(box, GTK_ALIGN_END);
+    gtk_widget_set_valign(box, GTK_ALIGN_START);
+    gtk_widget_set_size_request(box, -1, h);
+
+    GtkWidget* minb =
+        gtk_button_new_from_icon_name("window-minimize-symbolic", GTK_ICON_SIZE_BUTTON);
+    GtkWidget* maxb =
+        gtk_button_new_from_icon_name("window-maximize-symbolic", GTK_ICON_SIZE_BUTTON);
+    GtkWidget* closeb =
+        gtk_button_new_from_icon_name("window-close-symbolic", GTK_ICON_SIZE_BUTTON);
+    GtkWidget* btns[3] = {minb, maxb, closeb};
+    for (GtkWidget* b : btns) {
+        gtk_style_context_add_class(gtk_widget_get_style_context(b), "titlebutton");
+        gtk_widget_set_valign(b, GTK_ALIGN_CENTER); // tamaño natural del tema
+        gtk_widget_set_can_focus(b, FALSE);
+        gtk_widget_set_focus_on_click(b, FALSE);
+        gtk_box_pack_start(GTK_BOX(box), b, FALSE, FALSE, 0);
+    }
+    gtk_style_context_add_class(gtk_widget_get_style_context(closeb), "close");
+
+    g_signal_connect(minb, "clicked", G_CALLBACK(OnTbMinimize), impl);
+    g_signal_connect(maxb, "clicked", G_CALLBACK(OnTbMaximize), impl);
+    g_signal_connect(closeb, "clicked", G_CALLBACK(OnTbClose), impl);
+
+    // Fondo del strip: transparente por defecto (se ve la titlebar web). Si el
+    // usuario pasa `color`, se usa. `symbolColor` solo si viene explícito (por
+    // defecto vacío ⇒ el color lo decide el tema, como en Electron/Linux).
+    std::string css =
+        ".ow-titlebar-overlay{background:transparent;box-shadow:none;border:none;}";
+    if (std::string bg = CssHex(impl->opts.titleBarOverlay.color); !bg.empty())
+        css += ".ow-titlebar-overlay{background:" + bg + ";}";
+    if (!impl->opts.titleBarOverlay.symbolColor.empty())
+        css += ".ow-titlebar-overlay button.titlebutton{color:" +
+               impl->opts.titleBarOverlay.symbolColor + ";}";
     GtkCssProvider* prov = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(
-        prov,
-        ".ow-caption-bar{background:transparent;box-shadow:none;border:none;}", -1,
-        nullptr);
-    gtk_style_context_add_provider(gtk_widget_get_style_context(area),
+    gtk_css_provider_load_from_data(prov, css.c_str(), -1, nullptr);
+    gtk_style_context_add_provider(gtk_widget_get_style_context(box),
                                    GTK_STYLE_PROVIDER(prov),
                                    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     g_object_unref(prov);
 
-    g_signal_connect(area, "draw", G_CALLBACK(OnCaptionDraw), impl);
-    g_signal_connect(area, "motion-notify-event", G_CALLBACK(OnCaptionMotion), impl);
-    g_signal_connect(area, "leave-notify-event", G_CALLBACK(OnCaptionLeave), impl);
-    g_signal_connect(area, "button-press-event", G_CALLBACK(OnCaptionPress), impl);
-    g_signal_connect(area, "button-release-event", G_CALLBACK(OnCaptionRelease), impl);
+    gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), box);
+    gtk_widget_show_all(box);
 
-    pd->hoverBtn = -1;
-    pd->pressBtn = -1;
-    gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), area);
-    gtk_widget_show(area);
-    pd->overlayBar = area;
+    pd->overlayBar = box;
+    pd->overlayMaxBtn = maxb;
+    UpdateOverlayMaxIcon(impl, GTK_WINDOW(pd->window) &&
+                                   gtk_window_is_maximized(GTK_WINDOW(pd->window)));
 
-    // Expone al renderer el hueco reservado (equivalente a env(titlebar-area-*)).
+    // Hueco reservado al renderer (el ancho lo mide GTK con el tema real).
     if (pd->webviewReady && impl->webview) {
+        GtkRequisition req{};
+        gtk_widget_get_preferred_size(box, nullptr, &req);
+        const int w = req.width > 0 ? req.width : h * 3;
         impl->webview->InjectInitScript(
             "window.__owTitlebarOverlay={enabled:true,height:" +
-            std::to_string(h) + ",width:" + std::to_string(total) +
+            std::to_string(h) + ",width:" + std::to_string(w) +
             ",top:0,right:0};");
     }
 }
@@ -375,8 +258,7 @@ void DestroyOverlayBar(Window::Impl* impl) {
     if (!pd || !pd->overlayBar) return;
     gtk_widget_destroy(pd->overlayBar);
     pd->overlayBar = nullptr;
-    pd->hoverBtn = -1;
-    pd->pressBtn = -1;
+    pd->overlayMaxBtn = nullptr;
 }
 
 // ── resize por bordes (Wayland) ──────────────────────────────────────────────
@@ -564,7 +446,7 @@ bool Window::Impl::PCreate() {
                          bool maximized = e->new_window_state & GDK_WINDOW_STATE_MAXIMIZED;
                          bool fullscreen = e->new_window_state & GDK_WINDOW_STATE_FULLSCREEN;
                          impl->pdata->fullscreen = fullscreen;
-                         RedrawCaptionBar(impl);
+                         UpdateOverlayMaxIcon(impl, maximized);
                          Window::Impl::EmitPlatformEvent(impl, maximized ? "maximize" : "unmaximize");
                          Window::Impl::EmitPlatformEvent(impl, fullscreen ? "enterFullScreen" : "leaveFullScreen");
                          return FALSE;
