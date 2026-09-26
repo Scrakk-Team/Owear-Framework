@@ -21,6 +21,9 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shlobj.h>
+#include <uxtheme.h>
+#include <vssym32.h>
+#pragma comment(lib, "uxtheme.lib")
 
 // WebView2 (para las webviews embebidas). Si no está el SDK, se compilan a
 // vacío las funciones de webviews (Linux las tiene; Windows las añade aquí).
@@ -50,11 +53,19 @@ struct Window::Impl::PlatformData {
     bool customTitlebar = false; // F3.5: overlay DWM sobre contenido full-size
     WINDOWPLACEMENT preFullscreen{};
 
+    // ── titleBarOverlay (botones nativos min/max/close en la titlebar custom) ──
+    HWND captionBar = nullptr;
+    int captionH = 32;
+    int capW = 0, capH = 0;
+    int capHover = -1;
+    int capPress = -1;
+
 #if OW_HAS_WEBVIEW2
     // ── webviews embebidas (hijas) ──────────────────────────────────────
     struct EmbeddedView {
         Microsoft::WRL::ComPtr<ICoreWebView2Controller> ctrl;
         Microsoft::WRL::ComPtr<ICoreWebView2> view;
+        HWND host = nullptr;  // HWND hijo propio de la hija (z-order/bounds)
         int x = 0, y = 0, w = 0, h = 0;
         bool visible = true;
         bool ready = false;
@@ -108,6 +119,118 @@ Window::Impl* ImplFromHwnd(HWND hwnd) {
     return it == m.end() ? nullptr : it->second;
 }
 
+// ── titleBarOverlay: botones nativos (min/max/close) en la titlebar custom ──
+constexpr wchar_t kCaptionClass[] = L"OwearCaptionButtons";
+
+int CaptionButtonAt(Window::Impl::PlatformData* pd, int x) {
+    if (!pd || pd->capW <= 0) return -1;
+    int i = (x * 3) / pd->capW;
+    return (i < 0 || i > 2) ? -1 : i;
+}
+
+/// Coloca la barra en la esquina superior-derecha y la sube al tope del z-order.
+void PositionCaptionBar(Window::Impl::PlatformData* pd) {
+    if (!pd || !pd->captionBar || !pd->hwnd) return;
+    RECT cr;
+    GetClientRect(pd->hwnd, &cr);
+    UINT dpi = GetDpiForWindow(pd->hwnd);
+    int bw = static_cast<int>(GetSystemMetricsForDpi(SM_CXSIZE, dpi));
+    if (bw <= 0) bw = 46;
+    pd->capW = bw * 3;
+    pd->capH = pd->captionH > 0 ? pd->captionH : 32;
+    SetWindowPos(pd->captionBar, HWND_TOP, cr.right - pd->capW, 0, pd->capW,
+                 pd->capH, SWP_NOACTIVATE);
+}
+
+void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(hwnd, &ps);
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+    const int w = rc.right, h = rc.bottom;
+    const int bw = w / 3;
+    const bool maximized = pd && pd->hwnd && IsZoomed(pd->hwnd);
+    HTHEME theme = OpenThemeData(hwnd, L"WINDOW");
+    for (int i = 0; i < 3; ++i) {
+        RECT r{i * bw, 0, (i == 2) ? w : (i + 1) * bw, h};
+        int part = (i == 0) ? WP_MINBUTTON
+                            : (i == 1) ? (maximized ? WP_RESTOREBUTTON
+                                                    : WP_MAXBUTTON)
+                                       : WP_CLOSEBUTTON;
+        int state = CBS_NORMAL;
+        if (pd && pd->capPress == i) state = CBS_PUSHED;
+        else if (pd && pd->capHover == i) state = CBS_HOT;
+        if (theme)
+            DrawThemeBackground(theme, hdc, part, state, &r, nullptr);
+        else
+            FillRect(hdc, &r, reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1));
+    }
+    if (theme) CloseThemeData(theme);
+    EndPaint(hwnd, &ps);
+}
+
+LRESULT CALLBACK CaptionWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    auto* pd = reinterpret_cast<Window::Impl::PlatformData*>(
+        GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    switch (msg) {
+    case WM_MOUSEMOVE: {
+        int i = CaptionButtonAt(pd, GET_X_LPARAM(lp));
+        if (pd && i != pd->capHover) {
+            pd->capHover = i;
+            InvalidateRect(hwnd, nullptr, FALSE);
+            TRACKMOUSEEVENT tme{sizeof(tme), TME_LEAVE, hwnd, 0};
+            TrackMouseEvent(&tme);
+        }
+        return 0;
+    }
+    case WM_MOUSELEAVE:
+        if (pd) { pd->capHover = -1; InvalidateRect(hwnd, nullptr, FALSE); }
+        return 0;
+    case WM_LBUTTONDOWN:
+        if (pd) {
+            pd->capPress = CaptionButtonAt(pd, GET_X_LPARAM(lp));
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        return 0;
+    case WM_LBUTTONUP: {
+        if (!pd) return 0;
+        int i = CaptionButtonAt(pd, GET_X_LPARAM(lp));
+        int pressed = pd->capPress;
+        pd->capPress = -1;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        if (pressed < 0 || pressed != i) return 0;
+        if (i == 0)
+            ShowWindow(pd->hwnd, SW_MINIMIZE);
+        else if (i == 1)
+            ShowWindow(pd->hwnd, IsZoomed(pd->hwnd) ? SW_RESTORE : SW_MAXIMIZE);
+        else if (i == 2)
+            PostMessageW(pd->hwnd, WM_CLOSE, 0, 0);
+        return 0;
+    }
+    case WM_PAINT:
+        DrawCaptionBar(hwnd, pd);
+        return 0;
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_SETCURSOR:
+        SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+        return TRUE;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+void RegisterCaptionClassOnce() {
+    static bool done = false;
+    if (done) return;
+    WNDCLASSW wc{};
+    wc.lpfnWndProc = CaptionWndProc;
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.lpszClassName = kCaptionClass;
+    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    RegisterClassW(&wc);
+    done = true;
+}
+
 LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     auto* pdata = reinterpret_cast<Window::Impl::PlatformData*>(
         GetWindowLongPtrW(hwnd, GWLP_USERDATA));
@@ -138,6 +261,7 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int cw = LOWORD(lp), ch = HIWORD(lp);
             if (cw > 0 && ch > 0 && impl->webview)
                 impl->webview->Resize(0, 0, cw, ch);
+            PositionCaptionBar(impl->pdata);
             json::Object o;
             o.emplace_back("width", json::Value(static_cast<int64_t>(cw)));
             o.emplace_back("height", json::Value(static_cast<int64_t>(ch)));
@@ -160,6 +284,15 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (auto* impl = ImplFromHwnd(hwnd))
             Window::Impl::EmitPlatformEvent(impl, wp != WA_INACTIVE ? "focus" : "blur");
         break;
+    }
+    case WM_TIMER: {
+        // One-shot: sube la barra de botones cuando WebView2 ya creó su ventana
+        // hija (su controller es async y podría quedar por encima).
+        if (wp == 1) {
+            if (auto* impl = ImplFromHwnd(hwnd)) PositionCaptionBar(impl->pdata);
+            KillTimer(hwnd, 1);
+        }
+        return 0;
     }
     case WM_NCCALCSIZE: {
         // Custom: extiende el cliente a toda la ventana salvo los bordes de
@@ -297,6 +430,26 @@ bool Window::Impl::PCreate() {
         webview->RegisterAssetScheme("app", std::filesystem::path(assetsDir));
     else
         webview->RegisterAssetScheme("app", std::filesystem::current_path() / "dist");
+
+    // titleBarOverlay: botones nativos (min/max/close) sobre la titlebar custom.
+    if (pdata->customTitlebar && opts.titleBarOverlay.enabled) {
+        RegisterCaptionClassOnce();
+        pdata->captionH =
+            opts.titleBarOverlay.height > 0 ? opts.titleBarOverlay.height : 32;
+        pdata->captionBar = CreateWindowExW(
+            0, kCaptionClass, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0,
+            10, 10, hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+        if (pdata->captionBar) {
+            SetWindowLongPtrW(pdata->captionBar, GWLP_USERDATA,
+                              reinterpret_cast<LONG_PTR>(pdata));
+            PositionCaptionBar(pdata);
+            webview->InjectInitScript(
+                "window.__owTitlebarOverlay={enabled:true,height:" +
+                std::to_string(pdata->captionH) + ",width:" +
+                std::to_string(pdata->capW) + ",top:0,right:0};");
+            SetTimer(hwnd, 1, 700, nullptr);
+        }
+    }
 
     if (opts.show) ShowWindow(hwnd, SW_SHOW);
     log::Info("window", "PCreate: ok");
@@ -450,10 +603,18 @@ void EmitViewJson(Window::Impl* impl, const char* name, uint32_t id,
 
 void ApplyViewBounds(Window::Impl::PlatformData* pd, uint32_t id) {
     auto it = pd->views.find(id);
-    if (it == pd->views.end() || !it->second.ctrl) return;
-    RECT rc{it->second.x, it->second.y, it->second.x + it->second.w,
-            it->second.y + it->second.h};
-    it->second.ctrl->put_Bounds(rc);
+    if (it == pd->views.end()) return;
+    if (it->second.host) {
+        SetWindowPos(it->second.host, HWND_TOP, it->second.x, it->second.y,
+                     it->second.w, it->second.h, SWP_NOACTIVATE);
+    }
+    if (it->second.ctrl) {
+        RECT rc{0, 0, it->second.w, it->second.h}; // relativo al host
+        if (!it->second.host)
+            rc = {it->second.x, it->second.y, it->second.x + it->second.w,
+                  it->second.y + it->second.h};
+        it->second.ctrl->put_Bounds(rc);
+    }
 }
 
 void WireViewEvents(Window::Impl* impl, Window::Impl::PlatformData* pd,
@@ -513,8 +674,12 @@ void WireViewEvents(Window::Impl* impl, Window::Impl::PlatformData* pd,
 void CreateViewController(Window::Impl* impl, Window::Impl::PlatformData* pd,
                           uint32_t id) {
     if (!pd->viewEnv || !pd->hwnd) return;
+    auto itv = pd->views.find(id);
+    HWND parent = (itv != pd->views.end() && itv->second.host)
+                      ? itv->second.host
+                      : pd->hwnd;
     pd->viewEnv->CreateCoreWebView2Controller(
-        pd->hwnd,
+        parent,
         Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
             [impl, pd, id](HRESULT hr, ICoreWebView2Controller* c) -> HRESULT {
                 if (FAILED(hr) || !c) {
@@ -612,6 +777,17 @@ std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
     ev.x = x; ev.y = y; ev.w = w; ev.h = h;
     ev.transparent = transparent; ev.userAgent = ua; ev.pendingUrl = url;
     pdata->views[id] = std::move(ev);
+
+    // HWND hijo propio: el controller se parenta aquí (z-order y bounds fiables
+    // por encima del webview principal, sin depender del orden interno de WebView2).
+    HWND host = CreateWindowExW(
+        0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, x, y, w, h,
+        pdata->hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (host) {
+        pdata->views[id].host = host;
+        SetWindowPos(host, HWND_TOP, x, y, w, h, SWP_NOACTIVATE);
+    }
 
     if (pdata->viewEnvReady)
         CreateViewController(this, pdata, id);
@@ -723,6 +899,13 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
     if (op == "setVisible") {
         ev.visible = argBool(0, true);
         if (ev.ctrl) ev.ctrl->put_IsVisible(ev.visible ? TRUE : FALSE);
+        if (ev.host) {
+            if (ev.visible)
+                SetWindowPos(ev.host, HWND_TOP, ev.x, ev.y, ev.w, ev.h,
+                             SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            else
+                ShowWindow(ev.host, SW_HIDE);
+        }
         return "null";
     }
     if (op == "setZoom") {
@@ -743,6 +926,7 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
     if (op == "findStop") return "null";
     if (op == "destroy") {
         if (ev.ctrl) ev.ctrl->Close();
+        if (ev.host) DestroyWindow(ev.host);
         pdata->views.erase(it);
         return "null";
     }
