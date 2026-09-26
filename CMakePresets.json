@@ -45,7 +45,8 @@
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
       "toolchainFile": "${sourceDir}/cmake/windows-cross.cmake",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "OW_WITH_OPENSSL": "OFF"
       }
     },
     {

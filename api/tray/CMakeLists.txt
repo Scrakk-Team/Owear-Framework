@@ -36,7 +36,7 @@ if(OW_PLATFORM STREQUAL "mac")
     set(TRAY_LIBS_STR "-framework Cocoa")
 endif()
 if(OW_PLATFORM STREQUAL "win")
-    set(TRAY_LIBS_STR "Shell32;User32;Gdi32")
+    set(TRAY_LIBS_STR "shell32;user32;gdi32")
 endif()
 
 ow_add_module(tray

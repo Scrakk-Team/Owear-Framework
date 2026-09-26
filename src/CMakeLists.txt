@@ -24,6 +24,15 @@ endif()
 find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
 
+# OpenSSL (HTTPS + módulos net/updater). Se puede desactivar para builds de dev
+# (p.ej. cross-compile Linux→Windows) → se usa Runtime/Http_nossl.cpp.
+option(OW_WITH_OPENSSL "Compilar con OpenSSL (HTTPS y módulos net/updater)" ON)
+
+set(OW_HTTP_SOURCE Runtime/Http.cpp)
+if(NOT OW_WITH_OPENSSL)
+    set(OW_HTTP_SOURCE Runtime/Http_nossl.cpp)
+endif()
+
 set(OW_KERNEL_SOURCES
     Core/App.cpp
     Core/Log.cpp
@@ -38,7 +47,7 @@ set(OW_KERNEL_SOURCES
     Window/Window_common.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp
-    Runtime/Http.cpp
+    ${OW_HTTP_SOURCE}
     Runtime/NodeManager.cpp
 )
 
@@ -56,8 +65,10 @@ if(OW_PLATFORM STREQUAL "linux")
         Runtime/NodeManager_linux.cpp
     )
 elseif(OW_PLATFORM STREQUAL "win")
-    find_package(OpenSSL REQUIRED) # Http.cpp (TLS): el toolchain de vcpkg da
-                                   # los headers, pero el .lib hay que enlazarlo
+    if(OW_WITH_OPENSSL)
+        find_package(OpenSSL REQUIRED) # Http.cpp (TLS): el toolchain de vcpkg da
+                                       # los headers, pero el .lib hay que enlazarlo
+    endif()
     # ── WebView2: auto-detección del SDK vendido (patrón deps/ de ole) ──────
     if(NOT DEFINED OW_WITH_WEBVIEW2)
         if(EXISTS "${CMAKE_SOURCE_DIR}/deps/webview2/include/WebView2.h")
@@ -126,7 +137,9 @@ endif()
 target_link_libraries(owear_core PUBLIC Threads::Threads ZLIB::ZLIB)
 
 if(OW_PLATFORM STREQUAL "win")
-    target_link_libraries(owear_core PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+    if(OW_WITH_OPENSSL)
+        target_link_libraries(owear_core PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+    endif()
     if(OW_WITH_WEBVIEW2)
         target_include_directories(owear_core PRIVATE
             ${CMAKE_SOURCE_DIR}/deps/webview2/include)

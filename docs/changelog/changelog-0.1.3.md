@@ -9,15 +9,14 @@ compilación cruzada Linux → Windows.
 ## Added
 
 - **Cross-compilación Linux → Windows**: `clang-cl` + `lld-link` con el
-  MSVC/Windows SDK descargado por `xwin` (`cmake/windows-cross.cmake`). Permite
-  generar `owear.exe` + módulos desde Linux, sin Visual Studio ni CI.
-- `tools/windows/dev-*.ps1`: bucle de desarrollo local en Windows sin publicar
-  paquetes a npm.
-- `tools/windows-cross/build.sh` + `serve.sh`: compilan el kernel de Windows
-  desde Linux y sirven el resultado por HTTP; `tools/windows/dev-pull.ps1` lo
-  descarga en `C:\owear-dev\deps\win32-x64`.
-- CLI: con `OW_KERNEL_BIN` fijado, los módulos stock se toman de `<exe>/modules`
-  (mismo build), no del paquete npm.
+  MSVC/Windows SDK descargado por `xwin` (`cmake/windows-cross.cmake`). Genera
+  `owear.exe` + módulos desde Linux, sin Visual Studio ni CI. El `.exe` sale con
+  **CRT estático** (`/MT`) y deps estáticas → **sin VCRUNTIME ni DLLs extra**.
+- Opción `OW_WITH_OPENSSL` (default ON): con `OFF` el kernel usa un HTTP stub
+  sin TLS (`Runtime/Http_nossl.cpp`) y omite los módulos `net`/`updater`. Pensada
+  para el cross-build de desarrollo.
+- `tools/windows-cross/build-deps.sh` (cross-build de zlib), `build.sh`,
+  `serve.sh` y `tools/windows/dev-pull.ps1` (transferencia a Windows por HTTP).
 
 ## Fixed
 
