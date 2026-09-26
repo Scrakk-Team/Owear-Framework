@@ -18,6 +18,10 @@ cd "$(dirname "$OUT")"
 rm -f win-out.zip
 ( cd "$OUT" && python3 -c "import shutil; shutil.make_archive('../win-out','zip','.')" )
 
+# Servir SOLO el zip (no el home entero).
+SERVE_DIR="$(mktemp -d)"
+cp win-out.zip "$SERVE_DIR/"
+
 IP="$(hostname -I | awk '{print $1}')"
 echo "win-out.zip listo ($(du -h win-out.zip | cut -f1))"
 echo "en Windows (PowerShell):"
@@ -25,4 +29,4 @@ echo "  iwr http://$IP:$PORT/win-out.zip -OutFile \$env:TEMP\\win-out.zip"
 echo "  Expand-Archive -Force \$env:TEMP\\win-out.zip C:\\owear-dev\\deps\\win32-x64"
 echo
 echo "sirviendo en http://$IP:$PORT/  (Ctrl+C para parar)"
-python3 -m http.server "$PORT" --directory "$(dirname "$OUT")"
+python3 -m http.server "$PORT" --directory "$SERVE_DIR"
