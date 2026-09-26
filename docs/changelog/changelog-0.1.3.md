@@ -77,3 +77,8 @@ exponer Node a la UI sin IPC por defecto.
 - **Linux: los colores del overlay no aplicaban** → en GTK3 un style provider en
   un widget solo afecta a ese widget (no a sus hijos); se registra a nivel de
   screen con selectores por `id`.
+- **Linux: almacenamiento del WebView aislado por app** → el backend WebKitGTK
+  usaba el `WebsiteDataManager` por defecto (compartido entre apps), así que
+  `localStorage`/`IndexedDB`/cache podían cruzarse. Ahora usa un data manager con
+  base dir **por app** (`$XDG_DATA_HOME/owear/<app-id>/webkit/{data,cache}`) y
+  registra `app://` como **esquema seguro + CORS** (origin estable).

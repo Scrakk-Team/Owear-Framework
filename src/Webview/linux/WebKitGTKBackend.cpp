@@ -21,8 +21,10 @@
 #include <webkit2/webkit2.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 namespace ow {
@@ -85,6 +87,25 @@ void FinishError(WebKitURISchemeRequest* request, int code, const char* msg) {
     g_error_free(err);
 }
 
+// Directorio de datos del WebView AISLADO POR APP (data/cache). Antes se usaba
+// el WebsiteDataManager por defecto (compartido) → localStorage/IndexedDB/cache
+// se cruzaban entre apps Owear. Se elige por OW_APP_ID (o OW_APP_NAME).
+std::string WebviewDataDir(const char* sub) {
+    std::string base;
+    if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg && *xdg)
+        base = xdg;
+    else if (const char* home = std::getenv("HOME"); home && *home)
+        base = std::string(home) + "/.local/share";
+    else
+        base = "/tmp";
+    std::string app = "owear";
+    if (const char* id = std::getenv("OW_APP_ID"); id && *id)
+        app = id;
+    else if (const char* name = std::getenv("OW_APP_NAME"); name && *name)
+        app = name;
+    return base + "/owear/" + app + "/webkit/" + sub;
+}
+
 class WebKitGTKBackend final : public IWebviewBackend {
 public:
     ~WebKitGTKBackend() override = default;
@@ -96,7 +117,18 @@ public:
         if (!parent) return false;
 
         manager_ = webkit_user_content_manager_new();
-        context_ = webkit_web_context_new();
+
+        // Data manager POR APP: aísla localStorage/IndexedDB/cache por app-id.
+        // Sin esto WebKit usaba el WebsiteDataManager por defecto (compartido).
+        const std::string dataDir = WebviewDataDir("data");
+        const std::string cacheDir = WebviewDataDir("cache");
+        std::error_code ec;
+        std::filesystem::create_directories(dataDir, ec);
+        std::filesystem::create_directories(cacheDir, ec);
+        WebKitWebsiteDataManager* dm = webkit_website_data_manager_new(
+            "base-data-directory", dataDir.c_str(), "base-cache-directory",
+            cacheDir.c_str(), nullptr);
+        context_ = webkit_web_context_new_with_website_data_manager(dm);
 
         // Construct properties: contexto propio + NUESTRO content manager
         // (si no, WebKit crea el suyo y los scripts nunca llegan).
@@ -199,6 +231,14 @@ public:
 
 private:
     void RegisterKernelSchemes() {
+        // app:// como esquema SEGURO + CORS: garantiza un origin estable para
+        // localStorage/IndexedDB y evita restricciones de secure-context.
+        if (WebKitSecurityManager* sm =
+                webkit_web_context_get_security_manager(context_)) {
+            webkit_security_manager_register_uri_scheme_as_secure(sm, "app");
+            webkit_security_manager_register_uri_scheme_as_cors_enabled(sm, "app");
+        }
+
         // ── app:// ─ assets del bundle ───────────────────────────────────
         webkit_web_context_register_uri_scheme(
             context_, "app",
