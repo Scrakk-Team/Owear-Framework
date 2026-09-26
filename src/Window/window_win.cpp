@@ -122,6 +122,7 @@ Window::Impl* ImplFromHwnd(HWND hwnd) {
 
 // ── titleBarOverlay: botones nativos (min/max/close) en la titlebar custom ──
 constexpr wchar_t kCaptionClass[] = L"OwearCaptionButtons";
+constexpr COLORREF kCapKey = RGB(255, 0, 255); // color transparente (colorkey)
 
 int CaptionButtonAt(Window::Impl::PlatformData* pd, int x) {
     if (!pd || pd->capW <= 0) return -1;
@@ -129,19 +130,26 @@ int CaptionButtonAt(Window::Impl::PlatformData* pd, int x) {
     return (i < 0 || i > 2) ? -1 : i;
 }
 
-/// Coloca la barra en la esquina superior-derecha y la sube al tope del z-order.
+/// Coloca la barra (popup top-level owned) en la esquina superior-derecha de la
+/// ventana, en coords de pantalla, y la deja visible encima del WebView2.
 void PositionCaptionBar(Window::Impl::PlatformData* pd) {
     if (!pd || !pd->captionBar || !pd->hwnd) return;
+    if (IsIconic(pd->hwnd)) {
+        ShowWindow(pd->captionBar, SW_HIDE);
+        return;
+    }
     RECT cr;
     GetClientRect(pd->hwnd, &cr);
     UINT dpi = GetDpiForWindow(pd->hwnd);
-    int bw = MulDiv(46, static_cast<int>(dpi), 96); // ancho de botón Win10 (DIP)
+    int bw = MulDiv(46, static_cast<int>(dpi), 96);
     if (bw <= 0) bw = 46;
     pd->capW = bw * 3;
     pd->capH = pd->captionH > 0 ? pd->captionH : 32;
-    SetWindowPos(pd->captionBar, HWND_TOP, cr.right - pd->capW, 0, pd->capW,
-                 pd->capH, SWP_NOACTIVATE);
-    InvalidateRect(pd->captionBar, nullptr, FALSE); // re-pinta el layered
+    POINT pt{cr.right - pd->capW, 0};
+    ClientToScreen(pd->hwnd, &pt);
+    SetWindowPos(pd->captionBar, HWND_TOP, pt.x, pt.y, pd->capW, pd->capH,
+                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    InvalidateRect(pd->captionBar, nullptr, FALSE);
 }
 
 COLORREF BlendColor(COLORREF a, COLORREF b, double t) {
@@ -175,14 +183,11 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
         return;
     }
     if (!pd) {
-        HBRUSH b = CreateSolidBrush(RGB(32, 32, 32));
-        FillRect(hdc, &rc, b);
-        DeleteObject(b);
         EndPaint(hwnd, &ps);
         return;
     }
 
-    HBRUSH bg = CreateSolidBrush(pd->capBg);
+    HBRUSH bg = CreateSolidBrush(kCapKey);
     FillRect(hdc, &rc, bg);
     DeleteObject(bg);
 
@@ -344,11 +349,24 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_MOVE: {
         if (auto* impl = ImplFromHwnd(hwnd)) {
+            PositionCaptionBar(impl->pdata);
             json::Object o;
             o.emplace_back("x", json::Value(static_cast<int64_t>(GET_X_LPARAM(lp))));
             o.emplace_back("y", json::Value(static_cast<int64_t>(GET_Y_LPARAM(lp))));
             Window::Impl::EmitPlatformEvent(impl, "move",
                                     json::Value(std::move(o)).Serialize());
+        }
+        break;
+    }
+    case WM_SHOWWINDOW: {
+        // La barra es un popup owned: seguir la visibilidad de la ventana.
+        if (auto* impl = ImplFromHwnd(hwnd)) {
+            if (impl->pdata && impl->pdata->captionBar) {
+                if (wp)
+                    PositionCaptionBar(impl->pdata);
+                else
+                    ShowWindow(impl->pdata->captionBar, SW_HIDE);
+            }
         }
         break;
     }
@@ -517,10 +535,11 @@ bool Window::Impl::PCreate() {
         pdata->capFg =
             ParseHexColorRef(opts.titleBarOverlay.symbolColor, RGB(255, 255, 255));
         pdata->captionBar = CreateWindowExW(
-            0, kCaptionClass, L"",
-            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, 10, 10, hwnd, nullptr,
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, kCaptionClass,
+            L"", WS_POPUP, 0, 0, 10, 10, hwnd /*owner*/, nullptr,
             GetModuleHandleW(nullptr), nullptr);
         if (pdata->captionBar) {
+            SetLayeredWindowAttributes(pdata->captionBar, kCapKey, 0, LWA_COLORKEY);
             SetWindowLongPtrW(pdata->captionBar, GWLP_USERDATA,
                               reinterpret_cast<LONG_PTR>(pdata));
             PositionCaptionBar(pdata);
