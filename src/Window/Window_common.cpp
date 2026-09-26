@@ -6,7 +6,8 @@
 // F3.2: outbox — todos los _apply/_event se encolan y salen en UN solo
 //       eval por tick del main loop (crítico durante resize storms).
 // F3.4: BeginCloseFlow — veto nativo → aviso JS+SDK con requestId →
-//       ventana de 300 ms para responder → destroy.
+//       ventana de OW_CLOSE_TIMEOUT_MS (default 1000 ms) para responder →
+//       destroy.
 //
 #include "Window_p.hpp"
 #include "../Bridge/Dispatcher.hpp"
@@ -35,6 +36,18 @@ int CloseVetoTimeoutMs() {
         if (n > 0) return n;
     }
     return 1000; // default: 1 s para responder desde JS
+}
+
+/// Bordes aceptados por `beginResizeDrag`. Es la fuente única de la
+/// validación: las implementaciones de plataforma traducen estos nombres a
+/// sus enums, pero el rechazo de un borde desconocido ocurre aquí.
+bool IsValidResizeEdge(const std::string& e) {
+    static const char* kEdges[] = {"left",       "right",      "top",
+                                   "bottom",     "top-left",   "top-right",
+                                   "bottom-left", "bottom-right"};
+    for (const char* k : kEdges)
+        if (e == k) return true;
+    return false;
 }
 
 } // namespace
@@ -79,7 +92,13 @@ void Window::Impl::HandleWebViewMessage(std::string_view text) {
     }
 
     if (msg.type == bridge::MsgType::Invoke) {
-        if (msg.module == "ow-window") {
+        // Sólo los drags se resuelven aquí: necesitan la ventana INVOCANTE
+        // (no la de `msg.window`) y no forman parte del descriptor .owm.
+        // El resto de `ow-window` (minimize/maximize/close/setTitle/…) cae al
+        // Dispatcher, que tiene el builtin registrado (App.cpp). Interceptarlo
+        // entero dejaba esas funciones inalcanzables desde el renderer.
+        if (msg.module == "ow-window" &&
+            (msg.method == "beginMoveDrag" || msg.method == "beginResizeDrag")) {
             HandleInternalInvoke(msg);
             return;
         }
@@ -138,10 +157,27 @@ void Window::Impl::HandleInternalInvoke(const bridge::Message& msg) {
         PBeginMoveDrag();
         respond(true, "null");
     } else if (msg.method == "beginResizeDrag") {
+        // El bridge manda los args como ARRAY (Codec.cpp serializa el array
+        // `a` tal cual), así que el borde es a[0]. `Value::Find` sólo mira
+        // miembros de objeto: usarlo aquí hacía que el borde se quedara
+        // siempre en el default y todos los lados redimensionaran igual.
         std::string edge = "bottom-right";
-        if (const json::Value* v = args.Find("0"); v && v->IsString()) edge = v->AsString();
+        const json::Array& a = args.AsArray();
+        if (!a.empty() && a[0].IsString()) edge = a[0].AsString();
+        if (!IsValidResizeEdge(edge)) {
+            // no arrancamos el drag: un borde desconocido antes se traducía en
+            // un resize silencioso por abajo-derecha (Linux) o en nada (Win)
+            respond(false, std::string("{\"message\":\"ow-window: borde de resize "
+                                       "desconocido: ") +
+                               edge + "\"}");
+            return;
+        }
         PBeginResizeDrag(edge);
-        respond(true, "null");
+        // devuelve el borde EFECTIVO: permite verificar el parseo desde un
+        // test sin depender del gestor de ventanas
+        json::Object o;
+        o.emplace_back("edge", json::Value(edge));
+        respond(true, json::Value(std::move(o)).Serialize());
     } else {
         respond(false, std::string("{\"message\":\"ow-window: función desconocida ") +
                            msg.method + "\"}");
