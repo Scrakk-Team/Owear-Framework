@@ -95,6 +95,8 @@ importers:
 
   packages/runtime-linux-x64-gnu: {}
 
+  packages/runtime-win32-x64: {}
+
   packages/vite-plugin:
     dependencies:
       '@owear/cli':

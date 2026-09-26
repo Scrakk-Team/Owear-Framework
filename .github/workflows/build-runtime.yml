@@ -57,6 +57,15 @@ jobs:
         run: cmake --preset windows-release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
       - name: Build
         run: cmake --build --preset windows-release
+      - name: Bundle MSVC runtime (VCRUNTIME/MSVCP)
+        shell: pwsh
+        run: |
+          $dst = "build/windows-release/src/Release"
+          foreach ($dll in 'vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll','concrt140.dll') {
+            $p = Join-Path $env:SystemRoot "System32\$dll"
+            if (Test-Path $p) { Copy-Item $p $dst -Force }
+          }
+          Get-ChildItem $dst -Filter *.dll | Select-Object -ExpandProperty Name
       - name: Pack runtime
         run: node tools/pack-runtime.mjs --target win32-x64
       - uses: actions/upload-artifact@v4

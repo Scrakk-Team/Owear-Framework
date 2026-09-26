@@ -22,8 +22,8 @@ include/**         headers para `owear-build-native` (tus módulos native/*.cpp)
 - **WebView2 Runtime**: viene preinstalado en Windows 11 y en la mayoría de
   Windows 10 con Edge actualizado. Si falta:
   <https://developer.microsoft.com/microsoft-edge/webview2/>
-- Nada más. **No** necesitas Visual Studio, CMake, vcpkg ni OpenSSL: el kernel
-  ya viene compilado en este paquete.
+- Nada más. **No** necesitas Visual Studio, CMake, vcpkg, OpenSSL ni el runtime
+  VC++ (todo va incluido en este paquete).
 
 ## Uso
 
