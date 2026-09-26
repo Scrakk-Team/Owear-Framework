@@ -287,6 +287,8 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
                     ov.color = c->AsString();
                 if (const V* sc = v->Find("symbolColor"); sc && sc->IsString())
                     ov.symbolColor = sc->AsString();
+                if (const V* bc = v->Find("buttonColor"); bc && bc->IsString())
+                    ov.buttonColor = bc->AsString();
                 if (const V* h = v->Find("height"); h && h->IsNumber())
                     ov.height = static_cast<int>(h->AsInt());
             }
@@ -381,6 +383,8 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
                     ov.color = c->AsString();
                 if (const V* sc = v->Find("symbolColor"); sc && sc->IsString())
                     ov.symbolColor = sc->AsString();
+                if (const V* bc = v->Find("buttonColor"); bc && bc->IsString())
+                    ov.buttonColor = bc->AsString();
                 if (const V* h = v->Find("height"); h && h->IsNumber())
                     ov.height = static_cast<int>(h->AsInt());
             }

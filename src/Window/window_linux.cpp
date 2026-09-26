@@ -69,6 +69,7 @@ struct Window::Impl::PlatformData {
     GtkWidget* overlay = nullptr;     // GtkOverlay contenedor (si overlay activo)
     GtkWidget* overlayBar = nullptr;  // GtkBox con los botones del tema
     GtkWidget* overlayMaxBtn = nullptr;
+    GtkCssProvider* cssProvider = nullptr;  // colores del overlay (a nivel screen)
     bool webviewReady = false;
     bool isWayland = false;
     bool fullscreen = false;
@@ -146,6 +147,34 @@ std::string CssHex(const std::string& in) {
     return "#" + s.substr(0, 6);
 }
 
+/// "#rrggbb" → "#000000"/"#ffffff" según luminancia (contraste legible).
+std::string ContrastHex(const std::string& hex) {
+    if (hex.size() != 7) return "#ffffff";
+    auto hx = [&](int i) {
+        return std::strtoul(hex.substr(i, 2).c_str(), nullptr, 16) / 255.0;
+    };
+    const double lum = 0.2126 * hx(1) + 0.7152 * hx(3) + 0.0722 * hx(5);
+    return lum > 0.5 ? "#000000" : "#ffffff";
+}
+
+/// Aclara (amt>0) u oscurece (amt<0) un "#rrggbb".
+std::string ShadeHex(const std::string& hex, double amt) {
+    if (hex.size() != 7) return hex;
+    auto hx = [&](int i) {
+        return static_cast<int>(std::strtoul(hex.substr(i, 2).c_str(), nullptr, 16));
+    };
+    auto adj = [amt](int v) {
+        double x = v / 255.0;
+        x = amt >= 0 ? x + (1.0 - x) * amt : x * (1.0 + amt);
+        int r = static_cast<int>(x * 255.0 + 0.5);
+        return r < 0 ? 0 : (r > 255 ? 255 : r);
+    };
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "#%02x%02x%02x", adj(hx(1)), adj(hx(3)),
+                  adj(hx(5)));
+    return buf;
+}
+
 void OnTbMinimize(GtkButton*, gpointer ud) {
     auto* impl = static_cast<Window::Impl*>(ud);
     if (impl->pdata && impl->pdata->window)
@@ -190,8 +219,7 @@ void BuildOverlayBar(Window::Impl* impl) {
     // estiran: conservan su tamaño natural y se centran verticalmente, así el
     // estilo lo decide el tema de la distro.
     GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_style_context_add_class(gtk_widget_get_style_context(box),
-                                "ow-titlebar-overlay");
+    gtk_widget_set_name(box, "ow-titlebar-overlay"); // id para ganar especificidad
     gtk_widget_set_halign(box, GTK_ALIGN_END);
     gtk_widget_set_valign(box, GTK_ALIGN_START);
     gtk_widget_set_size_request(box, -1, h);
@@ -216,22 +244,45 @@ void BuildOverlayBar(Window::Impl* impl) {
     g_signal_connect(maxb, "clicked", G_CALLBACK(OnTbMaximize), impl);
     g_signal_connect(closeb, "clicked", G_CALLBACK(OnTbClose), impl);
 
-    // Fondo del strip: transparente por defecto (se ve la titlebar web). Si el
-    // usuario pasa `color`, se usa. `symbolColor` solo si viene explícito (por
-    // defecto vacío ⇒ el color lo decide el tema, como en Electron/Linux).
+    // Colores (todos opcionales; por defecto los del tema). El selector va por
+    // id (`#ow-titlebar-overlay`) para ganar en especificidad a las reglas
+    // `button.titlebutton` del tema.
+    //  - color: fondo de la banda.
+    //  - symbolColor: glifo.
+    //  - buttonColor: fondo INTERNO del círculo (hover/pressed derivados).
+    const std::string bg = CssHex(impl->opts.titleBarOverlay.color);
+    const std::string btn = CssHex(impl->opts.titleBarOverlay.buttonColor);
+    std::string fg = impl->opts.titleBarOverlay.symbolColor;
+    if (fg.empty() && !btn.empty()) fg = ContrastHex(btn);
+    else if (fg.empty() && !bg.empty()) fg = ContrastHex(bg);
+
     std::string css =
-        ".ow-titlebar-overlay{background:transparent;box-shadow:none;border:none;}";
-    if (std::string bg = CssHex(impl->opts.titleBarOverlay.color); !bg.empty())
-        css += ".ow-titlebar-overlay{background:" + bg + ";}";
-    if (!impl->opts.titleBarOverlay.symbolColor.empty())
-        css += ".ow-titlebar-overlay button.titlebutton{color:" +
-               impl->opts.titleBarOverlay.symbolColor + ";}";
+        "#ow-titlebar-overlay{background:transparent;box-shadow:none;border:none;}";
+    if (!bg.empty()) css += "#ow-titlebar-overlay{background:" + bg + ";}";
+    if (!fg.empty())
+        css += "#ow-titlebar-overlay button.titlebutton{color:" + fg + ";}";
+    if (!btn.empty()) {
+        css += "#ow-titlebar-overlay button.titlebutton{background-image:none;"
+               "background-color:" + btn + ";}";
+        css += "#ow-titlebar-overlay button.titlebutton:hover{background-image:none;"
+               "background-color:" + ShadeHex(btn, 0.08) + ";}";
+        css += "#ow-titlebar-overlay button.titlebutton:active{background-image:none;"
+               "background-color:" + ShadeHex(btn, -0.12) + ";}";
+    }
     GtkCssProvider* prov = gtk_css_provider_new();
     gtk_css_provider_load_from_data(prov, css.c_str(), -1, nullptr);
-    gtk_style_context_add_provider(gtk_widget_get_style_context(box),
-                                   GTK_STYLE_PROVIDER(prov),
-                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-    g_object_unref(prov);
+    // OJO: gtk_style_context_add_provider() en GTK3 solo afecta a ESE widget,
+    // no a sus hijos. Los botones son hijos → hay que registrarlo a nivel de
+    // pantalla (los selectores #id ya lo acotan).
+    if (pd->cssProvider) {
+        gtk_style_context_remove_provider_for_screen(
+            gdk_screen_get_default(), GTK_STYLE_PROVIDER(pd->cssProvider));
+        g_object_unref(pd->cssProvider);
+    }
+    pd->cssProvider = prov;
+    gtk_style_context_add_provider_for_screen(
+        gdk_screen_get_default(), GTK_STYLE_PROVIDER(prov),
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), box);
     gtk_widget_show_all(box);
@@ -255,7 +306,14 @@ void BuildOverlayBar(Window::Impl* impl) {
 
 void DestroyOverlayBar(Window::Impl* impl) {
     auto* pd = impl->pdata;
-    if (!pd || !pd->overlayBar) return;
+    if (!pd) return;
+    if (pd->cssProvider) {
+        gtk_style_context_remove_provider_for_screen(
+            gdk_screen_get_default(), GTK_STYLE_PROVIDER(pd->cssProvider));
+        g_object_unref(pd->cssProvider);
+        pd->cssProvider = nullptr;
+    }
+    if (!pd->overlayBar) return;
     gtk_widget_destroy(pd->overlayBar);
     pd->overlayBar = nullptr;
     pd->overlayMaxBtn = nullptr;

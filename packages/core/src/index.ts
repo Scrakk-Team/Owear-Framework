@@ -31,7 +31,7 @@ export interface WindowOptions {
   resizable?: boolean
   frameless?: boolean
   titleBarStyle?: 'default' | 'hidden' | 'custom'
-  titleBarOverlay?: boolean | { enabled?: boolean; color?: string; symbolColor?: string; height?: number }
+  titleBarOverlay?: boolean | { enabled?: boolean; color?: string; symbolColor?: string; buttonColor?: string; height?: number }
   url?: string
 }
 
@@ -352,7 +352,7 @@ export class BrowserWindow extends EventEmitter {
    * `true` los activa con los valores por defecto.
    */
   setTitleBarOverlay(
-    overlay: boolean | { enabled?: boolean; color?: string; symbolColor?: string; height?: number },
+    overlay: boolean | { enabled?: boolean; color?: string; symbolColor?: string; buttonColor?: string; height?: number },
   ): Promise<void> {
     return channel.call('window.setTitleBarOverlay', {
       windowId: this.requireId(),
