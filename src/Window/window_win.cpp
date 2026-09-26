@@ -21,9 +21,8 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shlobj.h>
-#include <uxtheme.h>
-#include <vssym32.h>
-#pragma comment(lib, "uxtheme.lib")
+#include <gdiplus.h>
+#pragma comment(lib, "gdiplus.lib")
 
 // WebView2 (para las webviews embebidas). Si no está el SDK, se compilan a
 // vacío las funciones de webviews (Linux las tiene; Windows las añade aquí).
@@ -134,39 +133,98 @@ void PositionCaptionBar(Window::Impl::PlatformData* pd) {
     RECT cr;
     GetClientRect(pd->hwnd, &cr);
     UINT dpi = GetDpiForWindow(pd->hwnd);
-    int bw = static_cast<int>(GetSystemMetricsForDpi(SM_CXSIZE, dpi));
+    int bw = MulDiv(46, static_cast<int>(dpi), 96); // ancho de botón Win10 (DIP)
     if (bw <= 0) bw = 46;
     pd->capW = bw * 3;
     pd->capH = pd->captionH > 0 ? pd->captionH : 32;
     SetWindowPos(pd->captionBar, HWND_TOP, cr.right - pd->capW, 0, pd->capW,
                  pd->capH, SWP_NOACTIVATE);
+    InvalidateRect(pd->captionBar, nullptr, FALSE); // re-pinta el layered
 }
 
+void EnsureGdiplus() {
+    static ULONG_PTR token = 0;
+    if (!token) {
+        Gdiplus::GdiplusStartupInput in;
+        Gdiplus::GdiplusStartup(&token, &in, nullptr);
+    }
+}
+
+/// Dibuja la barra con GDI+ en un DIB 32-bit y la composita con
+/// UpdateLayeredWindow (ventana layered): solo se ven los glifos/hover, el
+/// fondo deja ver la titlebar/WebView2 de detrás. Estilo Win10/11 (como Electron).
 void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hwnd, &ps);
     RECT rc;
     GetClientRect(hwnd, &rc);
     const int w = rc.right, h = rc.bottom;
+    if (w <= 0 || h <= 0 || !pd) return;
+    EnsureGdiplus();
+
+    HDC screen = GetDC(nullptr);
+    HDC mem = CreateCompatibleDC(screen);
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h; // top-down
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP bmp = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HGDIOBJ old = SelectObject(mem, bmp);
+
+    const UINT dpi = GetDpiForWindow(hwnd);
+    const bool maximized = IsZoomed(pd->hwnd);
     const int bw = w / 3;
-    const bool maximized = pd && pd->hwnd && IsZoomed(pd->hwnd);
-    HTHEME theme = OpenThemeData(hwnd, L"WINDOW");
-    for (int i = 0; i < 3; ++i) {
-        RECT r{i * bw, 0, (i == 2) ? w : (i + 1) * bw, h};
-        int part = (i == 0) ? WP_MINBUTTON
-                            : (i == 1) ? (maximized ? WP_RESTOREBUTTON
-                                                    : WP_MAXBUTTON)
-                                       : WP_CLOSEBUTTON;
-        int state = CBS_NORMAL;
-        if (pd && pd->capPress == i) state = CBS_PUSHED;
-        else if (pd && pd->capHover == i) state = CBS_HOT;
-        if (theme)
-            DrawThemeBackground(theme, hdc, part, state, &r, nullptr);
-        else
-            FillRect(hdc, &r, reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1));
+    const int icon = MulDiv(10, static_cast<int>(dpi), 96);
+    const float stroke = static_cast<float>(MulDiv(1, static_cast<int>(dpi), 96));
+    {
+        Gdiplus::Graphics g(mem);
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        g.Clear(Gdiplus::Color(0, 0, 0, 0));
+        for (int i = 0; i < 3; ++i) {
+            const int x0 = i * bw, x1 = (i == 2) ? w : (i + 1) * bw;
+            const bool hot = pd->capHover == i;
+            const bool press = pd->capPress == i;
+            if (hot || press) {
+                BYTE a;
+                Gdiplus::Color base;
+                if (i == 2) { base = Gdiplus::Color(255, 0xE8, 0x11, 0x23); a = press ? 0x98 : 255; }
+                else { base = Gdiplus::Color(255, 255, 255, 255); a = press ? 0x33 : 0x1A; }
+                Gdiplus::SolidBrush br(Gdiplus::Color(a, base.GetR(), base.GetG(), base.GetB()));
+                g.FillRectangle(&br, Gdiplus::Rect(x0, 0, x1 - x0, h));
+            }
+            Gdiplus::Color glyph(255, 255, 255, 255);
+            Gdiplus::Pen pen(glyph, stroke);
+            const int cx0 = x0 + (x1 - x0 - icon) / 2, cy0 = (h - icon) / 2;
+            const int cx1 = cx0 + icon, cy1 = cy0 + icon;
+            if (i == 0) {
+                int y = (cy0 + cy1) / 2;
+                g.DrawLine(&pen, cx0, y, cx1, y);
+            } else if (i == 1 && !maximized) {
+                g.DrawRectangle(&pen, cx0, cy0, icon - 1, icon - 1);
+            } else if (i == 1) {
+                int sep = icon / 5;
+                g.DrawRectangle(&pen, cx0, cy0 + sep, icon - sep - 1, icon - sep - 1);
+                g.DrawRectangle(&pen, cx0 + sep, cy0, icon - sep - 1, icon - sep - 1);
+            } else {
+                g.DrawLine(&pen, cx0, cy0, cx1, cy1);
+                g.DrawLine(&pen, cx1, cy0, cx0, cy1);
+            }
+        }
     }
-    if (theme) CloseThemeData(theme);
-    EndPaint(hwnd, &ps);
+
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+    POINT dst{wr.left, wr.top}, src{0, 0};
+    SIZE size{w, h};
+    BLENDFUNCTION bf{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
+    UpdateLayeredWindow(hwnd, screen, &dst, &size, mem, &src, 0, &bf, ULW_ALPHA);
+
+    SelectObject(mem, old);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+    ReleaseDC(nullptr, screen);
 }
 
 LRESULT CALLBACK CaptionWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -207,9 +265,13 @@ LRESULT CALLBACK CaptionWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             PostMessageW(pd->hwnd, WM_CLOSE, 0, 0);
         return 0;
     }
-    case WM_PAINT:
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        BeginPaint(hwnd, &ps);
+        EndPaint(hwnd, &ps);
         DrawCaptionBar(hwnd, pd);
         return 0;
+    }
     case WM_ERASEBKGND:
         return 1;
     case WM_SETCURSOR:
@@ -437,8 +499,9 @@ bool Window::Impl::PCreate() {
         pdata->captionH =
             opts.titleBarOverlay.height > 0 ? opts.titleBarOverlay.height : 32;
         pdata->captionBar = CreateWindowExW(
-            0, kCaptionClass, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0,
-            10, 10, hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+            WS_EX_LAYERED, kCaptionClass, L"",
+            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, 10, 10, hwnd, nullptr,
+            GetModuleHandleW(nullptr), nullptr);
         if (pdata->captionBar) {
             SetWindowLongPtrW(pdata->captionBar, GWLP_USERDATA,
                               reinterpret_cast<LONG_PTR>(pdata));
