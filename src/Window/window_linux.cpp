@@ -7,9 +7,12 @@
 //  - Default: decoraciones del gestor de ventanas.
 //  - Hidden/Custom: gtk_window_set_decorated(false) + drag regions CSS
 //    ([data-ow-drag]). La app dibuja sus botones.
-//  - Custom + titleBarOverlay: botones nativos GTK (min/max/close) superpuestos
-//    arriba-derecha con un GtkOverlay, estilo `titlebutton` (el mismo que usa
-//    GtkHeaderBar). El hueco se expone al web como window.__owTitlebarOverlay.
+//  - Custom + titleBarOverlay: botones min/max/close DIBUJADOS con Cairo en un
+//    GtkOverlay arriba-derecha, idénticos a Electron/Chromium (ancho 45, icono
+//    10px, hover 0x1A, close #E81123). El hueco se expone al web como
+//    window.__owTitlebarOverlay.
+//  - En Wayland el resize por bordes se hace con zonas GtkEventBox (no hay
+//    eventos X para el filtro GDK).
 //
 #include "Window_p.hpp"
 #include "../Core/Log.hpp"
@@ -64,9 +67,11 @@ const char* CursorForEdge(GdkWindowEdge e) {
 struct Window::Impl::PlatformData {
     GtkWidget* window = nullptr;
     GtkWidget* overlay = nullptr;     // GtkOverlay contenedor (si overlay activo)
-    GtkWidget* overlayBar = nullptr;  // GtkBox con los botones nativos
-    GtkWidget* overlayMaxBtn = nullptr;
+    GtkWidget* overlayBar = nullptr;  // GtkEventBox que dibuja los botones
+    int hoverBtn = -1;
+    int pressBtn = -1;
     bool webviewReady = false;
+    bool isWayland = false;
     bool fullscreen = false;
     bool resizeFilter = false;
     uint64_t token = 0;
@@ -126,51 +131,195 @@ GdkFilterReturn ResizeEventFilter(GdkXEvent*, GdkEvent* event, gpointer data) {
 namespace {
 
 // ── overlay nativo (titleBarOverlay) ─────────────────────────────────────────
-// Botones con el estilo `titlebutton` de GTK (el mismo que usa GtkHeaderBar),
-// así heredan el look/tema nativo (Adwaita, etc.).
+// Botones DIBUJADOS con Cairo, idénticos a Electron/Chromium (Windows), en vez
+// de usar los iconos del tema GTK. Constantes de
+// window_frame_util.h: ancho 45, separación visual 1, icono 10px.
 
-/// Convierte "#RGB"/"#RRGGBB"/"#RRGGBBAA" a un color CSS de GTK ("#rrggbb").
-/// Devuelve "" para alpha 0 (transparente) o valores inválidos.
-std::string CssColor(const std::string& in) {
+constexpr int kCaptionBtnW = 45;    // WindowFrameUtil::kWindowsCaptionButtonWidth
+constexpr int kCaptionSpacing = 1;  // ...kWindowsCaptionButtonVisualSpacing
+constexpr int kCaptionIcon = 10;    // PaintSymbol: symbol_size_pixels = 10
+constexpr int kCaptionCount = 3;
+
+struct RGBA { double r = 0, g = 0, b = 0, a = 0; bool ok = false; };
+
+/// "#RGB"/"#RRGGBB"/"#RRGGBBAA" → RGBA en [0,1].
+RGBA ParseColor(const std::string& in) {
+    RGBA c;
     std::string s = in;
     if (!s.empty() && s[0] == '#') s = s.substr(1);
     if (s.size() == 3) s = {s[0], s[0], s[1], s[1], s[2], s[2]};
-    if (s.size() != 6 && s.size() != 8) return {};
-    if (s.size() == 8 && std::strtoul(s.substr(6, 2).c_str(), nullptr, 16) == 0)
-        return {}; // alpha 0 ⇒ dejar transparente
-    return "#" + s.substr(0, 6);
+    if (s.size() != 6 && s.size() != 8) return c;
+    auto hx = [](const std::string& x) {
+        return std::strtoul(x.c_str(), nullptr, 16) / 255.0;
+    };
+    c.r = hx(s.substr(0, 2));
+    c.g = hx(s.substr(2, 2));
+    c.b = hx(s.substr(4, 2));
+    c.a = s.size() == 8 ? hx(s.substr(6, 2)) : 1.0;
+    c.ok = true;
+    return c;
 }
 
-void OnTbMinimize(GtkButton*, gpointer ud) {
+/// Rect del botón i (izq→der): min, max/restore, close. El primero no lleva
+/// la separación (que va dentro del ancho de los siguientes, como Electron).
+void CaptionLayout(int i, int& x, int& w) {
+    x = 0;
+    for (int k = 0; k < i; ++k) x += kCaptionBtnW + (k > 0 ? kCaptionSpacing : 0);
+    w = kCaptionBtnW + (i > 0 ? kCaptionSpacing : 0);
+}
+
+int CaptionTotalWidth() {
+    int x = 0, w = 0;
+    CaptionLayout(kCaptionCount - 1, x, w);
+    return x + w;
+}
+
+int CaptionButtonAt(int x) {
+    for (int i = kCaptionCount - 1; i >= 0; --i) {
+        int bx, bw;
+        CaptionLayout(i, bx, bw);
+        if (x >= bx && x < bx + bw) return i;
+    }
+    return -1;
+}
+
+/// Dibuja los 3 botones (fondo hover/pressed + icono de 10px) como Electron.
+gboolean OnCaptionDraw(GtkWidget* w, cairo_t* cr, gpointer ud) {
     auto* impl = static_cast<Window::Impl*>(ud);
-    if (impl->pdata && impl->pdata->window)
-        gtk_window_iconify(GTK_WINDOW(impl->pdata->window));
-}
-
-void OnTbMaximize(GtkButton*, gpointer ud) {
-    auto* impl = static_cast<Window::Impl*>(ud);
-    if (!impl->pdata || !impl->pdata->window) return;
-    GtkWindow* w = GTK_WINDOW(impl->pdata->window);
-    if (gtk_window_is_maximized(w)) gtk_window_unmaximize(w);
-    else gtk_window_maximize(w);
-}
-
-void OnTbClose(GtkButton*, gpointer ud) {
-    static_cast<Window::Impl*>(ud)->BeginCloseFlow();
-}
-
-void UpdateOverlayMaxIcon(Window::Impl* impl, bool maximized) {
     auto* pd = impl->pdata;
-    if (!pd || !pd->overlayMaxBtn) return;
-    GtkWidget* img = gtk_button_get_image(GTK_BUTTON(pd->overlayMaxBtn));
-    if (img)
-        gtk_image_set_from_icon_name(
-            GTK_IMAGE(img),
-            maximized ? "window-restore-symbolic" : "window-maximize-symbolic",
-            GTK_ICON_SIZE_BUTTON);
+    const int h = gtk_widget_get_allocated_height(w);
+    const int total = CaptionTotalWidth();
+    const RGBA bg = ParseColor(impl->opts.titleBarOverlay.color);
+    RGBA fg = ParseColor(impl->opts.titleBarOverlay.symbolColor);
+    if (!fg.ok) fg = RGBA{1, 1, 1, 1, true};
+    const bool maximized =
+        pd->window && gtk_window_is_maximized(GTK_WINDOW(pd->window));
+
+    // Fondo del strip (titleBarOverlay.color; por defecto transparente).
+    cairo_set_source_rgba(cr, bg.r, bg.g, bg.b, bg.a);
+    cairo_rectangle(cr, 0, 0, total, h);
+    cairo_fill(cr);
+
+    for (int i = 0; i < kCaptionCount; ++i) {
+        int x, bw;
+        CaptionLayout(i, x, bw);
+        const int bxi = x + (i > 0 ? kCaptionSpacing : 0);
+        const int bwi = bw - (i > 0 ? kCaptionSpacing : 0);
+        const bool hot = pd->hoverBtn == i;
+        const bool press = pd->pressBtn == i;
+
+        // Fondo: close → #E81123 (opaco/0x98); resto → foreground 0x1A/0x33.
+        if (hot || press) {
+            if (i == 2)
+                cairo_set_source_rgba(cr, 0xE8 / 255.0, 0x11 / 255.0,
+                                      0x23 / 255.0, press ? 0x98 / 255.0 : 1.0);
+            else
+                cairo_set_source_rgba(cr, fg.r, fg.g, fg.b,
+                                      press ? 0x33 / 255.0 : 0x1A / 255.0);
+            cairo_rectangle(cr, bxi, 0, bwi, h);
+            cairo_fill(cr);
+        }
+
+        const bool closeHot = i == 2 && (hot || press);
+        if (closeHot) cairo_set_source_rgb(cr, 1, 1, 1);
+        else cairo_set_source_rgb(cr, fg.r, fg.g, fg.b);
+        cairo_set_line_width(cr, 1.0);
+
+        const double sx = x + (bw - kCaptionIcon) / 2.0;
+        const double sy = (h - kCaptionIcon) / 2.0;
+        const double p = 0.5;
+        const double S = kCaptionIcon;
+
+        if (i == 0) {  // minimize: línea horizontal
+            cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+            cairo_move_to(cr, sx, sy + S / 2.0);
+            cairo_line_to(cr, sx + S, sy + S / 2.0);
+            cairo_stroke(cr);
+        } else if (i == 1 && !maximized) {  // maximize: cuadrado
+            cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+            cairo_rectangle(cr, sx + p, sy + p, S - 1, S - 1);
+            cairo_stroke(cr);
+        } else if (i == 1) {  // restore: dos cuadrados (detrás recortado)
+            const double sep = 2;
+            cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+            cairo_save(cr);
+            cairo_rectangle(cr, sx, sy, S, S);
+            cairo_rectangle(cr, sx, sy + sep, S - sep, S - sep);
+            cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
+            cairo_clip(cr);
+            cairo_rectangle(cr, sx + sep + p, sy + p, S - sep - 1, S - sep - 1);
+            cairo_stroke(cr);
+            cairo_restore(cr);
+            cairo_rectangle(cr, sx + p, sy + sep + p, S - sep - 1, S - sep - 1);
+            cairo_stroke(cr);
+        } else {  // close: X
+            cairo_set_antialias(cr, CAIRO_ANTIALIAS_DEFAULT);
+            cairo_move_to(cr, sx + p, sy + p);
+            cairo_line_to(cr, sx + S - p, sy + S - p);
+            cairo_move_to(cr, sx + S - p, sy + p);
+            cairo_line_to(cr, sx + p, sy + S - p);
+            cairo_stroke(cr);
+        }
+    }
+    return FALSE;
 }
 
-/// Crea (idempotente) la barra de botones nativos dentro del GtkOverlay.
+gboolean OnCaptionMotion(GtkWidget* w, GdkEventMotion* e, gpointer ud) {
+    auto* pd = static_cast<Window::Impl*>(ud)->pdata;
+    const int i = CaptionButtonAt(static_cast<int>(e->x));
+    if (i != pd->hoverBtn) {
+        pd->hoverBtn = i;
+        gtk_widget_queue_draw(w);
+    }
+    return FALSE;
+}
+
+gboolean OnCaptionLeave(GtkWidget* w, GdkEventCrossing*, gpointer ud) {
+    auto* pd = static_cast<Window::Impl*>(ud)->pdata;
+    if (pd->hoverBtn != -1) {
+        pd->hoverBtn = -1;
+        gtk_widget_queue_draw(w);
+    }
+    return FALSE;
+}
+
+gboolean OnCaptionPress(GtkWidget* w, GdkEventButton* e, gpointer ud) {
+    if (e->button != 1) return FALSE;
+    auto* pd = static_cast<Window::Impl*>(ud)->pdata;
+    const int i = CaptionButtonAt(static_cast<int>(e->x));
+    if (i < 0) return FALSE;
+    pd->pressBtn = i;
+    gtk_widget_queue_draw(w);
+    return TRUE;
+}
+
+gboolean OnCaptionRelease(GtkWidget* w, GdkEventButton* e, gpointer ud) {
+    if (e->button != 1) return FALSE;
+    auto* impl = static_cast<Window::Impl*>(ud);
+    auto* pd = impl->pdata;
+    const int i = CaptionButtonAt(static_cast<int>(e->x));
+    const int pressed = pd->pressBtn;
+    pd->pressBtn = -1;
+    gtk_widget_queue_draw(w);
+    if (pressed < 0 || pressed != i) return TRUE;
+    GtkWindow* win = GTK_WINDOW(pd->window);
+    if (i == 0)
+        gtk_window_iconify(win);
+    else if (i == 1) {
+        if (gtk_window_is_maximized(win)) gtk_window_unmaximize(win);
+        else gtk_window_maximize(win);
+    } else if (i == 2) {
+        impl->BeginCloseFlow();
+    }
+    return TRUE;
+}
+
+void RedrawCaptionBar(Window::Impl* impl) {
+    if (impl->pdata && impl->pdata->overlayBar)
+        gtk_widget_queue_draw(impl->pdata->overlayBar);
+}
+
+/// Crea (idempotente) la barra de botones dibujada dentro del GtkOverlay.
 void BuildOverlayBar(Window::Impl* impl) {
     auto* pd = impl->pdata;
     if (!pd || !pd->overlay || pd->overlayBar) return;
@@ -179,70 +328,44 @@ void BuildOverlayBar(Window::Impl* impl) {
     const int h = impl->opts.titleBarOverlay.height > 0
                       ? impl->opts.titleBarOverlay.height
                       : 36;
+    const int total = CaptionTotalWidth();
 
-    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
-    GtkStyleContext* bctx = gtk_widget_get_style_context(box);
-    gtk_style_context_add_class(bctx, "titlebar");
-    gtk_style_context_add_class(bctx, "default-decoration");
-    gtk_style_context_add_class(bctx, "ow-titlebar-overlay");
-    gtk_widget_set_halign(box, GTK_ALIGN_END);
-    gtk_widget_set_valign(box, GTK_ALIGN_START);
-    gtk_widget_set_size_request(box, -1, h);
-
-    GtkWidget* minb =
-        gtk_button_new_from_icon_name("window-minimize-symbolic", GTK_ICON_SIZE_BUTTON);
-    GtkWidget* maxb =
-        gtk_button_new_from_icon_name("window-maximize-symbolic", GTK_ICON_SIZE_BUTTON);
-    GtkWidget* closeb =
-        gtk_button_new_from_icon_name("window-close-symbolic", GTK_ICON_SIZE_BUTTON);
-    GtkWidget* btns[3] = {minb, maxb, closeb};
-    const int inset = h >= 28 ? 5 : 0; // separa del borde superior/inferior
-    for (GtkWidget* b : btns) {
-        gtk_style_context_add_class(gtk_widget_get_style_context(b), "titlebutton");
-        gtk_widget_set_can_focus(b, FALSE);
-        gtk_widget_set_focus_on_click(b, FALSE);
-        gtk_widget_set_size_request(b, 36, -1); // ancho fijo, alto lo da la barra
-        gtk_widget_set_margin_top(b, inset);
-        gtk_widget_set_margin_bottom(b, inset);
-        gtk_box_pack_start(GTK_BOX(box), b, FALSE, TRUE, 0);
-    }
-    gtk_style_context_add_class(gtk_widget_get_style_context(closeb), "close");
-
-    g_signal_connect(minb, "clicked", G_CALLBACK(OnTbMinimize), impl);
-    g_signal_connect(maxb, "clicked", G_CALLBACK(OnTbMaximize), impl);
-    g_signal_connect(closeb, "clicked", G_CALLBACK(OnTbClose), impl);
-
-    // CSS: fondo transparente por defecto (se ve la titlebar web), y color/
-    // symbolColor si vienen en las opciones.
-    std::string css =
-        ".ow-titlebar-overlay{background:transparent;box-shadow:none;border:none;}";
-    if (std::string bg = CssColor(impl->opts.titleBarOverlay.color); !bg.empty())
-        css += ".ow-titlebar-overlay{background:" + bg + ";}";
-    if (std::string fg = CssColor(impl->opts.titleBarOverlay.symbolColor); !fg.empty())
-        css += ".ow-titlebar-overlay button.titlebutton{color:" + fg + ";}";
+    GtkWidget* area = gtk_event_box_new();
+    gtk_style_context_add_class(gtk_widget_get_style_context(area), "ow-caption-bar");
+    gtk_widget_set_halign(area, GTK_ALIGN_END);
+    gtk_widget_set_valign(area, GTK_ALIGN_START);
+    gtk_widget_set_size_request(area, total, h);
+    gtk_widget_set_can_focus(area, FALSE);
+    gtk_widget_add_events(area, GDK_POINTER_MOTION_MASK | GDK_BUTTON_PRESS_MASK |
+                                    GDK_BUTTON_RELEASE_MASK |
+                                    GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
     GtkCssProvider* prov = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(prov, css.c_str(), -1, nullptr);
-    gtk_style_context_add_provider(gtk_widget_get_style_context(box),
+    gtk_css_provider_load_from_data(
+        prov,
+        ".ow-caption-bar{background:transparent;box-shadow:none;border:none;}", -1,
+        nullptr);
+    gtk_style_context_add_provider(gtk_widget_get_style_context(area),
                                    GTK_STYLE_PROVIDER(prov),
                                    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     g_object_unref(prov);
 
-    gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), box);
-    gtk_widget_show_all(box);
+    g_signal_connect(area, "draw", G_CALLBACK(OnCaptionDraw), impl);
+    g_signal_connect(area, "motion-notify-event", G_CALLBACK(OnCaptionMotion), impl);
+    g_signal_connect(area, "leave-notify-event", G_CALLBACK(OnCaptionLeave), impl);
+    g_signal_connect(area, "button-press-event", G_CALLBACK(OnCaptionPress), impl);
+    g_signal_connect(area, "button-release-event", G_CALLBACK(OnCaptionRelease), impl);
 
-    pd->overlayBar = box;
-    pd->overlayMaxBtn = maxb;
-    UpdateOverlayMaxIcon(impl, GTK_WINDOW(pd->window) &&
-                                   gtk_window_is_maximized(GTK_WINDOW(pd->window)));
+    pd->hoverBtn = -1;
+    pd->pressBtn = -1;
+    gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), area);
+    gtk_widget_show(area);
+    pd->overlayBar = area;
 
     // Expone al renderer el hueco reservado (equivalente a env(titlebar-area-*)).
     if (pd->webviewReady && impl->webview) {
-        GtkRequisition req{};
-        gtk_widget_get_preferred_size(box, nullptr, &req);
-        const int w = req.width > 0 ? req.width : 3 * h;
         impl->webview->InjectInitScript(
             "window.__owTitlebarOverlay={enabled:true,height:" +
-            std::to_string(h) + ",width:" + std::to_string(w) +
+            std::to_string(h) + ",width:" + std::to_string(total) +
             ",top:0,right:0};");
     }
 }
@@ -252,7 +375,96 @@ void DestroyOverlayBar(Window::Impl* impl) {
     if (!pd || !pd->overlayBar) return;
     gtk_widget_destroy(pd->overlayBar);
     pd->overlayBar = nullptr;
-    pd->overlayMaxBtn = nullptr;
+    pd->hoverBtn = -1;
+    pd->pressBtn = -1;
+}
+
+// ── resize por bordes (Wayland) ──────────────────────────────────────────────
+// En Wayland no hay eventos X, así que el filtro GDK no sirve. Ponemos
+// "zonas" invisibles (GtkEventBox) en bordes/esquinas dentro del overlay que
+// disparan gtk_window_begin_resize_drag (funciona en Wayland y X11).
+struct ResizeCtx {
+    Window::Impl* impl;
+    GdkWindowEdge edge;
+};
+
+gboolean OnEdgePress(GtkWidget*, GdkEventButton* e, gpointer ud) {
+    auto* ctx = static_cast<ResizeCtx*>(ud);
+    if (e->button != 1 || !ctx->impl->pdata || !ctx->impl->pdata->window)
+        return FALSE;
+    gtk_window_begin_resize_drag(GTK_WINDOW(ctx->impl->pdata->window), ctx->edge,
+                                 1, static_cast<gint>(e->x_root),
+                                 static_cast<gint>(e->y_root), e->time);
+    return TRUE;
+}
+
+gboolean OnEdgeEnter(GtkWidget* w, GdkEventCrossing*, gpointer ud) {
+    auto* ctx = static_cast<ResizeCtx*>(ud);
+    GdkWindow* gw = gtk_widget_get_window(w);
+    if (!gw) return FALSE;
+    if (const char* name = CursorForEdge(ctx->edge)) {
+        GdkCursor* c = gdk_cursor_new_from_name(gdk_window_get_display(gw), name);
+        gdk_window_set_cursor(gw, c);
+        if (c) g_object_unref(c);
+    }
+    return FALSE;
+}
+
+gboolean OnEdgeLeave(GtkWidget* w, GdkEventCrossing*, gpointer) {
+    if (GdkWindow* gw = gtk_widget_get_window(w)) gdk_window_set_cursor(gw, nullptr);
+    return FALSE;
+}
+
+void AddResizeEdge(Window::Impl* impl, GdkWindowEdge edge, GtkAlign ha, GtkAlign va,
+                   int w, int h) {
+    auto* pd = impl->pdata;
+    GtkWidget* eb = gtk_event_box_new();
+    gtk_style_context_add_class(gtk_widget_get_style_context(eb), "ow-resize-edge");
+    gtk_widget_set_halign(eb, ha);
+    gtk_widget_set_valign(eb, va);
+    gtk_widget_set_size_request(eb, w, h);
+    gtk_widget_add_events(eb, GDK_BUTTON_PRESS_MASK | GDK_ENTER_NOTIFY_MASK |
+                                  GDK_LEAVE_NOTIFY_MASK);
+    GtkCssProvider* p = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(p, ".ow-resize-edge{background:transparent;}",
+                                    -1, nullptr);
+    gtk_style_context_add_provider(gtk_widget_get_style_context(eb),
+                                   GTK_STYLE_PROVIDER(p),
+                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(p);
+
+    auto* ctx = new ResizeCtx{impl, edge};
+    g_signal_connect_data(
+        eb, "button-press-event", G_CALLBACK(OnEdgePress), ctx,
+        +[](gpointer d, GClosure*) { delete static_cast<ResizeCtx*>(d); },
+        GConnectFlags(0));
+    g_signal_connect(eb, "enter-notify-event", G_CALLBACK(OnEdgeEnter), ctx);
+    g_signal_connect(eb, "leave-notify-event", G_CALLBACK(OnEdgeLeave), ctx);
+
+    gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), eb);
+    gtk_widget_show(eb);
+}
+
+void BuildResizeEdges(Window::Impl* impl) {
+    auto* pd = impl->pdata;
+    if (!pd || !pd->overlay || !impl->opts.resizable) return;
+    const int B = 6;   // grosor del borde
+    const int C = 14;  // tamaño de las esquinas
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_NORTH, GTK_ALIGN_FILL, GTK_ALIGN_START, -1, B);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_SOUTH, GTK_ALIGN_FILL, GTK_ALIGN_END, -1, B);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_WEST, GTK_ALIGN_START, GTK_ALIGN_FILL, B, -1);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_EAST, GTK_ALIGN_END, GTK_ALIGN_FILL, B, -1);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_NORTH_WEST, GTK_ALIGN_START, GTK_ALIGN_START, C, C);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_NORTH_EAST, GTK_ALIGN_END, GTK_ALIGN_START, C, C);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_SOUTH_WEST, GTK_ALIGN_START, GTK_ALIGN_END, C, C);
+    AddResizeEdge(impl, GDK_WINDOW_EDGE_SOUTH_EAST, GTK_ALIGN_END, GTK_ALIGN_END, C, C);
+}
+
+/// ¿El display es Wayland? (ahí el filtro XEvent no sirve para resize).
+bool DisplayIsWayland() {
+    GdkDisplay* d = gdk_display_get_default();
+    const char* name = d ? G_OBJECT_TYPE_NAME(d) : nullptr;
+    return name && std::string(name).find("Wayland") != std::string::npos;
 }
 
 } // namespace
@@ -276,6 +488,7 @@ bool Window::Impl::PCreate() {
     gtk_window_set_default_size(GTK_WINDOW(win), opts.width, opts.height);
 
     const bool frameless = opts.titleBarStyle != TitleBarStyle::Default;
+    pdata->isWayland = DisplayIsWayland();
 
     // Esquinas redondeadas (Linux): ventana con visual RGBA y fondo
     // transparente. La superficie visible la pinta el contenido web, que
@@ -284,21 +497,28 @@ bool Window::Impl::PCreate() {
     if (frameless) {
         gtk_widget_set_app_paintable(win, TRUE);
         if (GdkScreen* screen = gtk_widget_get_screen(win)) {
-            if (GdkVisual* vis = gdk_screen_get_rgba_visual(screen))
+            if (GdkVisual* vis = gdk_screen_get_rgba_visual(screen)) {
                 gtk_widget_set_visual(win, vis);
+                log::Debug("window", "frameless: visual RGBA disponible");
+            } else {
+                log::Warn("window",
+                          "frameless: sin visual RGBA (bordes redondeados pueden "
+                          "no verse)");
+            }
         }
         GtkCssProvider* css = gtk_css_provider_new();
         gtk_css_provider_load_from_data(
-            css, "window { background-color: transparent; }", -1, nullptr);
+            css,
+            "window, overlay { background-color: transparent; }", -1, nullptr);
         gtk_style_context_add_provider(gtk_widget_get_style_context(win),
                                        GTK_STYLE_PROVIDER(css),
                                        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
         g_object_unref(css);
     }
 
-    // titleBarOverlay: GtkOverlay como contenedor para superponer los botones
-    // nativos (min/max/close) arriba-derecha sobre el contenido web.
-    if (frameless && opts.titleBarOverlay.enabled) {
+    // GtkOverlay como contenedor: sirve para (a) superponer los botones nativos
+    // (titleBarOverlay) y (b) las zonas de resize cuando estamos en Wayland.
+    if (frameless && (opts.titleBarOverlay.enabled || pdata->isWayland)) {
         pdata->overlay = gtk_overlay_new();
         gtk_container_add(GTK_CONTAINER(win), pdata->overlay);
     }
@@ -344,7 +564,7 @@ bool Window::Impl::PCreate() {
                          bool maximized = e->new_window_state & GDK_WINDOW_STATE_MAXIMIZED;
                          bool fullscreen = e->new_window_state & GDK_WINDOW_STATE_FULLSCREEN;
                          impl->pdata->fullscreen = fullscreen;
-                         UpdateOverlayMaxIcon(impl, maximized);
+                         RedrawCaptionBar(impl);
                          Window::Impl::EmitPlatformEvent(impl, maximized ? "maximize" : "unmaximize");
                          Window::Impl::EmitPlatformEvent(impl, fullscreen ? "enterFullScreen" : "leaveFullScreen");
                          return FALSE;
@@ -452,7 +672,10 @@ bool Window::Impl::PCreate() {
     else
         webview->RegisterAssetScheme("app", std::filesystem::current_path() / "dist");
 
-    if (pdata->overlay) BuildOverlayBar(this);
+    if (pdata->overlay) {
+        if (pdata->isWayland) BuildResizeEdges(this);
+        BuildOverlayBar(this);
+    }
 
     return true;
 }

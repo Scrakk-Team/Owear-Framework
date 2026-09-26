@@ -106,11 +106,15 @@ async function about(): Promise<void> {
  */
 function applyTitleBarOverlay(): void {
   const ov = window.__owTitlebarOverlay
-  if (!ov?.enabled) return
   const root = document.documentElement
-  root.classList.add('ow-native-overlay')
-  root.style.setProperty('--ow-overlay-height', `${ov.height}px`)
-  root.style.setProperty('--ow-overlay-width', `${ov.width}px`)
+  if (ov?.enabled) {
+    root.classList.add('ow-native-overlay')
+    root.style.setProperty('--ow-overlay-height', `${ov.height}px`)
+    root.style.setProperty('--ow-overlay-width', `${ov.width}px`)
+  } else {
+    // Sin botones nativos: mostramos los del web (.ow-web-controls).
+    root.classList.add('ow-web-controls')
+  }
 }
 
 function wireTitlebar(): void {

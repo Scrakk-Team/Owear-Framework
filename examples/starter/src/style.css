@@ -92,16 +92,18 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Los controles del web se ocultan por DEFECTO y solo se muestran si el SO no
+   provee botones nativos (el renderer añade .ow-web-controls). Así nunca
+   parpadean detrás del overlay nativo (que es transparente). */
 .titlebar__controls {
-  display: flex;
-}
-
-/* titleBarOverlay: botones nativos del SO dentro de la titlebar web.
-   Se ocultan los del web y se reserva el hueco a la derecha. */
-html.ow-native-overlay .titlebar__controls {
   display: none;
 }
 
+html.ow-web-controls .titlebar__controls {
+  display: flex;
+}
+
+/* titleBarOverlay activo: reservar el hueco a la derecha y ajustar la altura. */
 html.ow-native-overlay .titlebar__drag {
   padding-right: var(--ow-overlay-width, 0px);
 }
