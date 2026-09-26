@@ -1074,18 +1074,29 @@ std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
     };
 
     if (op == "setBounds") {
-        if (a.IsArray()) {
-            if (a.AsArray().size() > 0) ev.x = (int)a.AsArray()[0].AsInt();
-            if (a.AsArray().size() > 1) ev.y = (int)a.AsArray()[1].AsInt();
-            if (a.AsArray().size() > 2) ev.w = (int)a.AsArray()[2].AsInt();
-            if (a.AsArray().size() > 3) ev.h = (int)a.AsArray()[3].AsInt();
-        } else if (a.IsObject()) {
-            if (const auto* v = a.Find("x"); v && v->IsNumber()) ev.x = (int)v->AsInt();
-            if (const auto* v = a.Find("y"); v && v->IsNumber()) ev.y = (int)v->AsInt();
-            if (const auto* v = a.Find("width"); v && v->IsNumber())
+        // Acepta {x,y,width,height}, [x,y,width,height] o [{...}] (el módulo
+        // envuelve los args rest en un array → normalmente llega [{...}]).
+        const json::Value* src = nullptr;
+        if (a.IsObject())
+            src = &a;
+        else if (a.IsArray() && !a.AsArray().empty() &&
+                 a.AsArray()[0].IsObject())
+            src = &a.AsArray()[0];
+
+        if (src) {
+            if (const auto* v = src->Find("x"); v && v->IsNumber())
+                ev.x = (int)v->AsInt();
+            if (const auto* v = src->Find("y"); v && v->IsNumber())
+                ev.y = (int)v->AsInt();
+            if (const auto* v = src->Find("width"); v && v->IsNumber())
                 ev.w = (int)v->AsInt();
-            if (const auto* v = a.Find("height"); v && v->IsNumber())
+            if (const auto* v = src->Find("height"); v && v->IsNumber())
                 ev.h = (int)v->AsInt();
+        } else if (a.IsArray() && a.AsArray().size() >= 4) {
+            ev.x = (int)a.AsArray()[0].AsInt();
+            ev.y = (int)a.AsArray()[1].AsInt();
+            ev.w = (int)a.AsArray()[2].AsInt();
+            ev.h = (int)a.AsArray()[3].AsInt();
         }
         gtk_fixed_move(GTK_FIXED(pdata->viewFixed), ev.view, ev.x, ev.y);
         gtk_widget_set_size_request(ev.view, ev.w, ev.h);
