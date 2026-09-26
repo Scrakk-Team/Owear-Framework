@@ -12,12 +12,27 @@
   "publishConfig": {
     "access": "public"
   },
-  "os": ["linux"],
-  "cpu": ["x64"],
-  "libc": ["glibc"],
-  "engines": { "node": ">=20" },
-  "bin": { "owear": "bin/owear" },
-  "files": ["bin", "include", "README.md", "LICENSE"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "owear": "bin/owear"
+  },
+  "files": [
+    "bin",
+    "include",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "prepack": "node ../../tools/pack-runtime.mjs --target linux-x64-gnu"
   }

@@ -10,7 +10,10 @@
   "optionalDependencies": {
     "@owear/linux-x64-gnu": "workspace:*"
   },
-  "files": ["src", "template"],
+  "files": [
+    "src",
+    "template"
+  ],
   "scripts": {
     "typecheck": "node --check src/ow.js && node --check src/owear-build-native.js"
   },
