@@ -1,58 +1,91 @@
 # Copyright 2026 Owear Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-name: Release (npm)
+# Release: en un tag vX.Y.Z → valida versión/changelog, compila el kernel,
+# publica los paquetes en npm (con provenance) y crea el GitHub Release usando
+# docs/changelog/changelog-X.Y.Z.md como notas.
+#
+# Auth npm: hoy usa el secreto NPM_TOKEN (granular con bypass 2FA).
+# Migración a Trusted Publishing (OIDC, sin token) — ver docs/changelog/README.md.
+#
+name: Release
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a publicar (p. ej. v0.1.1)'
+        required: true
 
 jobs:
-  publish:
+  verify:
+    name: Verify · versión + changelog + checks
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # provenance npm
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: v
+        name: Tag == versión y changelog presente
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VER="${TAG#v}"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          node -e "const v=require('./package.json').version; if(v!=='$VER'){console.error('tag $VER != package.json '+v);process.exit(1)}"
+          test -f "docs/changelog/changelog-$VER.md" || { echo "falta docs/changelog/changelog-$VER.md"; exit 1; }
+      - run: node tools/version.mjs check
+      - run: node tools/gen-apis.mjs --check
+      - run: node tools/check-apis.mjs
+      - run: node tools/license-header.mjs --check
 
+  publish:
+    name: Publish · kernel + npm + GitHub Release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # crear el GitHub Release
+      id-token: write # provenance npm (OIDC)
+    steps:
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
-      # ── Kernel nativo (el runtime de Linux se empaqueta desde aquí) ──────────
       - name: Deps del kernel (Linux)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
             libssl-dev zlib1g-dev ninja-build
-      - name: Build del kernel
+      - name: Build del kernel + runtime @owear/linux-x64-gnu
         run: |
           cmake --preset linux-release
           cmake --build --preset linux-release
-      - name: Empaquetar runtime @owear/linux-x64-gnu
-        run: node tools/pack-runtime.mjs --target linux-x64-gnu
-
-      - name: Aviso — runtimes de Windows/macOS
-        run: |
-          echo "::notice::@owear/win32-x64 y @owear/darwin-* se publican desde runners nativos (ver docs/ROADMAP.md). En este job solo se publica el de Linux."
+          node tools/pack-runtime.mjs --target linux-x64-gnu
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm -r build
-      - run: pnpm -r typecheck
-      # sanity: los generados de APIs están al día y los manifiestos sincronizados
-      - run: node tools/gen-apis.mjs --check
-      - run: node tools/check-apis.mjs
 
-      - name: Publish (scoped → público)
-        run: pnpm -r publish --access public --no-git-checks
+      - name: Publicar en npm (provenance)
+        run: pnpm -r publish --access public --no-git-checks --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: docs/changelog/changelog-${{ needs.verify.outputs.version }}.md
+          draft: false
+          prerelease: false

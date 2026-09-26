@@ -9,14 +9,18 @@ on:
   pull_request:
 
 jobs:
-  apis:
-    name: APIs · manifiestos + registro generado
+  quality:
+    name: Quality · licencia, versión y APIs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Cabeceras SPDX (Apache-2.0)
+        run: node tools/license-header.mjs --check
+      - name: Versión única + changelog
+        run: node tools/version.mjs check
       # El descubrimiento (CMake) y el registro de builtins se GENERAN desde
       # api/<nombre>/owear.module.json. Si alguien toca un manifiesto y no
       # regenera, aquí se cae.
@@ -26,6 +30,17 @@ jobs:
         run: node tools/check-apis.mjs
       - name: Lista de APIs
         run: node packages/cli/src/ow.js api list
+
+  commits:
+    name: Conventional Commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Lint de mensajes de commit
+        run: node tools/check-commits.mjs "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
 
   linux:
     name: Linux · build + tests + E2E
