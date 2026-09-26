@@ -91,7 +91,8 @@ public:
 
     bool Create(void* parentNativeWindow, const std::vector<std::string>& args) override {
         (void)args; // v1: sin flags extra
-        GtkWindow* parent = GTK_WINDOW(parentNativeWindow);
+        // El parent puede ser la GtkWindow o un GtkOverlay (titleBarOverlay).
+        GtkWidget* parent = GTK_WIDGET(parentNativeWindow);
         if (!parent) return false;
 
         manager_ = webkit_user_content_manager_new();

@@ -31,7 +31,7 @@ export interface WindowOptions {
   resizable?: boolean
   frameless?: boolean
   titleBarStyle?: 'default' | 'hidden' | 'custom'
-  titleBarOverlay?: { color?: string; symbolColor?: string; height?: number }
+  titleBarOverlay?: boolean | { enabled?: boolean; color?: string; symbolColor?: string; height?: number }
   url?: string
 }
 
@@ -344,6 +344,20 @@ export class BrowserWindow extends EventEmitter {
   }
   setTitle(title: string): Promise<void> {
     return channel.call('window.setTitle', { windowId: this.requireId(), title })
+  }
+
+  /**
+   * Activa/desactiva o reconfigura los botones nativos de ventana
+   * (min/max/close) dentro de la titlebar custom (Linux: GTK `titlebutton`).
+   * `true` los activa con los valores por defecto.
+   */
+  setTitleBarOverlay(
+    overlay: boolean | { enabled?: boolean; color?: string; symbolColor?: string; height?: number },
+  ): Promise<void> {
+    return channel.call('window.setTitleBarOverlay', {
+      windowId: this.requireId(),
+      titleBarOverlay: overlay,
+    })
   }
 }
 

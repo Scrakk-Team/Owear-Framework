@@ -38,6 +38,12 @@ int main(int argc, char** argv) {
                 wo.width = 1100;
                 wo.height = 720;
                 wo.titleBarStyle = ow::TitleBarStyle::Custom;
+                // Dev: permite probar el overlay nativo sin tocar la app.
+                if (std::getenv("OW_TITLEBAR_OVERLAY")) {
+                    wo.titleBarOverlay.enabled = true;
+                    if (const char* h = std::getenv("OW_TITLEBAR_OVERLAY_HEIGHT"))
+                        wo.titleBarOverlay.height = std::atoi(h);
+                }
                 if (const char* url = std::getenv("OW_DEV_SERVER_URL")) wo.url = url;
                 return wo;
             }());

@@ -9,6 +9,14 @@ export {}
 declare global {
   interface Window {
     __owWindowId: number
+    /** Presente cuando la ventana usa `titleBarOverlay` (botones nativos). */
+    __owTitlebarOverlay?: {
+      enabled: boolean
+      height: number
+      width: number
+      top?: number
+      right?: number
+    }
     ow: {
       invoke(module: string, fn: string, ...args: unknown[]): Promise<unknown>
       invokeSync(module: string, fn: string, ...args: unknown[]): unknown

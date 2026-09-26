@@ -6,8 +6,10 @@
 // Titlebar en Linux:
 //  - Default: decoraciones del gestor de ventanas.
 //  - Hidden/Custom: gtk_window_set_decorated(false) + drag regions CSS
-//    ([data-ow-drag]). Los botones overlay nativos son exclusivos de
-//    Windows/macOS; en Linux la app dibuja los suyos.
+//    ([data-ow-drag]). La app dibuja sus botones.
+//  - Custom + titleBarOverlay: botones nativos GTK (min/max/close) superpuestos
+//    arriba-derecha con un GtkOverlay, estilo `titlebutton` (el mismo que usa
+//    GtkHeaderBar). El hueco se expone al web como window.__owTitlebarOverlay.
 //
 #include "Window_p.hpp"
 #include "../Core/Log.hpp"
@@ -17,9 +19,11 @@
 #include <webkit2/webkit2.h>
 
 #include <atomic>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <map>
+#include <string>
 
 namespace ow {
 
@@ -59,6 +63,10 @@ const char* CursorForEdge(GdkWindowEdge e) {
 
 struct Window::Impl::PlatformData {
     GtkWidget* window = nullptr;
+    GtkWidget* overlay = nullptr;     // GtkOverlay contenedor (si overlay activo)
+    GtkWidget* overlayBar = nullptr;  // GtkBox con los botones nativos
+    GtkWidget* overlayMaxBtn = nullptr;
+    bool webviewReady = false;
     bool fullscreen = false;
     bool resizeFilter = false;
     uint64_t token = 0;
@@ -115,6 +123,140 @@ GdkFilterReturn ResizeEventFilter(GdkXEvent*, GdkEvent* event, gpointer data) {
 
 } // namespace
 
+namespace {
+
+// ── overlay nativo (titleBarOverlay) ─────────────────────────────────────────
+// Botones con el estilo `titlebutton` de GTK (el mismo que usa GtkHeaderBar),
+// así heredan el look/tema nativo (Adwaita, etc.).
+
+/// Convierte "#RGB"/"#RRGGBB"/"#RRGGBBAA" a un color CSS de GTK ("#rrggbb").
+/// Devuelve "" para alpha 0 (transparente) o valores inválidos.
+std::string CssColor(const std::string& in) {
+    std::string s = in;
+    if (!s.empty() && s[0] == '#') s = s.substr(1);
+    if (s.size() == 3) s = {s[0], s[0], s[1], s[1], s[2], s[2]};
+    if (s.size() != 6 && s.size() != 8) return {};
+    if (s.size() == 8 && std::strtoul(s.substr(6, 2).c_str(), nullptr, 16) == 0)
+        return {}; // alpha 0 ⇒ dejar transparente
+    return "#" + s.substr(0, 6);
+}
+
+void OnTbMinimize(GtkButton*, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    if (impl->pdata && impl->pdata->window)
+        gtk_window_iconify(GTK_WINDOW(impl->pdata->window));
+}
+
+void OnTbMaximize(GtkButton*, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    if (!impl->pdata || !impl->pdata->window) return;
+    GtkWindow* w = GTK_WINDOW(impl->pdata->window);
+    if (gtk_window_is_maximized(w)) gtk_window_unmaximize(w);
+    else gtk_window_maximize(w);
+}
+
+void OnTbClose(GtkButton*, gpointer ud) {
+    static_cast<Window::Impl*>(ud)->BeginCloseFlow();
+}
+
+void UpdateOverlayMaxIcon(Window::Impl* impl, bool maximized) {
+    auto* pd = impl->pdata;
+    if (!pd || !pd->overlayMaxBtn) return;
+    GtkWidget* img = gtk_button_get_image(GTK_BUTTON(pd->overlayMaxBtn));
+    if (img)
+        gtk_image_set_from_icon_name(
+            GTK_IMAGE(img),
+            maximized ? "window-restore-symbolic" : "window-maximize-symbolic",
+            GTK_ICON_SIZE_BUTTON);
+}
+
+/// Crea (idempotente) la barra de botones nativos dentro del GtkOverlay.
+void BuildOverlayBar(Window::Impl* impl) {
+    auto* pd = impl->pdata;
+    if (!pd || !pd->overlay || pd->overlayBar) return;
+    if (!impl->opts.titleBarOverlay.enabled) return;
+
+    const int h = impl->opts.titleBarOverlay.height > 0
+                      ? impl->opts.titleBarOverlay.height
+                      : 36;
+
+    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+    GtkStyleContext* bctx = gtk_widget_get_style_context(box);
+    gtk_style_context_add_class(bctx, "titlebar");
+    gtk_style_context_add_class(bctx, "default-decoration");
+    gtk_style_context_add_class(bctx, "ow-titlebar-overlay");
+    gtk_widget_set_halign(box, GTK_ALIGN_END);
+    gtk_widget_set_valign(box, GTK_ALIGN_START);
+    gtk_widget_set_size_request(box, -1, h);
+
+    GtkWidget* minb =
+        gtk_button_new_from_icon_name("window-minimize-symbolic", GTK_ICON_SIZE_BUTTON);
+    GtkWidget* maxb =
+        gtk_button_new_from_icon_name("window-maximize-symbolic", GTK_ICON_SIZE_BUTTON);
+    GtkWidget* closeb =
+        gtk_button_new_from_icon_name("window-close-symbolic", GTK_ICON_SIZE_BUTTON);
+    GtkWidget* btns[3] = {minb, maxb, closeb};
+    const int inset = h >= 28 ? 5 : 0; // separa del borde superior/inferior
+    for (GtkWidget* b : btns) {
+        gtk_style_context_add_class(gtk_widget_get_style_context(b), "titlebutton");
+        gtk_widget_set_can_focus(b, FALSE);
+        gtk_widget_set_focus_on_click(b, FALSE);
+        gtk_widget_set_size_request(b, 36, -1); // ancho fijo, alto lo da la barra
+        gtk_widget_set_margin_top(b, inset);
+        gtk_widget_set_margin_bottom(b, inset);
+        gtk_box_pack_start(GTK_BOX(box), b, FALSE, TRUE, 0);
+    }
+    gtk_style_context_add_class(gtk_widget_get_style_context(closeb), "close");
+
+    g_signal_connect(minb, "clicked", G_CALLBACK(OnTbMinimize), impl);
+    g_signal_connect(maxb, "clicked", G_CALLBACK(OnTbMaximize), impl);
+    g_signal_connect(closeb, "clicked", G_CALLBACK(OnTbClose), impl);
+
+    // CSS: fondo transparente por defecto (se ve la titlebar web), y color/
+    // symbolColor si vienen en las opciones.
+    std::string css =
+        ".ow-titlebar-overlay{background:transparent;box-shadow:none;border:none;}";
+    if (std::string bg = CssColor(impl->opts.titleBarOverlay.color); !bg.empty())
+        css += ".ow-titlebar-overlay{background:" + bg + ";}";
+    if (std::string fg = CssColor(impl->opts.titleBarOverlay.symbolColor); !fg.empty())
+        css += ".ow-titlebar-overlay button.titlebutton{color:" + fg + ";}";
+    GtkCssProvider* prov = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(prov, css.c_str(), -1, nullptr);
+    gtk_style_context_add_provider(gtk_widget_get_style_context(box),
+                                   GTK_STYLE_PROVIDER(prov),
+                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(prov);
+
+    gtk_overlay_add_overlay(GTK_OVERLAY(pd->overlay), box);
+    gtk_widget_show_all(box);
+
+    pd->overlayBar = box;
+    pd->overlayMaxBtn = maxb;
+    UpdateOverlayMaxIcon(impl, GTK_WINDOW(pd->window) &&
+                                   gtk_window_is_maximized(GTK_WINDOW(pd->window)));
+
+    // Expone al renderer el hueco reservado (equivalente a env(titlebar-area-*)).
+    if (pd->webviewReady && impl->webview) {
+        GtkRequisition req{};
+        gtk_widget_get_preferred_size(box, nullptr, &req);
+        const int w = req.width > 0 ? req.width : 3 * h;
+        impl->webview->InjectInitScript(
+            "window.__owTitlebarOverlay={enabled:true,height:" +
+            std::to_string(h) + ",width:" + std::to_string(w) +
+            ",top:0,right:0};");
+    }
+}
+
+void DestroyOverlayBar(Window::Impl* impl) {
+    auto* pd = impl->pdata;
+    if (!pd || !pd->overlayBar) return;
+    gtk_widget_destroy(pd->overlayBar);
+    pd->overlayBar = nullptr;
+    pd->overlayMaxBtn = nullptr;
+}
+
+} // namespace
+
 Window::~Window() = default;
 Window::Impl::~Impl() {
     if (pdata && pdata->resizeFilter)
@@ -152,6 +294,13 @@ bool Window::Impl::PCreate() {
                                        GTK_STYLE_PROVIDER(css),
                                        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
         g_object_unref(css);
+    }
+
+    // titleBarOverlay: GtkOverlay como contenedor para superponer los botones
+    // nativos (min/max/close) arriba-derecha sobre el contenido web.
+    if (frameless && opts.titleBarOverlay.enabled) {
+        pdata->overlay = gtk_overlay_new();
+        gtk_container_add(GTK_CONTAINER(win), pdata->overlay);
     }
 
     if (!opts.resizable) gtk_window_set_resizable(GTK_WINDOW(win), FALSE);
@@ -195,6 +344,7 @@ bool Window::Impl::PCreate() {
                          bool maximized = e->new_window_state & GDK_WINDOW_STATE_MAXIMIZED;
                          bool fullscreen = e->new_window_state & GDK_WINDOW_STATE_FULLSCREEN;
                          impl->pdata->fullscreen = fullscreen;
+                         UpdateOverlayMaxIcon(impl, maximized);
                          Window::Impl::EmitPlatformEvent(impl, maximized ? "maximize" : "unmaximize");
                          Window::Impl::EmitPlatformEvent(impl, fullscreen ? "enterFullScreen" : "leaveFullScreen");
                          return FALSE;
@@ -216,7 +366,10 @@ bool Window::Impl::PCreate() {
 
     gtk_widget_show_all(win);
 
-    if (!webview->Create(win, opts.webviewArgs)) return false;
+    // Con overlay, el webview es el child principal del GtkOverlay.
+    GtkWidget* contentParent = pdata->overlay ? pdata->overlay : win;
+    if (!webview->Create(contentParent, opts.webviewArgs)) return false;
+    pdata->webviewReady = true;
 
     // ── eventos de navegación (siempre activos) ────────────────────────
     GtkWidget* view = GTK_WIDGET(webview->NativeWidget());
@@ -299,6 +452,8 @@ bool Window::Impl::PCreate() {
     else
         webview->RegisterAssetScheme("app", std::filesystem::current_path() / "dist");
 
+    if (pdata->overlay) BuildOverlayBar(this);
+
     return true;
 }
 
@@ -311,11 +466,14 @@ void Window::Impl::PApplyTitleBar() {
         break;
     case TitleBarStyle::Hidden:
     case TitleBarStyle::Custom:
-        // Custom == Hidden + drag regions del lado web. Overlay nativo es
-        // Win/Mac only (documentado).
         gtk_window_set_decorated(GTK_WINDOW(pdata->window), FALSE);
         break;
     }
+    // En PCreate la barra se construye al final (cuando el webview ya existe
+    // para poder inyectar el script); aquí solo gestionamos cambios en caliente.
+    if (!pdata->webviewReady) return;
+    if (opts.titleBarOverlay.enabled) BuildOverlayBar(this);
+    else DestroyOverlayBar(this);
 }
 
 // ── plataforma: ciclo de vida ────────────────────────────────────────────────

@@ -14,6 +14,10 @@ app.whenReady().then(() => {
     width: 1080,
     height: 720,
     titleBarStyle: 'custom', // titlebar propia + regiones [data-ow-drag]
+    // Botones de ventana nativos (min/max/close) dentro de la titlebar custom.
+    // En Linux son botones GTK `titlebutton`; el renderer oculta los suyos y
+    // reserva el hueco con window.__owTitlebarOverlay.
+    titleBarOverlay: { height: 40 },
     url: process.env.OW_DEV_SERVER_URL ?? 'app://index.html',
   })
 

@@ -100,6 +100,19 @@ async function about(): Promise<void> {
 }
 
 // ── Titlebar (builtin ow-window) ────────────────────────────────────────
+/**
+ * Si el SO provee botones de ventana nativos (titleBarOverlay), ocultamos los
+ * del web y reservamos su hueco. La clase y las CSS vars las consume style.css.
+ */
+function applyTitleBarOverlay(): void {
+  const ov = window.__owTitlebarOverlay
+  if (!ov?.enabled) return
+  const root = document.documentElement
+  root.classList.add('ow-native-overlay')
+  root.style.setProperty('--ow-overlay-height', `${ov.height}px`)
+  root.style.setProperty('--ow-overlay-width', `${ov.width}px`)
+}
+
 function wireTitlebar(): void {
   const id = window.__owWindowId
   $('#win-min').addEventListener('click', () => void invoke('ow-window', 'minimize', id))
@@ -124,6 +137,7 @@ const actions: Record<string, () => void | Promise<void>> = {
 }
 
 function boot(): void {
+  applyTitleBarOverlay()
   wireTitlebar()
   renderEnvironment()
 

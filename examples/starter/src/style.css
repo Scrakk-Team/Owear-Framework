@@ -96,6 +96,20 @@ body {
   display: flex;
 }
 
+/* titleBarOverlay: botones nativos del SO dentro de la titlebar web.
+   Se ocultan los del web y se reserva el hueco a la derecha. */
+html.ow-native-overlay .titlebar__controls {
+  display: none;
+}
+
+html.ow-native-overlay .titlebar__drag {
+  padding-right: var(--ow-overlay-width, 0px);
+}
+
+html.ow-native-overlay .titlebar {
+  height: var(--ow-overlay-height, 40px);
+}
+
 .winbtn {
   width: 46px;
   border: 0;

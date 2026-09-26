@@ -275,6 +275,27 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
             else if (s == "custom") opts.titleBarStyle = TitleBarStyle::Custom;
             else opts.titleBarStyle = TitleBarStyle::Default;
         }
+        if (const V* v = params.Find("titleBarOverlay")) {
+            TitleBarOverlay ov;
+            if (v->IsBool()) {
+                ov.enabled = v->AsBool();
+            } else if (v->IsObject()) {
+                ov.enabled = true; // presente ⇒ activo (estilo Electron)
+                if (const V* e = v->Find("enabled"); e && e->IsBool())
+                    ov.enabled = e->AsBool();
+                if (const V* c = v->Find("color"); c && c->IsString())
+                    ov.color = c->AsString();
+                if (const V* sc = v->Find("symbolColor"); sc && sc->IsString())
+                    ov.symbolColor = sc->AsString();
+                if (const V* h = v->Find("height"); h && h->IsNumber())
+                    ov.height = static_cast<int>(h->AsInt());
+            }
+            opts.titleBarOverlay = ov;
+        }
+        // titleBarOverlay implica titlebar custom (como Electron con hidden).
+        if (opts.titleBarOverlay.enabled &&
+            opts.titleBarStyle == TitleBarStyle::Default)
+            opts.titleBarStyle = TitleBarStyle::Custom;
         if (const V* v = params.Find("url"); v && v->IsString()) opts.url = v->AsString();
 
         auto* win = new Window(opts);
@@ -344,6 +365,29 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         if (const V* v = params.Find("width"); v && v->IsNumber()) b.w = (int)v->AsInt();
         if (const V* v = params.Find("height"); v && v->IsNumber()) b.h = (int)v->AsInt();
         w->SetBounds(b);
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.setTitleBarOverlay") {
+        TitleBarOverlay ov;
+        if (const V* v = params.Find("titleBarOverlay")) {
+            if (v->IsBool()) {
+                ov.enabled = v->AsBool();
+            } else if (v->IsObject()) {
+                ov.enabled = true;
+                if (const V* e = v->Find("enabled"); e && e->IsBool())
+                    ov.enabled = e->AsBool();
+                if (const V* c = v->Find("color"); c && c->IsString())
+                    ov.color = c->AsString();
+                if (const V* sc = v->Find("symbolColor"); sc && sc->IsString())
+                    ov.symbolColor = sc->AsString();
+                if (const V* h = v->Find("height"); h && h->IsNumber())
+                    ov.height = static_cast<int>(h->AsInt());
+            }
+        } else {
+            ov.enabled = true; // sin payload ⇒ activar
+        }
+        w->SetTitleBarOverlay(ov);
         resultJson = "null";
         return true;
     }
