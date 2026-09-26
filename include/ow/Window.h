@@ -87,6 +87,19 @@ public:
     void SetTitleBarStyle(TitleBarStyle style);
     void SetTitleBarOverlay(const TitleBarOverlay& overlay);
 
+    // ── webviews embebidas (hijas de esta ventana) ─────────────────────
+    // Cada una es un WebView independiente (con su proceso), embebido como hijo
+    // y controlable por API. Linux de momento.
+    /// Crea una webview hija. `optionsJson`:
+    /// { url?, x?, y?, width?, height?, transparent?, userAgent? }.
+    /// Devuelve JSON {"id":N}.
+    std::string CreateWebview(const std::string& optionsJson);
+    /// Control de una webview. `op` ∈ setBounds|load|back|forward|reload|stop|
+    /// canBack|canForward|getURL|getTitle|eval|setVisible|setZoom|devtools|
+    /// findInPage|findStop|destroy. Devuelve JSON con el resultado.
+    std::string WebviewCommand(uint32_t id, const std::string& op,
+                               const std::string& argsJson);
+
     // ── webview ────────────────────────────────────────────────────
     void LoadURL(const std::string& url);
     /// Evalúa JS en la página. callback recibe el resultado JSON o null.

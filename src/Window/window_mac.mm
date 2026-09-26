@@ -202,4 +202,11 @@ void Window::Impl::PBeginResizeDrag(const std::string&) {
     // overlays custom (F3). v1: no-op.
 }
 
+// Webviews embebidas: pendiente (Linux primero).
+std::string Window::Impl::PCreateWebview(const std::string&) { return {}; }
+std::string Window::Impl::PWebviewCommand(uint32_t, const std::string&,
+                                          const std::string&) {
+    return {};
+}
+
 } // namespace ow

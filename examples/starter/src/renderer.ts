@@ -140,10 +140,89 @@ const actions: Record<string, () => void | Promise<void>> = {
   },
 }
 
+// ── Navegador embebido (webview nativa vía API `webview.*`) ─────────────
+let wvId: number | null = null
+
+/** Coloca la webview nativa sobre #wv-slot (y la oculta si el slot sale de vista). */
+function syncBrowserBounds(): void {
+  if (wvId == null) return
+  const slot = document.getElementById('wv-slot')
+  if (!slot) return
+  const r = slot.getBoundingClientRect()
+  const onScreen =
+    r.bottom > 0 && r.top < window.innerHeight && r.width > 8 && r.height > 8
+  void invoke('webview', 'setBounds', wvId, {
+    x: Math.round(r.left),
+    y: Math.round(r.top),
+    width: Math.round(r.width),
+    height: Math.round(r.height),
+  })
+  void invoke('webview', 'setVisible', wvId, onScreen)
+}
+
+async function wireBrowser(): Promise<void> {
+  const urlInput = $('#wv-url') as HTMLInputElement
+  const status = $('#wv-status')
+  try {
+    const res = await invoke<{ id: number }>('webview', 'create', {
+      url: urlInput.value,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+    })
+    wvId = res.id
+  } catch (e) {
+    log(`webview no disponible: ${e}`, 'err')
+    status.textContent = 'no disponible'
+    return
+  }
+
+  const nav = (op: string, ...args: unknown[]): void => {
+    if (wvId != null) void invoke('webview', op, wvId, ...args)
+  }
+  const go = (): void => {
+    let u = urlInput.value.trim()
+    if (u && !/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = `https://${u}`
+    nav('load', u)
+  }
+
+  $('#wv-back').addEventListener('click', () => nav('back'))
+  $('#wv-fwd').addEventListener('click', () => nav('forward'))
+  $('#wv-reload').addEventListener('click', () => nav('reload'))
+  $('#wv-go').addEventListener('click', go)
+  urlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') go()
+  })
+
+  window.ow.on('webview.urlChanged', (p) => {
+    const d = p as { id: number; url: string }
+    if (d.id === wvId && d.url) urlInput.value = d.url
+  })
+  window.ow.on('webview.titleChanged', (p) => {
+    const d = p as { id: number; title: string }
+    if (d.id === wvId) status.textContent = d.title || '—'
+  })
+  window.ow.on('webview.loadChanged', (p) => {
+    const d = p as { id: number; state: string }
+    if (d.id === wvId) status.textContent = d.state
+  })
+  window.ow.on('webview.loadFailed', (p) => {
+    const d = p as { id: number; message: string }
+    if (d.id === wvId) log(`webview error: ${d.message}`, 'err')
+  })
+
+  const page = $('.page')
+  page.addEventListener('scroll', syncBrowserBounds, { passive: true } as AddEventListenerOptions)
+  window.addEventListener('resize', syncBrowserBounds)
+  requestAnimationFrame(syncBrowserBounds)
+}
+
 function boot(): void {
   applyTitleBarOverlay()
   wireTitlebar()
   renderEnvironment()
+  void wireBrowser()
 
   for (const btn of document.querySelectorAll<HTMLElement>('[data-action]')) {
     const action = actions[btn.dataset.action ?? '']

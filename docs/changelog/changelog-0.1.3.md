@@ -44,6 +44,17 @@ exponer Node a la UI sin IPC por defecto.
   - **Opt-in**: los caminos calientes (fs, terminal/PTY…) siguen yendo directo
     renderer → kernel → módulo nativo, sin Node en medio. Pensado para exponer
     Node a la UI (p. ej. el extension host de VS Code).
+- **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
+  hijas, **cada una con su propio proceso**, embebidas y controlables por API:
+  - Builtin `webview` (`api/webview/owear.module.json`): `create, destroy,
+    setBounds, load, back, forward, reload, stop, canBack, canForward, getURL,
+    getTitle, eval, setVisible, setZoom, devtools, findInPage, findStop`.
+  - Renderer: `ow.invoke('webview', 'create', { url, x, y, width, height })` +
+    eventos `ow.on('webview.loadChanged|urlChanged|titleChanged|loadFailed')`.
+  - Linux (WebKitGTK): `GtkFixed` superpuesto + contexto WebKit compartido con
+    data dir por app; base para Windows/macOS.
+  - `examples/starter`: navegador embebido al final (barra atrás/adelante/
+    recargar/URL) colocado sobre `#wv-slot`.
 - `examples/starter`: usa `titleBarOverlay` y oculta sus propios botones,
   reservando el hueco con `--ow-overlay-width/height`.
 - Dev: `OW_TITLEBAR_OVERLAY[=_HEIGHT]` para probar el overlay con `OW_DEMO=1`.

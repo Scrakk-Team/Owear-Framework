@@ -9,6 +9,7 @@ set(OW_BUILTIN_SOURCES_linux
     ${CMAKE_SOURCE_DIR}/api/app/src/app_builtin.cpp
     ${CMAKE_SOURCE_DIR}/api/crashreporter/src/crashreporter.cpp
     ${CMAKE_SOURCE_DIR}/api/session/src/session_builtin.cpp
+    ${CMAKE_SOURCE_DIR}/api/webview/src/webview.cpp
     ${CMAKE_SOURCE_DIR}/api/window/src/window_extra.cpp)
 
 set(OW_BUILTIN_SOURCES_win

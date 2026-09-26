@@ -1,0 +1,22 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "webview",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Webviews embebidas: crear y controlar WebViews hijas dentro de una ventana (cada una con su propio proceso). Linux de momento.",
+  "descriptors": [
+    {
+      "name": "webview",
+      "factory": "WebviewModuleDescriptor",
+      "platforms": ["linux"],
+      "functions": [
+        "create", "destroy", "setBounds", "load", "back", "forward", "reload",
+        "stop", "canBack", "canForward", "getURL", "getTitle", "eval",
+        "setVisible", "setZoom", "devtools", "findInPage", "findStop"
+      ]
+    }
+  ],
+  "sources": {
+    "linux": ["src/webview.cpp"]
+  }
+}

@@ -80,6 +80,26 @@ const text = await ow.invoke('fs', 'readText', path)
 await ow.invoke('notification', 'show', 'Listo', 'Leídos ' + text.length + ' bytes')</code></pre>
         </section>
       </section>
+
+      <!-- Webview embebida: un navegador nativo hijo de la ventana (proceso
+           propio), controlado por la API webview.* y colocado sobre #wv-slot. -->
+      <section class="board">
+        <header class="card__head">
+          <h2>Navegador embebido</h2>
+          <span class="badge" id="wv-status">—</span>
+        </header>
+        <div class="browser">
+          <div class="browser__bar">
+            <button class="iconbtn" id="wv-back" title="Atrás" aria-label="Atrás">‹</button>
+            <button class="iconbtn" id="wv-fwd" title="Adelante" aria-label="Adelante">›</button>
+            <button class="iconbtn" id="wv-reload" title="Recargar" aria-label="Recargar">⟳</button>
+            <input id="wv-url" class="browser__url" type="text"
+                   value="https://owear.dev" spellcheck="false" />
+            <button class="btn btn--primary" id="wv-go">Ir</button>
+          </div>
+          <div id="wv-slot" class="browser__slot"></div>
+        </div>
+      </section>
     </main>
 
     <script type="module" src="/src/renderer.ts"></script>

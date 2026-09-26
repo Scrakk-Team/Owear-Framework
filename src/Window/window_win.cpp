@@ -382,4 +382,11 @@ void Window::Impl::PBeginResizeDrag(const std::string& edge) {
     PostMessageW(pdata->hwnd, WM_NCLBUTTONDOWN, it->second, 0);
 }
 
+// Webviews embebidas: pendiente en Windows (Linux primero).
+std::string Window::Impl::PCreateWebview(const std::string&) { return {}; }
+std::string Window::Impl::PWebviewCommand(uint32_t, const std::string&,
+                                          const std::string&) {
+    return {};
+}
+
 } // namespace ow

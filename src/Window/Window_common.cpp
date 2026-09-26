@@ -395,6 +395,14 @@ void Window::SetTitleBarOverlay(const TitleBarOverlay& o) {
     impl_->opts.titleBarOverlay = o;
     impl_->PApplyTitleBar();
 }
+
+std::string Window::CreateWebview(const std::string& optionsJson) {
+    return impl_->PCreateWebview(optionsJson);
+}
+std::string Window::WebviewCommand(uint32_t id, const std::string& op,
+                                   const std::string& argsJson) {
+    return impl_->PWebviewCommand(id, op, argsJson);
+}
 void* Window::NativeHandle() const {
     return impl_->webview ? impl_->webview->NativeWidget() : nullptr;
 }

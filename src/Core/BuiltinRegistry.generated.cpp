@@ -20,6 +20,9 @@ const ow_module_desc_t* NodeBridgeDescriptorImpl();
 #if defined(OW_BUILTINS_GTK)
 const ow_module_desc_t* SessionDescriptor();
 #endif
+#if defined(OW_BUILTINS_GTK)
+const ow_module_desc_t* WebviewModuleDescriptor();
+#endif
 const ow_module_desc_t* WindowModuleDescriptorImpl();
 #if defined(OW_BUILTINS_GTK)
 const ow_module_desc_t* WindowExtrasDescriptor();
@@ -41,6 +44,9 @@ void RegisterGeneratedBuiltins() {
     Dispatcher::Get().RegisterModule(NodeBridgeDescriptorImpl(), "builtin:node");
 #if defined(OW_BUILTINS_GTK)
     Dispatcher::Get().RegisterModule(SessionDescriptor(), "builtin:session");
+#endif
+#if defined(OW_BUILTINS_GTK)
+    Dispatcher::Get().RegisterModule(WebviewModuleDescriptor(), "builtin:webview");
 #endif
     Dispatcher::Get().RegisterModule(WindowModuleDescriptorImpl(), "builtin:ow-window");
 #if defined(OW_BUILTINS_GTK)

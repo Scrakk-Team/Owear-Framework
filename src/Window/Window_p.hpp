@@ -108,6 +108,11 @@ public:
     virtual void PBeginMoveDrag();
     virtual void PBeginResizeDrag(const std::string& edge);
 
+    // Webviews embebidas (Linux; stubs en win/mac → vacío = no soportado).
+    virtual std::string PCreateWebview(const std::string& optionsJson);
+    virtual std::string PWebviewCommand(uint32_t id, const std::string& op,
+                                        const std::string& argsJson);
+
     virtual ~Impl();  // key function — definida por plataforma
 };
 

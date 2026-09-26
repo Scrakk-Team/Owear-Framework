@@ -408,3 +408,50 @@ code {
   padding: 1px 6px;
   font-size: 12.5px;
 }
+
+/* ── Navegador embebido (webview nativa dentro de #wv-slot) ───────────── */
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.browser__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iconbtn {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-strong);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.iconbtn:hover {
+  background: var(--line);
+}
+
+.browser__url {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-deep);
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+/* El placeholder define la zona donde se coloca la webview nativa encima. */
+.browser__slot {
+  height: 320px;
+  border-radius: 8px;
+  background: var(--bg-deep);
+}

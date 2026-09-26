@@ -77,6 +77,17 @@ struct Window::Impl::PlatformData {
     bool fullscreen = false;
     bool resizeFilter = false;
     uint64_t token = 0;
+
+    // ── webviews embebidas (hijas de la ventana) ────────────────────────
+    struct EmbeddedView {
+        GtkWidget* view = nullptr;
+        int x = 0, y = 0, w = 0, h = 0;
+        bool visible = true;
+    };
+    GtkWidget* viewFixed = nullptr;          // GtkFixed contenedor de las hijas
+    WebKitWebContext* viewCtx = nullptr;     // contexto compartido de las hijas
+    std::map<uint32_t, EmbeddedView> views;  // id → webview embebida
+    uint32_t nextViewId = 1;
 };
 
 namespace {
@@ -484,6 +495,84 @@ bool DisplayIsWayland() {
     return name && std::string(name).find("Wayland") != std::string::npos;
 }
 
+// ── webviews embebidas (hijas) ───────────────────────────────────────────────
+// Cada una es un WebKitWebView independiente (con su proceso) dentro de un
+// GtkFixed superpuesto. Se controlan por API (webview.*).
+
+std::string ViewDataDir(const char* sub) {
+    std::string base;
+    if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg && *xdg)
+        base = xdg;
+    else if (const char* home = std::getenv("HOME"); home && *home)
+        base = std::string(home) + "/.local/share";
+    else
+        base = "/tmp";
+    std::string app = "owear";
+    if (const char* id = std::getenv("OW_APP_ID"); id && *id)
+        app = id;
+    else if (const char* name = std::getenv("OW_APP_NAME"); name && *name)
+        app = name;
+    return base + "/owear/" + app + "/webkit/embed/" + sub;
+}
+
+uint32_t ViewIdOf(GtkWidget* view) {
+    return GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(view), "ow-view-id"));
+}
+
+void EmitViewEvent(Window::Impl* impl, const char* name, std::string json) {
+    Window::Impl::EmitPlatformEvent(impl, name, json);
+}
+
+void OnViewLoadChanged(WebKitWebView* view, WebKitLoadEvent ev, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    const char* state = "other";
+    switch (ev) {
+    case WEBKIT_LOAD_STARTED: state = "started"; break;
+    case WEBKIT_LOAD_REDIRECTED: state = "redirected"; break;
+    case WEBKIT_LOAD_COMMITTED: state = "committed"; break;
+    case WEBKIT_LOAD_FINISHED: state = "finished"; break;
+    default: break;
+    }
+    const gchar* uri = webkit_web_view_get_uri(view);
+    json::Object o;
+    o.emplace_back("id", json::Value((int64_t)ViewIdOf(GTK_WIDGET(view))));
+    o.emplace_back("state", json::Value(std::string(state)));
+    o.emplace_back("url", json::Value(std::string(uri ? uri : "")));
+    EmitViewEvent(impl, "webview.loadChanged", json::Value(std::move(o)).Serialize());
+}
+
+void OnViewUriChanged(GObject* obj, GParamSpec*, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    const gchar* uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(obj));
+    json::Object o;
+    o.emplace_back("id",
+                   json::Value((int64_t)ViewIdOf(GTK_WIDGET(obj))));
+    o.emplace_back("url", json::Value(std::string(uri ? uri : "")));
+    EmitViewEvent(impl, "webview.urlChanged", json::Value(std::move(o)).Serialize());
+}
+
+void OnViewTitleChanged(GObject* obj, GParamSpec*, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    const gchar* title = webkit_web_view_get_title(WEBKIT_WEB_VIEW(obj));
+    json::Object o;
+    o.emplace_back("id",
+                   json::Value((int64_t)ViewIdOf(GTK_WIDGET(obj))));
+    o.emplace_back("title", json::Value(std::string(title ? title : "")));
+    EmitViewEvent(impl, "webview.titleChanged", json::Value(std::move(o)).Serialize());
+}
+
+gboolean OnViewLoadFailed(WebKitWebView* view, WebKitLoadEvent, gchar* uri,
+                          GError* err, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    json::Object o;
+    o.emplace_back("id", json::Value((int64_t)ViewIdOf(GTK_WIDGET(view))));
+    o.emplace_back("url", json::Value(std::string(uri ? uri : "")));
+    o.emplace_back("message",
+                   json::Value(std::string(err ? err->message : "")));
+    EmitViewEvent(impl, "webview.loadFailed", json::Value(std::move(o)).Serialize());
+    return FALSE;
+}
+
 } // namespace
 
 Window::~Window() = default;
@@ -556,11 +645,28 @@ bool Window::Impl::PCreate() {
         g_object_unref(css);
     }
 
-    // GtkOverlay como contenedor: sirve para (a) superponer los botones nativos
-    // (titleBarOverlay) y (b) las zonas de resize cuando estamos en Wayland.
-    if (frameless && (opts.titleBarOverlay.enabled || pdata->isWayland)) {
-        pdata->overlay = gtk_overlay_new();
-        gtk_container_add(GTK_CONTAINER(win), pdata->overlay);
+    // GtkOverlay SIEMPRE como contenedor: (a) botones nativos (titleBarOverlay),
+    // (b) zonas de resize en Wayland, (c) webviews embebidas (hijas).
+    pdata->overlay = gtk_overlay_new();
+    gtk_container_add(GTK_CONTAINER(win), pdata->overlay);
+
+    // Webviews embebidas: GtkFixed transparente superpuesto + contexto WebKit
+    // compartido (con su propio data dir por app).
+    pdata->viewFixed = gtk_fixed_new();
+    gtk_widget_set_halign(pdata->viewFixed, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(pdata->viewFixed, GTK_ALIGN_FILL);
+    gtk_overlay_add_overlay(GTK_OVERLAY(pdata->overlay), pdata->viewFixed);
+    gtk_widget_show(pdata->viewFixed);
+    {
+        const std::string d = ViewDataDir("data");
+        const std::string c = ViewDataDir("cache");
+        std::error_code ec;
+        std::filesystem::create_directories(d, ec);
+        std::filesystem::create_directories(c, ec);
+        WebKitWebsiteDataManager* dm = webkit_website_data_manager_new(
+            "base-data-directory", d.c_str(), "base-cache-directory", c.c_str(),
+            nullptr);
+        pdata->viewCtx = webkit_web_context_new_with_website_data_manager(dm);
     }
 
     if (!opts.resizable) gtk_window_set_resizable(GTK_WINDOW(win), FALSE);
@@ -874,6 +980,180 @@ void Window::Impl::PBeginResizeDrag(const std::string& edge) {
     }
     gtk_window_begin_resize_drag(GTK_WINDOW(pdata->window), e, 1, rx, ry,
                                  GDK_CURRENT_TIME);
+}
+
+// ── webviews embebidas (API) ─────────────────────────────────────────────────
+std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
+    if (!pdata || !pdata->viewFixed || !pdata->viewCtx)
+        return "{\"message\":\"contenedor de webviews no disponible\"}";
+
+    auto parsed = json::Parse(optionsJson);
+    const json::Value& o =
+        parsed.value ? *parsed.value : json::Value(nullptr);
+
+    std::string url, ua;
+    int x = 0, y = 0, w = 320, h = 240;
+    bool transparent = false;
+    if (o.IsObject()) {
+        if (const auto* v = o.Find("url"); v && v->IsString()) url = v->AsString();
+        if (const auto* v = o.Find("x"); v && v->IsNumber()) x = (int)v->AsInt();
+        if (const auto* v = o.Find("y"); v && v->IsNumber()) y = (int)v->AsInt();
+        if (const auto* v = o.Find("width"); v && v->IsNumber())
+            w = (int)v->AsInt();
+        if (const auto* v = o.Find("height"); v && v->IsNumber())
+            h = (int)v->AsInt();
+        if (const auto* v = o.Find("transparent"); v && v->IsBool())
+            transparent = v->AsBool();
+        if (const auto* v = o.Find("userAgent"); v && v->IsString())
+            ua = v->AsString();
+    }
+
+    WebKitWebView* view =
+        WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(pdata->viewCtx));
+    const uint32_t id = pdata->nextViewId++;
+    g_object_set_data(G_OBJECT(view), "ow-view-id", GUINT_TO_POINTER(id));
+
+    g_signal_connect(view, "load-changed", G_CALLBACK(OnViewLoadChanged), this);
+    g_signal_connect(view, "load-failed", G_CALLBACK(OnViewLoadFailed), this);
+    g_signal_connect(view, "notify::uri", G_CALLBACK(OnViewUriChanged), this);
+    g_signal_connect(view, "notify::title", G_CALLBACK(OnViewTitleChanged), this);
+
+    if (transparent) {
+        GdkRGBA t = {0, 0, 0, 0};
+        webkit_web_view_set_background_color(view, &t);
+    }
+    if (!ua.empty()) {
+        if (WebKitSettings* st = webkit_web_view_get_settings(view))
+            webkit_settings_set_user_agent(st, ua.c_str());
+    }
+
+    gtk_fixed_put(GTK_FIXED(pdata->viewFixed), GTK_WIDGET(view), x, y);
+    gtk_widget_set_size_request(GTK_WIDGET(view), w, h);
+    gtk_widget_show(GTK_WIDGET(view));
+    pdata->views[id] =
+        PlatformData::EmbeddedView{GTK_WIDGET(view), x, y, w, h, true};
+
+    if (!url.empty()) webkit_web_view_load_uri(view, url.c_str());
+
+    json::Object r;
+    r.emplace_back("id", json::Value((int64_t)id));
+    return json::Value(std::move(r)).Serialize();
+}
+
+std::string Window::Impl::PWebviewCommand(uint32_t id, const std::string& op,
+                                          const std::string& argsJson) {
+    if (!pdata) return "{\"message\":\"sin plataforma\"}";
+    auto it = pdata->views.find(id);
+    if (it == pdata->views.end())
+        return "{\"message\":\"webview no encontrada\"}";
+    PlatformData::EmbeddedView& ev = it->second;
+    WebKitWebView* view = WEBKIT_WEB_VIEW(ev.view);
+
+    auto parsed = json::Parse(argsJson);
+    const json::Value& a = parsed.value ? *parsed.value : json::Value(nullptr);
+    auto argStr = [&](size_t i) -> std::string {
+        if (a.IsArray() && a.AsArray().size() > i && a.AsArray()[i].IsString())
+            return a.AsArray()[i].AsString();
+        if (i == 0 && a.IsString()) return a.AsString();
+        return {};
+    };
+    auto argBool = [&](size_t i, bool def) -> bool {
+        if (a.IsArray() && a.AsArray().size() > i && a.AsArray()[i].IsBool())
+            return a.AsArray()[i].AsBool();
+        if (i == 0 && a.IsBool()) return a.AsBool();
+        return def;
+    };
+    auto argNum = [&](size_t i, double def) -> double {
+        if (a.IsArray() && a.AsArray().size() > i && a.AsArray()[i].IsNumber())
+            return a.AsArray()[i].AsDouble();
+        if (i == 0 && a.IsNumber()) return a.AsDouble();
+        return def;
+    };
+
+    if (op == "setBounds") {
+        if (a.IsArray()) {
+            if (a.AsArray().size() > 0) ev.x = (int)a.AsArray()[0].AsInt();
+            if (a.AsArray().size() > 1) ev.y = (int)a.AsArray()[1].AsInt();
+            if (a.AsArray().size() > 2) ev.w = (int)a.AsArray()[2].AsInt();
+            if (a.AsArray().size() > 3) ev.h = (int)a.AsArray()[3].AsInt();
+        } else if (a.IsObject()) {
+            if (const auto* v = a.Find("x"); v && v->IsNumber()) ev.x = (int)v->AsInt();
+            if (const auto* v = a.Find("y"); v && v->IsNumber()) ev.y = (int)v->AsInt();
+            if (const auto* v = a.Find("width"); v && v->IsNumber())
+                ev.w = (int)v->AsInt();
+            if (const auto* v = a.Find("height"); v && v->IsNumber())
+                ev.h = (int)v->AsInt();
+        }
+        gtk_fixed_move(GTK_FIXED(pdata->viewFixed), ev.view, ev.x, ev.y);
+        gtk_widget_set_size_request(ev.view, ev.w, ev.h);
+        return "null";
+    }
+    if (op == "load") {
+        const std::string url = argStr(0);
+        if (url.empty()) return "{\"message\":\"url requerida\"}";
+        webkit_web_view_load_uri(view, url.c_str());
+        return "null";
+    }
+    if (op == "back") { webkit_web_view_go_back(view); return "null"; }
+    if (op == "forward") { webkit_web_view_go_forward(view); return "null"; }
+    if (op == "reload") { webkit_web_view_reload(view); return "null"; }
+    if (op == "stop") { webkit_web_view_stop_loading(view); return "null"; }
+    if (op == "canBack")
+        return webkit_web_view_can_go_back(view) ? "true" : "false";
+    if (op == "canForward")
+        return webkit_web_view_can_go_forward(view) ? "true" : "false";
+    if (op == "getURL") {
+        const gchar* u = webkit_web_view_get_uri(view);
+        return json::Value(std::string(u ? u : "")).Serialize();
+    }
+    if (op == "getTitle") {
+        const gchar* t = webkit_web_view_get_title(view);
+        return json::Value(std::string(t ? t : "")).Serialize();
+    }
+    if (op == "eval") {
+        const std::string js = argStr(0);
+        if (js.empty()) return "{\"message\":\"js requerido\"}";
+        webkit_web_view_evaluate_javascript(view, js.c_str(),
+                                            (gssize)js.size(), nullptr, nullptr,
+                                            nullptr, nullptr, nullptr);
+        return "null";
+    }
+    if (op == "setVisible") {
+        ev.visible = argBool(0, true);
+        gtk_widget_set_visible(ev.view, ev.visible);
+        return "null";
+    }
+    if (op == "setZoom") {
+        webkit_web_view_set_zoom_level(view, argNum(0, 1.0));
+        return "null";
+    }
+    if (op == "devtools") {
+        if (WebKitWebInspector* insp = webkit_web_view_get_inspector(view))
+            webkit_web_inspector_show(insp);
+        return "null";
+    }
+    if (op == "findInPage") {
+        const std::string text = argStr(0);
+        const bool back = argBool(1, false);
+        if (WebKitFindController* fc = webkit_web_view_get_find_controller(view))
+            webkit_find_controller_search(
+                fc, text.c_str(),
+                WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
+                    (back ? WEBKIT_FIND_OPTIONS_BACKWARDS : 0),
+                G_MAXUINT);
+        return "null";
+    }
+    if (op == "findStop") {
+        if (WebKitFindController* fc = webkit_web_view_get_find_controller(view))
+            webkit_find_controller_search_finish(fc);
+        return "null";
+    }
+    if (op == "destroy") {
+        gtk_widget_destroy(ev.view);
+        pdata->views.erase(it);
+        return "null";
+    }
+    return "{\"message\":\"op desconocida: " + op + "\"}";
 }
 
 } // namespace ow
