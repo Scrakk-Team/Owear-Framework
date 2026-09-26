@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "dialog",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Diálogos nativos del sistema (GtkFileChooserNative / IFileDialog / NSPanel).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["open", "messageBox"]
+}

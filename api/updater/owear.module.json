@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "updater",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Auto-update genérico: manifest + semver + SHA-256 + reemplazo atómico + relaunch.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["checkForUpdates", "downloadUpdate", "installAndRelaunch"]
+}

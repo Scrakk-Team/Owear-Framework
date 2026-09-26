@@ -26,6 +26,7 @@ set(OW_KERNEL_SOURCES
     Core/Log.cpp
     Core/ModuleLoader.cpp
     Core/WindowModule.cpp
+    Core/BuiltinRegistry.generated.cpp   # generado por tools/gen-apis.mjs
     Bridge/Codec.cpp
     Bridge/BridgeScript.cpp
     Bridge/Dispatcher.cpp
@@ -38,20 +39,9 @@ set(OW_KERNEL_SOURCES
     Runtime/NodeManager.cpp
 )
 
-# window-extras/session/crashreporter dependen de GTK+WebKitGTK/libsoup o de
-# APIs POSIX (execinfo.h) que hoy solo tienen implementación real en Linux.
-# Se compilaban incondicionalmente y rompían la configuración en Windows/macOS
-# (headers inexistentes en esas plataformas). Gateados aquí hasta que existan
-# implementaciones _mac/_win reales — ver docs/ROADMAP.md.
-# Builtins que requieren GLib/GTK (solo Linux hasta tener impl nativa win/mac).
-if(OW_PLATFORM STREQUAL "linux")
-    list(APPEND OW_KERNEL_SOURCES
-        ${CMAKE_SOURCE_DIR}/api/app/src/app_builtin.cpp
-        ${CMAKE_SOURCE_DIR}/api/window/src/window_extra.cpp
-        ${CMAKE_SOURCE_DIR}/api/session/src/session_builtin.cpp
-        ${CMAKE_SOURCE_DIR}/api/crashreporter/src/crashreporter.cpp
-    )
-endif()
+# Nota: las fuentes de los builtins (app/session/crashreporter/window-extras)
+# NO se listan aquí. Se generan desde los manifiestos api/<nombre>/owear.module.json
+# (kind=builtin) → src/Core/builtins.generated.cmake, y se anexan más abajo.
 
 if(OW_PLATFORM STREQUAL "linux")
     list(APPEND OW_KERNEL_SOURCES
@@ -88,9 +78,6 @@ elseif(OW_PLATFORM STREQUAL "win")
     )
     if(OW_WITH_WEBVIEW2)
         list(APPEND OW_KERNEL_SOURCES Webview/win/Webview2Backend.cpp)
-        # builtin window-extras nativo (Webview2: devtools/capture/zoom/...)
-        list(APPEND OW_KERNEL_SOURCES
-            ${CMAKE_SOURCE_DIR}/api/window/src/window_extra_win.cpp)
     else()
         # Stub sin WebView2 SDK: CreateWebviewBackend() → nullptr con log claro.
         list(APPEND OW_KERNEL_SOURCES Webview/win/Webview2Stub_win.cpp)
@@ -103,10 +90,21 @@ elseif(OW_PLATFORM STREQUAL "mac")
         Control/ControlServer_mac.mm
         Runtime/NodeManager_mac.mm
         Webview/mac/BuiltinUtil_mac.mm
-        # builtin window-extras nativo (WKWebView: capture/zoom/opacity/...)
-        ${CMAKE_SOURCE_DIR}/api/window/src/window_extra_mac.mm
     )
 endif()
+
+# ── Builtins: fuentes generadas desde manifiestos (kind=builtin) ─────────────
+# No hardcodear aquí: sale de api/<nombre>/owear.module.json.
+# Regenerar: node tools/gen-apis.mjs
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/Core/builtins.generated.cmake)
+    message(FATAL_ERROR "src/Core/builtins.generated.cmake ausente — corre: node tools/gen-apis.mjs")
+endif()
+include(${CMAKE_CURRENT_SOURCE_DIR}/Core/builtins.generated.cmake)
+# En Windows sin WebView2 no existe el builtin nativo de window-extras.
+if(OW_PLATFORM STREQUAL "win" AND NOT OW_WITH_WEBVIEW2)
+    set(OW_BUILTIN_SOURCES)
+endif()
+list(APPEND OW_KERNEL_SOURCES ${OW_BUILTIN_SOURCES})
 
 add_library(owear_core STATIC ${OW_KERNEL_SOURCES})
 

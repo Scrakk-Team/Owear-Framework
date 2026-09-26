@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "clipboard",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Portapapeles del sistema: texto e imagen PNG (vía memoria compartida).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["readText", "writeText", "readImage", "writeImage", "clear"]
+}

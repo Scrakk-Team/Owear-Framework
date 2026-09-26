@@ -1,0 +1,19 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "session",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Sesión del WebView: cookies, cache, proxy, descargas y user-agent. Builtin acoplado al kernel (Linux).",
+  "descriptors": [
+    {
+      "name": "session",
+      "factory": "SessionDescriptor",
+      "platforms": ["linux"],
+      "functions": [
+        "cookiesGet", "cookiesSet", "cookieDelete", "clearStorage", "setProxy",
+        "attach", "downloadCancel", "setUserAgentAll", "spellCheck"
+      ]
+    }
+  ],
+  "sources": { "linux": ["src/session_builtin.cpp"] }
+}

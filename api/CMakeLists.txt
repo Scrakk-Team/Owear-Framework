@@ -52,47 +52,11 @@ function(ow_add_module NAME)
         PREFIX "" OUTPUT_NAME "${NAME}")
 endfunction()
 
-# ── fs ────────────────────────────────────────────────────────────────────────
-add_subdirectory(fs)
-
-# ── path (lógica pura + dirs por plataforma) ─────────────────────────────────
-add_subdirectory(path)
-
-# ── process (spawn + PTY manager) ─────────────────────────────────────────────
-add_subdirectory(process)
-
-# ── dialog ────────────────────────────────────────────────────────────────────
-add_subdirectory(dialog)
-
-# ── clipboard ─────────────────────────────────────────────────────────────────
-add_subdirectory(clipboard)
-
-# ── shell ─────────────────────────────────────────────────────────────────────
-add_subdirectory(shell)
-
-# ── screen ────────────────────────────────────────────────────────────────────
-add_subdirectory(screen)
-
-# ── menu ──────────────────────────────────────────────────────────────────────
-add_subdirectory(menu)
-
-# ── notification ──────────────────────────────────────────────────────────────
-add_subdirectory(notification)
-
-# ── globalshortcut ────────────────────────────────────────────────────────────
-add_subdirectory(globalshortcut)
-
-# ── tray ──────────────────────────────────────────────────────────────────────
-add_subdirectory(tray)
-
-# ── net (HTTP nativo sin CORS) ────────────────────────────────────────────────
-add_subdirectory(net)
-
-# ── power (powerMonitor + powerSaveBlocker) ──────────────────────────────────
-add_subdirectory(power)
-
-# ── updater (autoUpdater genérico manifest+sha256+replace) ───────────────────
-add_subdirectory(updater)
-
-# ── capturer (captura de pantallas X11 → PNG → SHM) ──────────────────────────
-add_subdirectory(capturer)
+# ── Descubrimiento dinámico de módulos (.owm) ────────────────────────────────
+# La lista se genera desde los manifiestos api/<nombre>/owear.module.json
+# (kind=module). Añadir una API = crear su carpeta + manifiesto; NO edites
+# este archivo. Regenerar: node tools/gen-apis.mjs
+if(NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/generated.cmake)
+    message(FATAL_ERROR "api/generated.cmake ausente — corre: node tools/gen-apis.mjs")
+endif()
+include(${CMAKE_CURRENT_LIST_DIR}/generated.cmake)

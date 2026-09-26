@@ -6,6 +6,24 @@ on:
   pull_request:
 
 jobs:
+  apis:
+    name: APIs · manifiestos + registro generado
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # El descubrimiento (CMake) y el registro de builtins se GENERAN desde
+      # api/<nombre>/owear.module.json. Si alguien toca un manifiesto y no
+      # regenera, aquí se cae.
+      - name: Los generados están al día
+        run: node tools/gen-apis.mjs --check
+      - name: Manifiestos sincronizados con el código C++
+        run: node tools/check-apis.mjs
+      - name: Lista de APIs
+        run: node packages/cli/src/ow.js api list
+
   linux:
     name: Linux · build + tests + E2E
     runs-on: ubuntu-latest
@@ -34,7 +52,11 @@ jobs:
             pgrep -x dunst >/dev/null && break
           done
           MODS=""
-          for d in build/linux-release/api/*/; do MODS="$MODS$d:"; done
+          for d in build/linux-release/api/*/; do
+            if [ "$d" != "build/linux-release/api/CMakeFiles/" ]; then
+              MODS="$MODS$d:"
+            fi
+          done
           MODS=${MODS%:}
           (cd tests/e2e/www && python3 -m http.server 8123 >/dev/null 2>&1 &)
           sleep 0.5
@@ -43,7 +65,7 @@ jobs:
             setsid ./build/linux-release/src/owear > /tmp/owear-e2e.log 2>&1 &
           sleep 5
           timeout 150 python3 tests/e2e/run_suites.py \
-            --pages all.html builtins.html --port 8123 || \
+            --pages all.html builtins.html veto.html --port 8123 --sdk || \
           { echo "::group::log del kernel"; cat /tmp/owear-e2e.log; echo "::endgroup::"; exit 1; }
 
   windows:

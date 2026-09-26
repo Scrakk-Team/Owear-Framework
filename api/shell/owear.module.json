@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "shell",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Integración con el gestor de archivos / navegador del sistema (FileManager1 D-Bus, IShellLink, NSWorkspace).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["openExternal", "openPath", "showItemInFolder"]
+}

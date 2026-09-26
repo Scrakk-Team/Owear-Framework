@@ -6,6 +6,7 @@
 //
 #include "ControlServer.hpp"
 
+#include "../Bridge/Dispatcher.hpp"
 #include "../Core/App.hpp"
 #include "../Window/Window_p.hpp"
 #include "../Core/Log.hpp"
@@ -96,6 +97,11 @@ void ControlServer::WireWindowEvents(WindowId id, Window* w) {
     w->On("unmaximize", forward("unmaximize"));
     w->On("enterFullScreen", forward("enterFullScreen"));
     w->On("leaveFullScreen", forward("leaveFullScreen"));
+    // F3.4: el SDK también recibe closeRequested (con requestId) para poder
+    // vetar desde el proceso principal: win.on('closeRequested') + closeRespond.
+    // El comentario de abajo lo daba por hecho, pero nunca se conectaba: el
+    // main no se enteraba y todo cierre desde el SDK acababa en el timeout.
+    w->On("closeRequested", forward("closeRequested"));
     // navegación (F-next)
     w->On("navigationStarted", forward("navigationStarted"));
     w->On("loadCommitted", forward("loadCommitted"));
@@ -103,7 +109,8 @@ void ControlServer::WireWindowEvents(WindowId id, Window* w) {
     w->On("didFailLoad", forward("didFailLoad"));
     w->On("pageTitleUpdated", forward("pageTitleUpdated"));
     // F3.4: closeRequested se reenvía al SDK con requestId; el kernel
-    // decide con window.respondCloseRequest o el timeout de 300 ms.
+    // decide con window.respondCloseRequest o el timeout
+    // OW_CLOSE_TIMEOUT_MS (default 1000 ms).
     w->On("closed", [this, id](std::string_view) {
         auto it = LiveWindows().find(id);
         if (it == LiveWindows().end()) return;
@@ -133,6 +140,21 @@ void ControlServer::Stop() {
 }
 
 std::string ControlServer::SocketPath() const { return socketPath_; }
+
+namespace {
+json::Object ModuleInfoJson(const Dispatcher::ModuleInfo& m) {
+    json::Object o;
+    o.emplace_back("name", V(m.name));
+    o.emplace_back("version", V(m.version));
+    o.emplace_back("origin", V(m.origin));
+    o.emplace_back("builtin", V(m.builtin));
+    o.emplace_back("functions", V(static_cast<int64_t>(m.functions.size())));
+    json::Array names;
+    for (const auto& fn : m.functions) names.emplace_back(V(fn));
+    o.emplace_back("functionNames", V(std::move(names)));
+    return o;
+}
+} // namespace
 
 bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
                                   const std::string& cmd,
@@ -174,11 +196,67 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
     if (cmd == "node.ensure") {
         std::string range = "latest";
         if (const V* r = params.Find("range"); r && r->IsString()) range = r->AsString();
-        auto node = NodeManager::Ensure(range);
+        auto node = NodeManager::Resolve(range);
         if (node.IsErr()) { error = node.Error(); return false; }
         json::Object o;
-        o.emplace_back("path", V(node.Value().string()));
+        o.emplace_back("path", V(node.Value().bin.string()));
+        o.emplace_back("version", V(node.Value().version));
+        o.emplace_back("source", V(node.Value().source));
         resultJson = V(std::move(o)).Serialize();
+        return true;
+    }
+
+    // ── módulos nativos desde el proceso principal (Node) ────────────────
+    // Esta es la pieza que hace la API "tipo Electron": el main puede usar
+    // fs, dialog, tray, menu… igual que el renderer, sin depender de una
+    // ventana. Antes sólo existía el camino del bridge (renderer → módulo).
+    if (cmd == "module.invoke") {
+        const V* mod = params.Find("module");
+        const V* fn = params.Find("method");
+        if (!mod || !mod->IsString()) { error = "module requerido"; return false; }
+        if (!fn || !fn->IsString()) { error = "method requerido"; return false; }
+
+        // Los args viajan como array JSON, igual que desde el bridge.
+        std::string argsJson = "[]";
+        if (const V* a = params.Find("args"); a) argsJson = a->Serialize();
+
+        uint32_t winId = 0;
+        if (const V* wid = params.Find("windowId"); wid && wid->IsNumber())
+            winId = static_cast<uint32_t>(wid->AsInt());
+
+        ow_request_t req{};
+        req.json = argsJson.c_str();
+        req.json_len = static_cast<uint32_t>(argsJson.size());
+        req.window_id = winId;
+
+        ow_response_t res{};
+        Dispatcher::Get().Execute(winId, mod->AsString(), fn->AsString(), &req, &res);
+        if (res.status != 0) {
+            error = res.error ? std::string(res.error) : std::string("error en el módulo");
+            return false;
+        }
+        // Contrato ABI: el buffer sólo vive durante la llamada → se copia ya.
+        resultJson.assign(res.json ? res.json : "null", res.json_len);
+        return true;
+    }
+
+    if (cmd == "module.list") {
+        json::Array arr;
+        for (const auto& m : Dispatcher::Get().Modules())
+            arr.emplace_back(V(ModuleInfoJson(m)));
+        resultJson = V(std::move(arr)).Serialize();
+        return true;
+    }
+
+    if (cmd == "module.info") {
+        std::string name;
+        if (const V* n = params.Find("name"); n && n->IsString()) name = n->AsString();
+        Dispatcher::ModuleInfo m;
+        if (name.empty() || !Dispatcher::Get().Module(name, m)) {
+            error = "módulo desconocido: " + name;
+            return false;
+        }
+        resultJson = V(ModuleInfoJson(m)).Serialize();
         return true;
     }
 

@@ -18,10 +18,16 @@ size_t Dispatcher::RegisterModule(const ow_module_desc_t* desc, std::string orig
     }
     size_t n = 0;
     std::lock_guard lock(mu_);
+    ModuleInfo& info = modules_[std::string(desc->name)];
+    info.name = desc->name;
+    info.version = desc->version ? desc->version : "";
+    info.origin = origin;
+    info.builtin = origin.rfind("builtin", 0) == 0;
     for (uint32_t i = 0; i < desc->fn_count; ++i) {
         const auto& e = desc->fns[i];
         if (!e.name || !e.fn) continue;
         fns_[std::string(desc->name) + "/" + e.name] = &e;
+        info.functions.emplace_back(e.name);
         ++n;
     }
     log::Info("dispatcher", "módulo '" + std::string(desc->name) + "' registrado (" +
@@ -95,14 +101,20 @@ bool Dispatcher::HasModule(const std::string& module) const {
     return false;
 }
 
-std::vector<std::pair<std::string, uint32_t>> Dispatcher::ListModules() const {
+std::vector<Dispatcher::ModuleInfo> Dispatcher::Modules() const {
     std::lock_guard lock(mu_);
-    std::map<std::string, uint32_t> counts;
-    for (const auto& [key, _] : fns_) {
-        auto slash = key.find('/');
-        counts[key.substr(0, slash)]++;
-    }
-    return {counts.begin(), counts.end()};
+    std::vector<ModuleInfo> out;
+    out.reserve(modules_.size());
+    for (const auto& [name, info] : modules_) out.push_back(info);
+    return out;
+}
+
+bool Dispatcher::Module(const std::string& name, ModuleInfo& out) const {
+    std::lock_guard lock(mu_);
+    auto it = modules_.find(name);
+    if (it == modules_.end()) return false;
+    out = it->second;
+    return true;
 }
 
 void Dispatcher::SetErrorSink(ErrorSink sink) {

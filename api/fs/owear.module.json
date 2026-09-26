@@ -1,0 +1,13 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "fs",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Filesystem completo: básicos, metadatos, handles fd-style y watcher multiplataforma (inotify / ReadDirectoryChangesW / kqueue).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": [
+    "readText", "readFile", "writeFile", "readDir", "stat", "mkdir", "remove", "exists",
+    "copy", "rename", "chmod", "symlink", "readlink", "lstat", "realpath", "mkdtemp",
+    "access", "truncate", "utimes", "open", "read", "write", "size", "close", "watch", "unwatch"
+  ]
+}

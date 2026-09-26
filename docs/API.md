@@ -1,7 +1,12 @@
 # API Reference completa — Owear 0.1.0
 
-> Generada contra el código real (`d9ded9b`). Toda llamada del renderer pasa
-> por `window.ow`; toda API Node habla con el kernel por el Control Socket.
+> Mantenida a mano contra el árbol de trabajo (no autogenerada): puede quedar
+> por detrás. La fuente de verdad es la tabla de funciones de cada módulo
+> (`api/<módulo>/src/*.cpp`), `src/Core/WindowModule.cpp` para los builtins y
+> `packages/core/src/index.ts` para el SDK. Toda llamada del renderer pasa por
+> `window.ow`; toda API Node habla con el kernel por el Control Socket.
+>
+> Última revisión: 2026-09 (§2.1 `fs` sincronizada con las 26 funciones reales).
 
 ---
 
@@ -9,8 +14,11 @@
 
 ```ts
 ow.invoke(module: string, fn: string, ...args): Promise<unknown>
+  // rechaza con 'ow: timeout <módulo>/<fn>' si el kernel no responde en 30 s
 ow.invokeSync(module: string, fn: string, ...args): unknown        // ⚠️ bloquea el renderer
 ow.readShared(handle: { id: string; size: number }): Promise<ArrayBuffer>
+  // para payloads ≥256 KB: el kernel los publica en memoria compartida y
+  // el renderer los lee sin pasar por JSON/base64 (scheme ow-shm://)
 ow.on(name: string, cb: (payload: unknown) => void): () => void    // devuelve unsubscribe
 ow.emit(name: string, payload?: unknown): void                     // JS → nativo + listeners JS
 ow.emitTo(targetWindowId, name, payload?)                          // IPC dirigido ventana→ventana
@@ -39,21 +47,49 @@ Atributos DOM reconocidos por el kernel:
 
 ## 2 · Módulos nativos — invocables con `ow.invoke('<módulo>', '<fn>', …args)`
 
-### 2.1 `fs` (stock, builtin + .owm)
+## 2.1 `fs` (stock, builtin + .owm)
 
 ```ts
+// ── básicos ──
 fs.readText(path): Promise<string>
 fs.readFile(path): Promise<{ b64: string } | { __ow_shm: { id: string; size: number } }>
 //                                    ^ <256 KB      ^ ≥256 KB → leer con ow.readShared()
 fs.writeFile(path, data: string, encoding?: 'utf8' | 'base64'): Promise<null>
+//  crea los directorios padre que falten
 fs.readDir(path): Promise<{ name: string; type: 'file' | 'dir' | 'other' }[]>
 fs.stat(path): Promise<{ size: number; isFile: boolean; isDir: boolean; mtimeMs: number } | null>
 fs.mkdir(path, recursive?: boolean): Promise<null>
-fs.remove(path, recursive?: boolean): Promise<null>
+fs.remove(path, recursive?: boolean): Promise<null>   // recursive → remove_all
 fs.exists(path): Promise<boolean>
+
+// ── metadatos ──
+fs.copy(src, dest): Promise<null>
+fs.rename(oldPath, newPath): Promise<null>
+fs.chmod(path, mode): Promise<null>                    // mode octal numérico
+fs.symlink(target, linkPath): Promise<null>
+fs.readlink(path): Promise<string>
+fs.lstat(path): Promise<{ isSymlink: boolean; isFile: boolean; isDir: boolean,
+                          size: number; mtimeMs: number } | null>   // NO sigue symlinks
+fs.realpath(path): Promise<string>
+fs.mkdtemp(prefix?): Promise<string>
+fs.access(path): Promise<boolean>                      // legible por el proceso
+fs.truncate(path, size): Promise<null>
+fs.utimes(path, atimeMs, mtimeMs): Promise<null>
+
+// ── handles fd-style (archivos grandes, lectura por trozos) ──
+fs.open(path, flags?: 'r' | 'w' | 'a' | 'r+' | 'w+'): Promise<{ fd: number }>
+fs.read(fd, length?): Promise<{ b64: string; eof: boolean }
+                            | { __ow_shm: { id: string; size: number }; eof: boolean }>
+fs.write(fd, data: string | { __ow_shm }, offset?): Promise<number>
+fs.size(fd): Promise<number>
+fs.close(fd): Promise<null>
+
+// ── watch ──
+fs.watch(path): Promise<null>       // emite el evento 'fs.watch' con el path cambiado
+fs.unwatch(path): Promise<null>
 ```
 
-### 2.2 `window` (builtin — extras de ventana, F8)
+## 2.2 `window` (builtin — extras de ventana, F8)
 
 ```ts
 window.openDevTools(windowId, show?)           // inspector WebKit
@@ -101,7 +137,7 @@ crashreporter.install() → crashDir     // SIGSEGV/ABRT/FPE/BUS/ILL → log+bac
 crashreporter.lastCrashLog() → string | null
 ```
 
-### net.request completo
+## 2.5 `net` (builtin)
 
 ```ts
 net.request({ method:'GET'|'POST'|'PUT'|'DELETE', url,
@@ -110,7 +146,7 @@ net.request({ method:'GET'|'POST'|'PUT'|'DELETE', url,
   → { status, headers:{minúsculas}, body:string|__ow_shm(≥256KB) }
 ```
 
-## 2.5 `app` (builtin)
+## 2.6 `app` (builtin)
 
 ```ts
 app.setBadgeCount(n)              // Unity launcher; otros DE → error claro
@@ -119,7 +155,7 @@ app.requestSingleInstanceLock() → bool   // false = ya hay instancia (envía a
 app.relaunch()                    // execv del propio binario
 ```
 
-## 2.6 `capturer` (.owm — X11 v1)
+## 2.7 `capturer` (.owm — X11 v1)
 
 ```ts
 capturer.getSources() → [{type:'screen', id, name, bounds, thumbnail:{id,size}}]
@@ -127,7 +163,7 @@ capturer.captureScreen(screenIndex=0) → {__ow_shm, width, height, format:'png'
 // ⚠ Wayland no soportado v1 (error claro); usar GDK_BACKEND=x11 o portal en F-next
 ```
 
-## 2.6 `ow-window` (builtin interno — titlebar y ciclo de vida)
+## 2.8 `ow-window` (builtin interno — titlebar y ciclo de vida)
 
 ```ts
 owWindow.minimize(windowId): Promise<null>
@@ -138,12 +174,22 @@ owWindow.setTitle(windowId, title: string): Promise<null>
 owWindow.isMaximized(windowId): Promise<boolean>
 owWindow.respondCloseRequest(windowId, requestId: number, allow: boolean): Promise<null>
 
-// interceptados antes del dispatcher (necesitan la ventana invocante):
-owWindow.beginMoveDrag()                           // arrastrar la ventana
-owWindow.beginResizeDrag(edge: string)
+// Resueltos por el bridge ANTES del dispatcher (necesitan la ventana
+// INVOCANTE, no la de windowId) y sin windowId:
+owWindow.beginMoveDrag(): Promise<null>                       // arrastrar la ventana
+owWindow.beginResizeDrag(edge: string): Promise<{edge: string}>
+//  edge ∈ left|right|top|bottom|top-left|top-right|bottom-left|bottom-right
+//  Un borde desconocido se rechaza SIN iniciar el drag, y la respuesta ecoa
+//  el borde efectivo (para verificar el parseo sin depender del WM).
 ```
 
-### 2.7 Módulos propios (.owm) — ABI-C
+`ow.invoke('ow-window', 'close', id)` es vetable: el kernel emite
+`closeRequested {requestId}` al renderer y espera `respondCloseRequest`; si
+nadie responde en `OW_CLOSE_TIMEOUT_MS` (default 1000 ms) cierra igualmente.
+El renderer debe responder con el `requestId` recibido (un id desconocido es
+un no-op, no un error).
+
+## 2.9 Módulos propios (.owm) — ABI-C
 
 ```cpp
 #include <ow/Json.h>
@@ -186,7 +232,8 @@ import { app, BrowserWindow, platform } from '@owear/core'
 app.whenReady(): Promise<void>                       // conecta con el kernel
 app.quit(exitCode?): Promise<void>
 app.info(): Promise<{ pid; version; socket }>
-app.ensureNodeRuntime(range?: string): Promise<{ path }>   // 'latest'|'lts'|'v22'|…
+app.ensureNodeRuntime(range?: string): Promise<{ path; version; source }>
+  // 'latest'|'lts'|'v22'|…   source: env|system|cache|downloaded
 app.__channel                                        // acceso crudo al canal
 ```
 
@@ -227,6 +274,28 @@ win.closeRespond(requestId: number, allow: boolean): Promise<void>   // F3.4
 'closeRequested'({ requestId }) | 'disconnected' | 'error'
 ```
 
+`closeRequested` permite vetar el cierre desde el main:
+
+```ts
+win.on('closeRequested', ({ requestId }) => {
+  if (hayCambiosSinGuardar) win.closeRespond(requestId, false)  // cancela
+  else win.closeRespond(requestId, true)                        // cierra
+})
+```
+
+### Módulos nativos desde el main
+
+```ts
+import { invokeNative, listNativeModules } from '@owear/core'
+
+listNativeModules(): Promise<{ name; version; origin; builtin; functions; functionNames }[]>
+nativeModuleInfo(name): Promise<{ name; version; origin; builtin; functions; functionNames }>
+invokeNative<T>(module, method, ...args): Promise<T>
+// await invokeNative('fs', 'readText', '/etc/hostname')
+// los builtins de ventana esperan [windowId, …]:
+//   await invokeNative('ow-window', 'setTitle', win.id, 'Hola')
+```
+
 ---
 
 ## 4 · Protocolo de Control (kernel ↔ clientes NDJSON)
@@ -239,7 +308,10 @@ UDS `$XDG_RUNTIME_DIR/owear-<pid>.sock` (Linux/macOS) · named pipe
 |---|---|
 | `app.info` | — |
 | `app.quit` | `{exitCode?}` |
-| `node.ensure` | `{range}` |
+| `node.ensure` | `{range}` → `{path, version, source}` (`source`: `env`\|`system`\|`cache`\|`downloaded`) |
+| `module.list` | — → `[{name, version, origin, builtin, functions, functionNames}]` (registry de módulos) |
+| `module.info` | `{name}` → el objeto de un módulo concreto, o error si no existe |
+| `module.invoke` | `{module, method, args?: unknown[], windowId?}` → resultado del módulo |
 | `event.emit` | `{name, payload?, windowId?}` → reemite como `sdk.event` |
 | `window.create` | `WindowOptions` completo |
 | `window.close / destroy / show / hide / focus / minimize / maximize{enabled} / unmaximize / setFullScreen{enabled}` | `{windowId}` |
@@ -260,6 +332,25 @@ Eventos kernel→cliente:
 
 Nombres de evento de ventana: `resize move focus blur maximize unmaximize
 enterFullScreen leaveFullScreen closeRequested{requestId} closed`.
+
+`closeRequested` llega **también al SDK**: el main puede vetar el cierre con
+`win.closeRespond(requestId, false)`. Si nadie responde en
+`OW_CLOSE_TIMEOUT_MS` (default 1000 ms), el kernel cierra igualmente.
+
+`module.invoke` es lo que permite al **proceso principal** (Node) usar los
+módulos nativos —`fs`, `process`, `net`, `clipboard`…— igual que el renderer,
+sin depender de una ventana. Los `args` viajan como array JSON, el mismo
+formato que usa el bridge. Desde el SDK:
+
+```ts
+import { invokeNative, listNativeModules } from '@owear/core'
+
+const mods = await listNativeModules()                 // [{name, version, origin, functions, …}, …]
+const txt  = await invokeNative('fs', 'readText', '/etc/hostname')
+```
+
+Ojo: los builtins de ventana esperan `[windowId, …]` dentro de los args, p. ej.
+`invokeNative('ow-window', 'setTitle', [win.id, 'Hola'])`.
 
 ---
 
@@ -321,7 +412,8 @@ owear-build-native  # compila native/*.cpp → .owm (usado por dev/build/plugin)
 
 | Variable | Quién la usa | Qué hace |
 |---|---|---|
-| `OW_APP_MAIN` | kernel | entry JS del sidecar (modo Electron-like) |
+| `OW_APP_MAIN` | kernel | entry JS del sidecar (modo Electron-like). `ow dev`/`ow build` compilan `app/main.ts` y apuntan aquí |
+| `OW_NODE_BIN` | kernel | ruta a un `node` concreto; tiene prioridad absoluta y se ignora con aviso si no sirve |
 | `OW_DEV_SERVER_URL` | kernel/template | URL inicial de las ventanas en dev |
 | `OW_CONTROL_SOCKET` | SDK/sidecar | ruta del socket de control |
 | `OW_MODULES_DIR` | kernel | rutas `:` separadas con .owm extra |

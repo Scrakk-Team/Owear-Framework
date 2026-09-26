@@ -35,38 +35,10 @@ void App::Quit(int exitCode) {
 
 namespace internal {
 
-// WindowModule.cpp + builtins acoplados al WebView (api/window, api/session,
-// api/crashreporter, api/app — estos últimos requieren GLib y hoy solo tienen
-// implementación Linux; OW_BUILTINS_GTK lo define CMake en esa plataforma).
-const ow_module_desc_t* WindowModuleDescriptorImpl();
-#ifdef OW_BUILTINS_GTK
-const ow_module_desc_t* WindowExtrasDescriptor();
-const ow_module_desc_t* SessionDescriptor();
-const ow_module_desc_t* CrashReporterDescriptor();
-const ow_module_desc_t* AppModuleDescriptor();
-#endif
-#ifdef OW_PLATFORM_WIN
-const ow_module_desc_t* WindowExtrasDescriptorWin();
-#endif
-#ifdef __APPLE__
-const ow_module_desc_t* WindowExtrasDescriptorMac();
-#endif
-
-void RegisterBuiltinModules() {
-    Dispatcher::Get().RegisterModule(WindowModuleDescriptorImpl(), "builtin:ow-window");
-#ifdef OW_BUILTINS_GTK
-    Dispatcher::Get().RegisterModule(WindowExtrasDescriptor(), "builtin:window");
-    Dispatcher::Get().RegisterModule(SessionDescriptor(), "builtin:session");
-    Dispatcher::Get().RegisterModule(CrashReporterDescriptor(), "builtin:crashreporter");
-    Dispatcher::Get().RegisterModule(AppModuleDescriptor(), "builtin:app");
-#endif
-#ifdef OW_PLATFORM_WIN
-    Dispatcher::Get().RegisterModule(WindowExtrasDescriptorWin(), "builtin:window");
-#endif
-#ifdef __APPLE__
-    Dispatcher::Get().RegisterModule(WindowExtrasDescriptorMac(), "builtin:window");
-#endif
-}
+// El registro de builtins se GENERA desde los manifiestos de API
+// (api/<nombre>/owear.module.json, kind=builtin). Ver tools/gen-apis.mjs y
+// src/Core/BuiltinRegistry.generated.cpp. No hardcodear módulos aquí.
+void RegisterGeneratedBuiltins();
 
 bool Bootstrap(int argc, char** argv, const AppOptions& options) {
     if (g_initialized) return true;
@@ -74,7 +46,7 @@ bool Bootstrap(int argc, char** argv, const AppOptions& options) {
 
     if (!PlatformInit(argc, argv)) return false;
 
-    RegisterBuiltinModules();
+    RegisterGeneratedBuiltins();
     ModuleLoader::ProvideHostToBuiltins();
 
     size_t loaded = ModuleLoader::LoadAll();
@@ -88,11 +60,20 @@ bool Bootstrap(int argc, char** argv, const AppOptions& options) {
     }
 
     // Modo JS-driven: spawn del sidecar con el entry de la app.
-    const char* appMain = std::getenv("OW_APP_MAIN");
-    if (appMain && *appMain) {
-        auto node = NodeManager::Ensure("latest");
+    const char* appMainRaw = std::getenv("OW_APP_MAIN");
+    if (appMainRaw && *appMainRaw) {
+        const std::string appMain = appMainRaw;
+        if (appMain.size() > 3 && appMain.compare(appMain.size() - 3, 3, ".ts") == 0) {
+            log::Warn("app", "OW_APP_MAIN apunta a TypeScript (" + appMain +
+                                 "): node no ejecuta .ts sin --experimental-strip-types. "
+                                 "Usa `ow dev`/`ow build`, que compilan el main a JavaScript");
+        }
+        auto node = NodeManager::Resolve("latest");
         if (node.IsOk()) {
-            long pid = NodeManager::Spawn(node.Value(), appMain);
+            const auto& rt = node.Value();
+            log::Info("app", "runtime node " + rt.version + " (" + rt.source + "): " +
+                                 rt.bin.string());
+            long pid = NodeManager::Spawn(rt.bin, appMain);
             if (pid > 0)
                 log::Info("app", "sidecar node pid=" + std::to_string(pid) + " → " + appMain);
             else

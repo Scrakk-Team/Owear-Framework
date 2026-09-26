@@ -1,0 +1,10 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "tray",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Icono de bandeja (libayatana-appindicator / Shell_NotifyIcon / NSStatusItem). OPCIONAL: requiere deps del sistema.",
+  "platforms": ["linux", "win", "mac"],
+  "optional": true,
+  "functions": ["create", "setIcon", "setTitle"]
+}

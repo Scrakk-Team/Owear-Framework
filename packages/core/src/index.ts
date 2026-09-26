@@ -172,13 +172,58 @@ export const app = {
     return channel.call('app.info')
   },
 
-  /** Garantiza un runtime Node gestionado por Owear (descarga oficial + SHA256). */
-  ensureNodeRuntime(range = 'latest'): Promise<{ path: string }> {
+  /**
+   * Localiza (o descarga) un runtime Node. Prioridad: OW_NODE_BIN → Node del
+   * sistema → caché de Owear → descarga oficial. `source` indica de dónde
+   * salió ("env" | "system" | "cache" | "downloaded").
+   */
+  ensureNodeRuntime(
+    range = 'latest'
+  ): Promise<{ path: string; version: string; source: string }> {
     return channel.call('node.ensure', { range })
   },
 
   /** Acceso crudo al canal (para módulos custom del SDK). */
   __channel: channel,
+}
+
+/**
+ * Invoca una función de un módulo nativo del kernel desde el proceso
+ * principal (fs, process, net, clipboard…). Es el equivalente de `ow.invoke()`
+ * del renderer, pero sin depender de una ventana: es la pieza que permite
+ * portar APIs de Electron al main process.
+ *
+ *   const txt = await invokeNative<string>('fs', 'readText', '/etc/hostname')
+ */
+export function invokeNative<T = unknown>(
+  module: string,
+  method: string,
+  ...args: unknown[]
+): Promise<T> {
+  return channel.call<T>('module.invoke', { module, method, args })
+}
+
+/** Metadatos de un módulo nativo cargado en el kernel. */
+export interface NativeModuleInfo {
+  name: string
+  version: string
+  /** Ruta del .owm o "builtin:<nombre>" para los enlazados al kernel. */
+  origin: string
+  builtin: boolean
+  /** Número de funciones (compat). */
+  functions: number
+  /** Nombres de las funciones. */
+  functionNames: string[]
+}
+
+/** Módulos nativos cargados, con versión, origen y funciones. */
+export function listNativeModules(): Promise<NativeModuleInfo[]> {
+  return channel.call('module.list')
+}
+
+/** Metadatos de un módulo nativo concreto. Rechaza si no existe. */
+export function nativeModuleInfo(name: string): Promise<NativeModuleInfo> {
+  return channel.call('module.info', { name })
 }
 
 // ── BrowserWindow ───────────────────────────────────────────────────────────
@@ -273,7 +318,8 @@ export class BrowserWindow extends EventEmitter {
   /**
    * Responde a un `closeRequested` (F3.4).
    * `allow=false` cancela el cierre; `true` destruye la ventana.
-   * Si nadie responde en 300 ms, el kernel cierra igualmente.
+   * Si nadie responde en `OW_CLOSE_TIMEOUT_MS` (default 1000 ms), el kernel
+   * cierra igualmente.
    */
   closeRespond(requestId: number, allow: boolean): Promise<void> {
     return channel.call('window.respondCloseRequest', {

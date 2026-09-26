@@ -9,6 +9,7 @@
 #include <map>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace ow {
 
@@ -17,6 +18,15 @@ public:
     static Dispatcher& Get();
 
     using ErrorSink = std::function<void(std::string_view msg)>;
+
+    /// Metadatos de un módulo registrado (para module.list / module.info).
+    struct ModuleInfo {
+        std::string name;
+        std::string version;
+        std::string origin;              ///< ruta del archivo o "builtin:<nombre>"
+        bool builtin = false;
+        std::vector<std::string> functions;
+    };
 
     /// Registra todas las funciones de un descriptor. `origin` para logs.
     /// Devuelve el número de funciones registradas.
@@ -31,12 +41,17 @@ public:
 
     void SetErrorSink(ErrorSink sink);
 
-    std::vector<std::pair<std::string, uint32_t>> ListModules() const;
+    /// Todos los módulos registrados, con versión, origen y funciones.
+    std::vector<ModuleInfo> Modules() const;
+
+    /// Metadatos de un módulo concreto. ok=false si no existe.
+    bool Module(const std::string& name, ModuleInfo& out) const;
 
 private:
     Dispatcher() = default;
     mutable std::mutex mu_;
     std::map<std::string, const ow_fn_entry_t*> fns_; // "module/fn" → entry
+    std::map<std::string, ModuleInfo> modules_;       // "module" → metadata
     ErrorSink err_;
 };
 

@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "power",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "powerMonitor (sleep/resume) + powerSaveBlocker (inhibit) vía logind / PowerBroadcast / IOPMAssertion.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["monitorStart", "inhibitStart", "inhibitStop"]
+}

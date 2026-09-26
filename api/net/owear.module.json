@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "net",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "HTTP(S) nativo sin CORS (request/download) con SHA-256; respuestas grandes vía memoria compartida.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["request", "download"]
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "app",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Ciclo de vida de la app: instancia única, relaunch y badge. Builtin acoplado al kernel (Linux).",
+  "descriptors": [
+    {
+      "name": "app",
+      "factory": "AppModuleDescriptor",
+      "platforms": ["linux"],
+      "functions": ["setBadgeCount", "requestSingleInstanceLock", "relaunch"]
+    }
+  ],
+  "sources": { "linux": ["src/app_builtin.cpp"] }
+}

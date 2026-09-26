@@ -1,0 +1,10 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "globalshortcut",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Atajos globales (X11 XGrabKey / RegisterHotKey / Carbon). OPCIONAL: Wayland no soportado.",
+  "platforms": ["linux", "win", "mac"],
+  "optional": true,
+  "functions": ["register", "unregister"]
+}

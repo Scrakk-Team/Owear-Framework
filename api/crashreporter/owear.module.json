@@ -1,0 +1,16 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "crashreporter",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Captura de señales (SIGSEGV/ABRT/…) con backtrace a cache/crashes/. Builtin acoplado al kernel (Linux).",
+  "descriptors": [
+    {
+      "name": "crashreporter",
+      "factory": "CrashReporterDescriptor",
+      "platforms": ["linux"],
+      "functions": ["install", "lastCrashLog"]
+    }
+  ],
+  "sources": { "linux": ["src/crashreporter.cpp"] }
+}

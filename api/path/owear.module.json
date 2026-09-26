@@ -1,0 +1,12 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "path",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Lógica de rutas (join/resolve/dirname/…) + directorios estándar del SO (XDG / Known Folders).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": [
+    "join", "resolve", "dirname", "basename", "extname", "normalize",
+    "homeDir", "appDataDir", "userDataDir", "cacheDir", "tempDir", "configDir", "exeDir", "cwd"
+  ]
+}

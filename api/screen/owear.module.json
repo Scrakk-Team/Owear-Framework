@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "screen",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Monitores (geometría, work area, escala), display primario y posición GLOBAL del cursor.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["getAllDisplays", "getPrimaryDisplay", "getCursorScreenPoint"]
+}

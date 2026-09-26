@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "process",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "spawn de procesos con pipes de stdout/stderr/stdin + PTY Manager real (forkpty / ConPTY) con eventos de datos y salida.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["spawn", "write", "kill", "list", "ptyOpen", "ptyResize"]
+}

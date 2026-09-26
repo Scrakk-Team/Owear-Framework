@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://owear.dev/schemas/owear.module.json",
+  "title": "Owear API manifest",
+  "description": "Manifiesto de una API de Owear. Fuente única de verdad para descubrimiento (CMake), registro runtime (Dispatcher), CLI (ow api) y validación en CI.",
+  "type": "object",
+  "required": ["name", "kind", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Identidad de la API. Debe coincidir con el nombre de su carpeta api/<name>/."
+    },
+    "kind": {
+      "enum": ["module", "builtin"],
+      "description": "module = compila a .owm independiente. builtin = se enlaza dentro del kernel (acoplado al WebView/kernel)."
+    },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string" },
+    "platforms": {
+      "type": "array",
+      "items": { "enum": ["linux", "win", "mac"] },
+      "description": "Plataformas soportadas. Acota el descubrimiento y el registro."
+    },
+    "functions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Sólo para kind=module: funciones exportadas por el descriptor (se valida contra OW_FN / tablas C++)."
+    },
+    "descriptors": {
+      "type": "array",
+      "description": "Sólo para kind=builtin: uno o más descriptores registrados por la API.",
+      "items": {
+        "type": "object",
+        "required": ["name", "factory"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "factory": { "type": "string", "description": "Función C++ que devuelve el ow_module_desc_t*." },
+          "core": { "type": "boolean", "description": "true si la fuente vive en el kernel (src/Core), no en api/." },
+          "platforms": { "type": "array", "items": { "enum": ["linux", "win", "mac"] } },
+          "functions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "description": "Sólo para kind=builtin: fuentes por plataforma, relativas a api/<name>/.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "optional": {
+      "type": "boolean",
+      "description": "true si la API puede omitirse cuando faltan deps del sistema (capturer, globalshortcut, tray)."
+    }
+  }
+}

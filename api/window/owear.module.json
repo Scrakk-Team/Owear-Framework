@@ -1,0 +1,54 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "window",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Extras de ventana del WebView (devtools, captura, opacidad, zoom, navegación) + el builtin interno ow-window (titlebar, drags, ciclo de vida). Acoplados al kernel.",
+  "descriptors": [
+    {
+      "name": "ow-window",
+      "factory": "WindowModuleDescriptorImpl",
+      "core": true,
+      "platforms": ["linux", "win", "mac"],
+      "functions": ["minimize", "maximize", "close", "focus", "setTitle", "isMaximized", "respondCloseRequest"]
+    },
+    {
+      "name": "window",
+      "factory": "WindowExtrasDescriptor",
+      "platforms": ["linux"],
+      "functions": [
+        "openDevTools", "capturePage", "setAlwaysOnTop", "isAlwaysOnTop", "setOpacity",
+        "flashFrame", "setIcon", "setUserAgent", "zoom",
+        "reload", "stop", "goBack", "goForward", "canGoBack", "canGoForward",
+        "getURL", "getTitle", "findInPage", "findStop"
+      ]
+    },
+    {
+      "name": "window",
+      "factory": "WindowExtrasDescriptorWin",
+      "platforms": ["win"],
+      "functions": [
+        "openDevTools", "capturePage", "setAlwaysOnTop", "isAlwaysOnTop", "setOpacity",
+        "flashFrame", "setIcon", "setUserAgent", "zoom",
+        "reload", "stop", "goBack", "goForward", "canGoBack", "canGoForward",
+        "getURL", "getTitle"
+      ]
+    },
+    {
+      "name": "window",
+      "factory": "WindowExtrasDescriptorMac",
+      "platforms": ["mac"],
+      "functions": [
+        "openDevTools", "capturePage", "setAlwaysOnTop", "isAlwaysOnTop", "setOpacity",
+        "flashFrame", "setIcon", "setUserAgent", "zoom",
+        "reload", "stop", "goBack", "goForward", "canGoBack", "canGoForward",
+        "getURL", "getTitle"
+      ]
+    }
+  ],
+  "sources": {
+    "linux": ["src/window_extra.cpp"],
+    "win": ["src/window_extra_win.cpp"],
+    "mac": ["src/window_extra_mac.mm"]
+  }
+}

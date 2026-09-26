@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "notification",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Notificaciones del sistema (org.freedesktop.Notifications / Toast / UNUserNotification).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["show"]
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "menu",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Menú contextual declarativo (popup). setApplicationMenu es no-op en Linux por diseño.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["popup", "setApplicationMenu"]
+}

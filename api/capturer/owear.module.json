@@ -1,0 +1,10 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "capturer",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Captura de pantalla y fuentes (X11 → PNG → SHM). OPCIONAL: Wayland no soportado v1.",
+  "platforms": ["linux", "win", "mac"],
+  "optional": true,
+  "functions": ["getSources", "captureScreen"]
+}
