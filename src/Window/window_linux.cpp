@@ -587,12 +587,19 @@ gboolean OnWindowButtonPress(GtkWidget* win, GdkEventButton* e, gpointer ud) {
     auto* impl = static_cast<Window::Impl*>(ud);
     auto* pd = impl->pdata;
     if (!pd || !impl->webview) return FALSE;
-    for (const auto& [id, v] : pd->views) {
+    // Click sobre una hija → le damos el foco (y la hacemos focusable).
+    for (auto& [id, v] : pd->views) {
         if (!v.visible) continue;
-        if (e->x >= v.x && e->x < v.x + v.w && e->y >= v.y && e->y < v.y + v.h)
-            return FALSE; // es una hija: que se enfoque ella
+        if (e->x >= v.x && e->x < v.x + v.w && e->y >= v.y && e->y < v.y + v.h) {
+            gtk_widget_set_can_focus(v.view, TRUE);
+            gtk_window_set_focus(GTK_WINDOW(win), v.view);
+            gtk_widget_grab_focus(v.view);
+            return FALSE;
+        }
     }
+    // Click fuera de las hijas → foco a la principal.
     GtkWidget* mainView = GTK_WIDGET(impl->webview->NativeWidget());
+    gtk_widget_set_can_focus(mainView, TRUE);
     gtk_window_set_focus(GTK_WINDOW(win), mainView);
     gtk_widget_grab_focus(mainView);
     return FALSE;
@@ -777,6 +784,7 @@ bool Window::Impl::PCreate() {
     gtk_widget_set_can_focus(view, TRUE);
     g_signal_connect(view, "button-press-event", G_CALLBACK(OnViewButtonPress),
                      nullptr);
+    gtk_widget_grab_focus(view); // la principal arranca con el foco
 
     if (frameless) {
         // WebView transparente: el fondo lo pone el HTML redondeado y las
@@ -1055,7 +1063,9 @@ std::string Window::Impl::PCreateWebview(const std::string& optionsJson) {
     g_signal_connect(view, "load-failed", G_CALLBACK(OnViewLoadFailed), this);
     g_signal_connect(view, "notify::uri", G_CALLBACK(OnViewUriChanged), this);
     g_signal_connect(view, "notify::title", G_CALLBACK(OnViewTitleChanged), this);
-    gtk_widget_set_can_focus(GTK_WIDGET(view), TRUE);
+    // NO focusable al crear: WebKit pide foco al cargar y robaba el foco a la
+    // principal (y luego no se podía recuperar). Se habilita al hacer click.
+    gtk_widget_set_can_focus(GTK_WIDGET(view), FALSE);
     g_signal_connect(view, "button-press-event", G_CALLBACK(OnViewButtonPress),
                      nullptr);
 
