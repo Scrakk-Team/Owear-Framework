@@ -1,11 +1,13 @@
 {
-  "name": "mi-app-owear",
+  "name": "__PKG_NAME__",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "App de escritorio construida con Owear.",
   "scripts": {
     "dev": "ow dev",
-    "build": "ow build"
+    "build": "ow build",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@owear/core": "^0.1.0"
@@ -13,6 +15,8 @@
   "devDependencies": {
     "@owear/cli": "^0.1.0",
     "@owear/vite-plugin": "^0.1.0",
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.25.0",
     "typescript": "^5.6.0",
     "vite": "^6.0.0"
   }

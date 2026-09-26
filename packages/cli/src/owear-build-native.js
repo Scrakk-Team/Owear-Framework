@@ -10,6 +10,9 @@ import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
 
 const out = process.env.OW_MODULES_OUT ?? path.join(process.cwd(), '.owear', 'modules')
 const nativeDir = path.join(process.cwd(), 'native')
@@ -23,11 +26,31 @@ fs.mkdirSync(out, { recursive: true })
 // incluye headers públicos del framework si están instalados junto al kernel
 function frameworkIncludes() {
   const incs = []
+  let runtimeInclude = null
+  // paquete de runtime de npm (@owear/<plataforma>): trae include/
+  const rtName =
+    process.platform === 'linux' && process.arch === 'x64'
+      ? '@owear/linux-x64-gnu'
+      : process.platform === 'win32' && process.arch === 'x64'
+        ? '@owear/win32-x64'
+        : process.platform === 'darwin'
+          ? `@owear/darwin-${process.arch}`
+          : null
+  if (rtName) {
+    try {
+      runtimeInclude = path.join(path.dirname(require.resolve(rtName + '/package.json')), 'include')
+    } catch {
+      /* sin runtime npm: cae al include del monorepo */
+    }
+  }
   // desde packages/cli/src/ → raíz del repo (monorepo en desarrollo)
   const candidates = [
     process.env.OW_INCLUDE_DIR,
-    path.resolve(import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url)),
-                 '../../../include'),
+    runtimeInclude,
+    path.resolve(
+      import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url)),
+      '../../../include',
+    ),
   ].filter(Boolean)
   for (const c of candidates) if (fs.existsSync(c)) incs.push(c)
   return incs

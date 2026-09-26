@@ -39,16 +39,60 @@ function platformPreset() {
   }
 }
 
-/** Localiza el repo/binario del kernel. Orden: OW_KERNEL_BIN → binario local → repo hermano. */
+/** Nombre del paquete de runtime para la plataforma actual (null si no hay). */
+function runtimePackageName() {
+  if (process.platform === 'linux' && process.arch === 'x64') return '@owear/linux-x64-gnu'
+  if (process.platform === 'win32' && process.arch === 'x64') return '@owear/win32-x64'
+  if (process.platform === 'darwin' && process.arch === 'arm64') return '@owear/darwin-arm64'
+  if (process.platform === 'darwin' && process.arch === 'x64') return '@owear/darwin-x64'
+  return null
+}
+
+/** Directorio del paquete de runtime instalado (o null). */
+function runtimePackageDir() {
+  const name = runtimePackageName()
+  if (!name) return null
+  try {
+    return path.dirname(require.resolve(name + '/package.json'))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Ruta(s) de los módulos stock, separadas por `path.delimiter`.
+ * - runtime npm:  <pkg>/bin/modules (plano)
+ * - monorepo:     cada build/<preset>/api/<nombre>/ (el loader NO recursiona)
+ */
+function stockModulesPath() {
+  const rt = runtimePackageDir()
+  if (rt) {
+    const m = path.join(rt, 'bin', 'modules')
+    if (fs.existsSync(m)) return m
+  }
+  const api = path.resolve(__dirname, '../../../build', platformPreset(), 'api')
+  if (fs.existsSync(api)) {
+    const dirs = fs
+      .readdirSync(api, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name !== 'CMakeFiles')
+      .map((d) => path.join(api, d.name))
+    if (dirs.length) return dirs.join(path.delimiter)
+  }
+  return ''
+}
+
+/** Localiza el binario del kernel. Orden: OW_KERNEL_BIN → local → runtime npm → monorepo. */
 function findKernelBin(cwd = process.cwd()) {
   if (process.env.OW_KERNEL_BIN && fs.existsSync(process.env.OW_KERNEL_BIN)) {
     return process.env.OW_KERNEL_BIN
   }
   const exe = process.platform === 'win32' ? 'owear.exe' : 'owear'
+  const rt = runtimePackageDir()
   const candidates = [
     path.join(cwd, '.owear', 'bin', exe),
-    // monorepo en desarrollo
+    // monorepo en desarrollo: el kernel recién compilado manda sobre el paquete npm
     path.resolve(__dirname, '../../../build', platformPreset(), 'src', exe),
+    ...(rt ? [path.join(rt, 'bin', exe)] : []),
   ]
   for (const c of candidates) if (fs.existsSync(c)) return c
   return null
@@ -62,7 +106,15 @@ function ensureKernelBuilt(cwd) {
   const repoRoot = path.resolve(__dirname, '../../..')
   const hasSources = fs.existsSync(path.join(repoRoot, 'CMakeLists.txt'))
   if (!hasSources) {
-    die('kernel no encontrado. Instala @owear/runtime-<platform> o define OW_KERNEL_BIN.')
+    // El binario del kernel todavía no se distribuye como paquete npm, así que
+    // no prometemos `@owear/runtime-<platform>`: damos las salidas reales.
+    const exe = process.platform === 'win32' ? 'owear.exe' : 'owear'
+    die(
+      `no encuentro el kernel owear. Opciones:
+  · compílalo desde un checkout: cmake --preset ${platformPreset()} && cmake --build --preset ${platformPreset()}
+  · copia el binario en ${path.join(process.cwd(), '.owear', 'bin', exe)}
+  · o define OW_KERNEL_BIN=/ruta/al/owear
+  (el binario precompilado por plataforma aún no se publica en npm)`)
   }
   log('compilando kernel nativo (primera vez)…')
   const preset = platformPreset()
@@ -86,6 +138,7 @@ async function main() {
     case 'create': return cmdCreate(rest)
     case 'dev':    return cmdDev(rest)
     case 'build':  return cmdBuild(rest)
+    case 'api':    return cmdApi(rest)
     default:
       die(`comando desconocido: ${cmd} (usa --help)`)
   }
@@ -98,6 +151,8 @@ ${C.cyan}owear${C.reset} — framework desktop nativo
   ${C.green}ow create <dir>${C.reset}   crea una app nueva
   ${C.green}ow dev${C.reset}            desarrollo: vite + kernel + sidecar node
   ${C.green}ow build${C.reset}          build de producción
+  ${C.green}ow api list${C.reset}       lista las APIs del repo y sus manifiestos
+  ${C.green}ow api new <nombre>${C.reset}  scaffoldea una API (api/<nombre>/ + manifiesto)
 
 Variables útiles:
   OW_KERNEL_BIN     ruta al binario owear
@@ -116,11 +171,152 @@ function cmdCreate(args) {
     die(`template no encontrado en ${templateDir} (instala @owear/cli completo)`)
   }
   fs.cpSync(templateDir, target, { recursive: true })
+  applyAppName(target)
   log(`app creada en ${target}`)
   log('siguientes pasos:')
   console.log(`  cd ${path.basename(target)}`)
-  console.log('  pnpm install')
-  console.log('  pnpm dev')
+  console.log('  npm install')
+  console.log('  npm run dev')
+}
+
+/**
+ * Sustituye los placeholders del template por el nombre de la app
+ * (__APP_NAME__ legible, __PKG_NAME__ válido como nombre de paquete npm).
+ */
+function applyAppName(target) {
+  const appName = path.basename(target)
+  const pkgName =
+    appName
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^[-._]+|[-._]+$/g, '') || 'owear-app'
+  const extRe = /\.(ts|tsx|js|mjs|json|html|css|md|txt|ya?ml)$/
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules') continue
+      const p = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(p)
+      else if (extRe.test(entry.name)) {
+        const src = fs.readFileSync(p, 'utf8')
+        const out = src
+          .replaceAll('__APP_NAME__', appName)
+          .replaceAll('__PKG_NAME__', pkgName)
+        if (out !== src) fs.writeFileSync(p, out)
+      }
+    }
+  }
+  walk(target)
+}
+
+// ── ow api — gestión de las APIs del framework ──────────────────────────────
+// Fuente única de verdad: api/<nombre>/owear.module.json. `ow api new` crea la
+// carpeta + manifiesto + esqueleto C++ y regenera el descubrimiento.
+
+/** Raíz del repo de Owear (para `ow api`, que no vive en la app). */
+function owearRepoRoot() {
+  const root = path.resolve(__dirname, '../../..')
+  return fs.existsSync(path.join(root, 'CMakeLists.txt')) ? root : null
+}
+
+function cmdApi(args) {
+  const root = owearRepoRoot()
+  if (!root) die('`ow api` solo funciona dentro del repo de Owear (no encuentro api/ desde el CLI)')
+  const sub = args[0]
+  if (sub === 'list') return cmdApiList(root)
+  if (sub === 'new') return cmdApiNew(root, args[1])
+  die('uso: ow api <list | new <nombre>>')
+}
+
+function readApiManifests(root) {
+  const apiDir = path.join(root, 'api')
+  const out = []
+  for (const d of fs.readdirSync(apiDir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue
+    const file = path.join(apiDir, d.name, 'owear.module.json')
+    if (!fs.existsSync(file)) continue
+    out.push(JSON.parse(fs.readFileSync(file, 'utf8')))
+  }
+  return out
+}
+
+function cmdApiList(root) {
+  const manifests = readApiManifests(root).sort((a, b) => a.name.localeCompare(b.name))
+  const fnCount = (m) =>
+    m.kind === 'module'
+      ? (m.functions?.length ?? 0)
+      : (m.descriptors ?? []).reduce((a, d) => a + (d.functions?.length ?? 0), 0)
+  const w = Math.max(4, ...manifests.map((m) => m.name.length))
+  console.log(`\n${'API'.padEnd(w)}  KIND     VER    FNS  PLATAFORMAS`)
+  console.log(`${'─'.repeat(w)}  ───────  ─────  ───  ────────────`)
+  for (const m of manifests) {
+    const fns = String(fnCount(m)).padStart(3)
+    const plats = (m.platforms ?? [...new Set((m.descriptors ?? []).flatMap((d) => d.platforms ?? []))]).join('/') || '—'
+    console.log(`${m.name.padEnd(w)}  ${m.kind.padEnd(7)}  ${m.version.padEnd(5)}  ${fns}  ${plats}`)
+  }
+  const mods = manifests.filter((m) => m.kind === 'module').length
+  console.log(`\n${manifests.length} APIs — ${mods} módulos (.owm), ${manifests.length - mods} builtins\n`)
+}
+
+function cmdApiNew(root, name) {
+  if (!name) die('uso: ow api new <nombre>')
+  if (!/^[a-z][a-z0-9-]*$/.test(name)) die('nombre inválido (minúsculas, dígitos y guiones; debe empezar por letra)')
+  const dir = path.join(root, 'api', name)
+  if (fs.existsSync(dir) && fs.readdirSync(dir).length) die(`api/${name}/ ya existe y no está vacío`)
+
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true })
+
+  const manifest = {
+    $schema: '../owear.module.schema.json',
+    name,
+    kind: 'module',
+    version: '0.1.0',
+    description: `${name} — API de Owear.`,
+    platforms: ['linux', 'win', 'mac'],
+    functions: ['ping'],
+  }
+  fs.writeFileSync(path.join(dir, 'owear.module.json'), JSON.stringify(manifest, null, 2) + '\n')
+
+  fs.writeFileSync(
+    path.join(dir, 'CMakeLists.txt'),
+    `# ── API ${name} ────────────────────────────────────────────────────────────────\n` +
+      `# Manifiesto: owear.module.json (fuente única de verdad).\n` +
+      `ow_add_module(${name} SOURCES src/${name}.cpp)\n`
+  )
+
+  fs.writeFileSync(
+    path.join(dir, 'src', `${name}.cpp`),
+    `// Copyright 2026 Owear Contributors\n` +
+      `// SPDX-License-Identifier: Apache-2.0\n` +
+      `//\n` +
+      `// api/${name}/src/${name}.cpp — implementación de la API ${name}.\n` +
+      `// Se compila a ${name}.owm y se invoca desde el renderer con:\n` +
+      `//   await ow.invoke('${name}', 'ping')\n` +
+      `\n` +
+      `#include <ow/Json.h>\n` +
+      `#include <ow/Module.h>\n` +
+      `#include "ow_api.h"\n` +
+      `\n` +
+      `static void ping(const ow_request_t*, ow_response_t* res) {\n` +
+      `    ow::Module::RespondOk(res, "\\"pong\\"");\n` +
+      `}\n` +
+      `\n` +
+      `OW_MODULE_BEGIN(${name}, "1.0.0")\n` +
+      `OW_FN(ping)\n` +
+      `OW_MODULE_END()\n`
+  )
+
+  fs.writeFileSync(
+    path.join(dir, 'README.md'),
+    `# ${name}\n\n` +
+      `API de Owear. Manifiesto: [\`owear.module.json\`](./owear.module.json).\n\n` +
+      `Desde el renderer:\n\n\`\`\`ts\nawait ow.invoke('${name}', 'ping') // → "pong"\n\`\`\`\n`
+  )
+
+  log(`API creada en api/${name}/`)
+  log('regenerando descubrimiento (api/generated.cmake + builtins)…')
+  const r = spawnSync(process.execPath, [path.join(root, 'tools', 'gen-apis.mjs')], { stdio: 'inherit' })
+  if (r.status !== 0) die('falló tools/gen-apis.mjs')
+  log(`listo. En el renderer: ow.invoke('${name}', 'ping')`)
 }
 
 function runProc(cmd, args, opts = {}) {
@@ -140,6 +336,44 @@ async function waitForServer(url, timeoutMs = 30000) {
     await new Promise((r) => setTimeout(r, 250))
   }
   return false
+}
+
+/** Entry del proceso principal: app/main.{ts,mts,js,mjs}. */
+function findMainEntry(cwd) {
+  for (const name of ['main.ts', 'main.mts', 'main.js', 'main.mjs']) {
+    const p = path.join(cwd, 'app', name)
+    if (fs.existsSync(p)) return p
+  }
+  return null
+}
+
+/**
+ * Prepara el entry del sidecar para que lo ejecute CUALQUIER node instalado.
+ * Node no ejecuta TypeScript hasta la 22.6 (y hasta la 23.6 sólo con un flag),
+ * así que compilamos con esbuild (viene con vite). De este modo el runtime del
+ * sistema sirve y el arranque no depende de la versión que tenga el usuario.
+ */
+function prepareMain(cwd, outDir) {
+  const entry = findMainEntry(cwd)
+  if (!entry) return null
+  if (entry.endsWith('.js') || entry.endsWith('.mjs')) return entry
+
+  const out = path.join(outDir, 'main.js')
+  fs.mkdirSync(outDir, { recursive: true })
+  log(`compilando ${path.relative(cwd, entry)}…`)
+  const r = spawnSync(
+    'npx',
+    [
+      'esbuild', entry,
+      '--bundle', '--platform=node', '--format=esm',
+      '--packages=external', `--outfile=${out}`, '--log-level=warning',
+    ],
+    { cwd, stdio: 'inherit', shell: process.platform === 'win32' }
+  )
+  if (r.status !== 0) {
+    die(`no se pudo compilar ${path.relative(cwd, entry)} — esbuild viene con vite, revisa que esté instalado`)
+  }
+  return out
 }
 
 async function cmdDev() {
@@ -174,6 +408,9 @@ async function cmdDev() {
     if (r.status !== 0) die('falló la compilación de native/*.cpp')
   }
 
+  const mainJs = prepareMain(cwd, path.join(cwd, '.owear'))
+  if (mainJs) log(`proceso principal: ${path.relative(cwd, mainJs)}`)
+
   log(`lanzando kernel: ${kernelBin}`)
   const kernel = spawn(kernelBin, [], {
     stdio: 'inherit',
@@ -181,8 +418,12 @@ async function cmdDev() {
       ...process.env,
       OW_APP_NAME: JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8')).name ?? 'Owear App',
       OW_DEV_SERVER_URL: 'http://localhost:5173/',
-      OW_APP_MAIN: path.join(cwd, 'app', 'main.ts'),
-      ...(modulesDir ? { OW_MODULES_DIR: modulesDir } : {}),
+      ...(mainJs ? { OW_APP_MAIN: mainJs } : {}),
+      ...(() => {
+        // módulos stock (fs/path/…) + los nativos de la app, si los hay
+        const dirs = [stockModulesPath(), modulesDir].filter(Boolean)
+        return dirs.length ? { OW_MODULES_DIR: dirs.join(path.delimiter) } : {}
+      })(),
     },
   })
   kernel.on('exit', (code) => {
@@ -203,6 +444,8 @@ async function cmdBuild() {
   const code = await runProc('npx', ['vite', 'build'], { cwd, shell: process.platform === 'win32' })
   if (code !== 0) die('vite build falló')
 
+  const mainJs = prepareMain(cwd, path.join(cwd, 'dist'))
+
   const nativeDir = path.join(cwd, 'native')
   if (fs.existsSync(nativeDir)) {
     const out = path.join(cwd, 'dist', 'modules')
@@ -214,7 +457,17 @@ async function cmdBuild() {
     })
     if (r.status !== 0) die('falló la compilación de native/*.cpp')
   }
-  log(`build lista en dist/ — sirve con OW_ASSETS_DIR=dist ./owear`)
+  log('build lista en dist/')
+  const runMods = [
+    stockModulesPath(),
+    fs.existsSync(path.join(cwd, 'dist', 'modules')) ? path.join(cwd, 'dist', 'modules') : '',
+  ]
+    .filter(Boolean)
+    .join(path.delimiter)
+  console.log(
+    `  OW_ASSETS_DIR=dist${mainJs ? ' OW_APP_MAIN=dist/main.js' : ''}` +
+      `${runMods ? ` OW_MODULES_DIR="${runMods}"` : ''} ./owear`
+  )
 }
 
 main().catch((e) => die(e?.stack ?? String(e)))

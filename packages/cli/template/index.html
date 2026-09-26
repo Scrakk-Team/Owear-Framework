@@ -1,24 +1,82 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mi App Owear</title>
-</head>
-<body>
-  <header data-ow-drag class="titlebar">
-    <span>Mi App Owear</span>
-    <nav>
-      <button data-ow-no-drag onclick="ow.invoke('ow-window','minimize', window.__owWindowId)">–</button>
-      <button data-ow-no-drag onclick="ow.invoke('ow-window','maximize', window.__owWindowId, true)">□</button>
-      <button data-ow-no-drag onclick="ow.invoke('ow-window','close', window.__owWindowId)">✕</button>
-    </nav>
-  </header>
-  <main>
-    <h1>Funciona 🚀</h1>
-    <p id="demo">invocando módulo nativo…</p>
-    <pre id="out"></pre>
-  </main>
-  <script type="module" src="/src/renderer.ts"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>__APP_NAME__</title>
+  </head>
+  <body>
+    <!-- Titlebar propia: el kernel convierte [data-ow-drag] en zona de arrastre.
+         Los controles van FUERA de esa zona para no iniciar drag al pulsarlos. -->
+    <header class="titlebar">
+      <div class="titlebar__drag" data-ow-drag>
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">__APP_NAME__</span>
+      </div>
+      <div class="titlebar__controls">
+        <button id="win-min" class="winbtn" title="Minimizar" aria-label="Minimizar">
+          <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 6h8" /></svg>
+        </button>
+        <button id="win-max" class="winbtn" title="Maximizar" aria-label="Maximizar">
+          <svg viewBox="0 0 12 12" width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" rx="1" /></svg>
+        </button>
+        <button id="win-close" class="winbtn winbtn--close" title="Cerrar" aria-label="Cerrar">
+          <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="hero">
+        <span class="eyebrow">Owear</span>
+        <h1>__APP_NAME__</h1>
+        <p class="lead">
+          Frontend web, sistema nativo. Estos botones llaman <strong>directo</strong> a los
+          módulos del kernel — sin <code>ipcRenderer</code> ni <code>ipcMain</code>.
+        </p>
+        <div class="actions">
+          <button class="btn btn--primary" data-action="open">Abrir archivo…</button>
+          <button class="btn" data-action="notify">Notificar</button>
+          <button class="btn" data-action="copy">Copiar ruta</button>
+          <button class="btn" data-action="reveal">Mostrar en carpeta</button>
+          <button class="btn btn--ghost" data-action="about">Acerca de</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <header class="card__head">
+            <h2>Entorno</h2>
+            <span class="badge" id="env-window">—</span>
+          </header>
+          <dl class="kv">
+            <div><dt>Plataforma</dt><dd id="env-platform">—</dd></div>
+            <div><dt>Motor</dt><dd id="env-engine">—</dd></div>
+            <div><dt>Escala</dt><dd id="env-dpr">—</dd></div>
+          </dl>
+          <p class="ua" id="env-ua">—</p>
+        </article>
+
+        <article class="card card--grow">
+          <header class="card__head">
+            <h2>Consola</h2>
+            <button class="linkbtn" data-action="clear">Limpiar</button>
+          </header>
+          <pre id="console" class="console">Listo. Pulsa «Abrir archivo…» para invocar un módulo nativo.</pre>
+        </article>
+      </section>
+
+      <section class="card">
+        <header class="card__head"><h2>Cómo funciona</h2></header>
+        <p class="hint">
+          Cada botón invoca un módulo nativo con <code>ow.invoke()</code>.
+        </p>
+        <pre class="code"><code>const path = await ow.invoke('dialog', 'open', 'open', 'Abrir archivo')
+const text = await ow.invoke('fs', 'readText', path)
+await ow.invoke('notification', 'show', 'Listo', 'Leídos ' + text.length + ' bytes')</code></pre>
+      </section>
+    </main>
+
+    <script type="module" src="/src/renderer.ts"></script>
+  </body>
 </html>
