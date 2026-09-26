@@ -57,6 +57,7 @@ struct Window::Impl::PlatformData {
     int capW = 0, capH = 0;
     int capHover = -1;
     int capPress = -1;
+    int capTicks = 0;
     COLORREF capBg = RGB(32, 32, 32);
     COLORREF capFg = RGB(255, 255, 255);
 
@@ -169,7 +170,14 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
     RECT rc;
     GetClientRect(hwnd, &rc);
     const int w = rc.right, h = rc.bottom;
-    if (w <= 0 || h <= 0 || !pd) {
+    if (w <= 0 || h <= 0) {
+        EndPaint(hwnd, &ps);
+        return;
+    }
+    if (!pd) {
+        HBRUSH b = CreateSolidBrush(RGB(32, 32, 32));
+        FillRect(hdc, &rc, b);
+        DeleteObject(b);
         EndPaint(hwnd, &ps);
         return;
     }
@@ -290,6 +298,7 @@ void RegisterCaptionClassOnce() {
     wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = kCaptionClass;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    wc.hbrBackground = static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
     RegisterClassW(&wc);
     done = true;
 }
@@ -349,11 +358,16 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
     case WM_TIMER: {
-        // One-shot: sube la barra de botones cuando WebView2 ya creó su ventana
-        // hija (su controller es async y podría quedar por encima).
         if (wp == 1) {
-            if (auto* impl = ImplFromHwnd(hwnd)) PositionCaptionBar(impl->pdata);
-            KillTimer(hwnd, 1);
+            auto* impl = ImplFromHwnd(hwnd);
+            if (!impl) {
+                KillTimer(hwnd, 1);
+                return 0;
+            }
+            PositionCaptionBar(impl->pdata);
+            // WebView2 crea su ventana hija async: reintenta subir la barra unos
+            // segundos y luego para.
+            if (++impl->pdata->capTicks >= 10) KillTimer(hwnd, 1);
         }
         return 0;
     }
@@ -514,7 +528,13 @@ bool Window::Impl::PCreate() {
                 "window.__owTitlebarOverlay={enabled:true,height:" +
                 std::to_string(pdata->captionH) + ",width:" +
                 std::to_string(pdata->capW) + ",top:0,right:0};");
-            SetTimer(hwnd, 1, 700, nullptr);
+            char cbuf[32];
+            std::snprintf(cbuf, sizeof(cbuf), "0x%06lX",
+                          static_cast<unsigned long>(pdata->capBg));
+            log::Info("window", std::string("titleBarOverlay: barra creada bg=") +
+                                    cbuf + " w=" + std::to_string(pdata->capW) +
+                                    " h=" + std::to_string(pdata->capH));
+            SetTimer(hwnd, 1, 400, nullptr);
         }
     }
 
