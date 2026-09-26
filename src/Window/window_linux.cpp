@@ -580,6 +580,24 @@ gboolean OnViewButtonPress(GtkWidget* w, GdkEventButton*, gpointer) {
     return FALSE; // deja que WebKit procese el click
 }
 
+// Fallback a nivel de ventana: el click en la webview PRINCIPAL no siempre llega
+// a su button-press (lo entrega la toplevel/overlay). Si el punto no está sobre
+// una hija, devolvemos el foco a la principal.
+gboolean OnWindowButtonPress(GtkWidget* win, GdkEventButton* e, gpointer ud) {
+    auto* impl = static_cast<Window::Impl*>(ud);
+    auto* pd = impl->pdata;
+    if (!pd || !impl->webview) return FALSE;
+    for (const auto& [id, v] : pd->views) {
+        if (!v.visible) continue;
+        if (e->x >= v.x && e->x < v.x + v.w && e->y >= v.y && e->y < v.y + v.h)
+            return FALSE; // es una hija: que se enfoque ella
+    }
+    GtkWidget* mainView = GTK_WIDGET(impl->webview->NativeWidget());
+    gtk_window_set_focus(GTK_WINDOW(win), mainView);
+    gtk_widget_grab_focus(mainView);
+    return FALSE;
+}
+
 } // namespace
 
 Window::~Window() = default;
@@ -739,6 +757,10 @@ bool Window::Impl::PCreate() {
                          return FALSE;
                      }),
                      this);
+
+    // Foco en click sobre la ventana (fallback para la webview principal).
+    g_signal_connect(win, "button-press-event",
+                     G_CALLBACK(OnWindowButtonPress), this);
 
     gtk_widget_show_all(win);
 
