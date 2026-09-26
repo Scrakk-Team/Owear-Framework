@@ -667,6 +667,9 @@ bool Window::Impl::PCreate() {
             "base-data-directory", d.c_str(), "base-cache-directory", c.c_str(),
             nullptr);
         pdata->viewCtx = webkit_web_context_new_with_website_data_manager(dm);
+        // Un WebProcess por vista (como un "hijo CEF" pero con el motor del SO).
+        webkit_web_context_set_process_model(
+            pdata->viewCtx, WEBKIT_PROCESS_MODEL_MULTIPLE_SECONDARY_PROCESSES);
     }
 
     if (!opts.resizable) gtk_window_set_resizable(GTK_WINDOW(win), FALSE);
