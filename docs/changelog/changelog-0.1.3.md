@@ -19,7 +19,7 @@ exponer Node a la UI sin IPC por defecto.
   para el cross-build de desarrollo.
 - `tools/windows-cross/build-deps.sh` (cross-build de zlib), `build.sh`,
   `serve.sh` y `tools/windows/dev-pull.ps1` (transferencia a Windows por HTTP).
-- **`titleBarOverlay` — botones nativos dentro de la titlebar custom (Linux)**:
+- **`titleBarOverlay` — botones nativos dentro de la titlebar custom (Linux + Windows)**:
   - API: `titleBarOverlay: true | { height, color, symbolColor, buttonColor }` en
     `BrowserWindowOptions` y `win.setTitleBarOverlay(...)`; comando de control
     `window.setTitleBarOverlay`. El hueco reservado se expone al renderer como
@@ -46,7 +46,7 @@ exponer Node a la UI sin IPC por defecto.
     Node a la UI (p. ej. el extension host de VS Code).
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
-  - Builtin `webview` (`api/webview/owear.module.json`): `create, destroy,
+  - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,
     setBounds, load, back, forward, reload, stop, canBack, canForward, getURL,
     getTitle, eval, setVisible, setZoom, devtools, findInPage, findStop`.
   - Renderer: `ow.invoke('webview', 'create', { url, x, y, width, height })` +
@@ -54,6 +54,10 @@ exponer Node a la UI sin IPC por defecto.
   - Linux (WebKitGTK): cada hija en su propio contenedor overlay (solo
     intercepta su rectángulo) + contexto WebKit compartido con data dir por app
     y **un WebProcess por vista**; base para Windows/macOS.
+  - Windows (WebView2): cada hija en su **HWND hijo propio** + controller de
+    WebView2 parentado ahí (z-order/bounds fiables); environment con user data
+    dir propio. `titleBarOverlay` en Windows dibuja los botones con el **tema del
+    SO** (`DrawThemeBackground`) y expone `__owTitlebarOverlay` al renderer.
   - **Foco automático**: las hijas **no roban el foco al cargar** (arrancan con
     `can_focus=FALSE`); el click sobre una hija se lo da y el click fuera de las
     hijas vuelve a la principal.
