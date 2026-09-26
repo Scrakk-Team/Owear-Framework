@@ -135,7 +135,23 @@ std::vector<std::filesystem::path> ModuleLoader::SearchPaths() {
     std::vector<std::filesystem::path> paths = SplitPathList(std::getenv("OW_MODULES_DIR"));
     auto exe = CurrentExePath();
     if (!exe.empty()) paths.emplace_back(exe.parent_path() / "modules");
-    return paths;
+
+    // Dedup: OW_MODULES_DIR suele apuntar a <exe>/modules, que ya está en la
+    // lista → sin esto los módulos se registran dos veces.
+    std::vector<std::filesystem::path> unique;
+    std::error_code ec;
+    for (auto& p : paths) {
+        auto c = std::filesystem::weakly_canonical(p, ec);
+        const auto& key = ec ? p : c;
+        bool dup = false;
+        for (const auto& u : unique) {
+            std::error_code e2;
+            auto uc = std::filesystem::weakly_canonical(u, e2);
+            if ((e2 ? u : uc) == key) { dup = true; break; }
+        }
+        if (!dup) unique.push_back(p);
+    }
+    return unique;
 }
 
 size_t ModuleLoader::RegisterStatic(const ow_module_desc_t* desc) {

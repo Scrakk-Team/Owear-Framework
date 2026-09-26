@@ -96,9 +96,15 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_SIZE: {
         if (auto* impl = ImplFromHwnd(hwnd)) {
+            // CRÍTICO en Windows: el controller de WebView2 NO se redimensiona
+            // solo. Sin esto, tras cualquier WM_SIZE queda con bounds inválidos
+            // (ventana blanca). En Linux/macOS el widget nativo se ajusta solo.
+            const int cw = LOWORD(lp), ch = HIWORD(lp);
+            if (cw > 0 && ch > 0 && impl->webview)
+                impl->webview->Resize(0, 0, cw, ch);
             json::Object o;
-            o.emplace_back("width", json::Value(static_cast<int64_t>(LOWORD(lp))));
-            o.emplace_back("height", json::Value(static_cast<int64_t>(HIWORD(lp))));
+            o.emplace_back("width", json::Value(static_cast<int64_t>(cw)));
+            o.emplace_back("height", json::Value(static_cast<int64_t>(ch)));
             Window::Impl::EmitPlatformEvent(impl, "resize",
                                     json::Value(std::move(o)).Serialize());
         }
@@ -120,11 +126,25 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
     case WM_NCCALCSIZE: {
-        // F3.5 — overlay real: si es ventana con titlebar CUSTOM, el área
-        // cliente cubre TODA la ventana; DWM sigue dibujando los botones
-        // min/max/close encima del contenido y los clicks llegan como
-        // mensajes no-cliente (WM_NCHITTEST → DefWindowProc los resuelve).
+        // F3.5 — overlay real: si es ventana con titlebar CUSTOM, quitamos el
+        // área no-cliente (técnica de Electron/ole) PERO dejamos los bordes de
+        // resize. Devolver 0 sin ajustar rgrc[0] deja el cliente del tamaño de
+        // la ventana y rompe el hit-testing del marco en Windows 10.
         if (wp && pdata && pdata->customTitlebar) {
+            auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lp);
+            const int frame = GetSystemMetrics(SM_CXSIZEFRAME) +
+                              GetSystemMetrics(SM_CXPADDEDBORDER);
+            if (IsZoomed(hwnd)) {
+                params->rgrc[0].top += frame;
+                params->rgrc[0].left += frame;
+                params->rgrc[0].right -= frame;
+                params->rgrc[0].bottom -= frame;
+            } else {
+                params->rgrc[0].top += 1;
+                params->rgrc[0].left += frame;
+                params->rgrc[0].right -= frame;
+                params->rgrc[0].bottom -= frame;
+            }
             return 0;
         }
         break;

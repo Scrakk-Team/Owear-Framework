@@ -170,15 +170,18 @@ private:
 
 public:
     void OnEnvironmentReady(ICoreWebView2Environment* env) {
+        log::Info("webview2", "environment listo → creando controller");
         environment_ = env;
         HRESULT hr = env->CreateCoreWebView2Controller(
             hwnd_,
             Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
                 [this](HRESULT result, ICoreWebView2Controller* ctrl) -> HRESULT {
                     if (FAILED(result) || !ctrl) {
-                        log::Error("webview2", "controller falló");
+                        log::Error("webview2", "controller falló hr=0x" +
+                            std::to_string(static_cast<unsigned long>(result)));
                         return E_FAIL;
                     }
+                    log::Info("webview2", "controller listo");
                     controller_ = ctrl;
                     controller_->get_CoreWebView2(&webview_);
                     OnControllerReady();
@@ -213,6 +216,45 @@ public:
         RECT rc;
         GetClientRect(hwnd_, &rc);
         controller_->put_Bounds(rc);
+        {
+            std::string d = "bounds " + std::to_string(rc.right - rc.left) + "x" +
+                            std::to_string(rc.bottom - rc.top);
+            log::Info("webview2", d);
+        }
+
+        // Diagnóstico de ciclo de vida: sin esto, un fallo del renderer/GPU deja
+        // la ventana en blanco y sin ninguna pista en el log.
+        webview_->add_NavigationStarting(
+            Callback<ICoreWebView2NavigationStartingEventHandler>(
+                [](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs* a) -> HRESULT {
+                    LPWSTR u = nullptr;
+                    if (a && SUCCEEDED(a->get_Uri(&u)) && u) {
+                        log::Info("webview2", std::string("nav starting: ") + WideToUtf8(u));
+                        CoTaskMemFree(u);
+                    }
+                    return S_OK;
+                }).Get(), nullptr);
+        webview_->add_NavigationCompleted(
+            Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                [](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs* a) -> HRESULT {
+                    BOOL ok = FALSE;
+                    COREWEBVIEW2_WEB_ERROR_STATUS st = COREWEBVIEW2_WEB_ERROR_STATUS_UNKNOWN;
+                    if (a) { a->get_IsSuccess(&ok); a->get_WebErrorStatus(&st); }
+                    log::Info("webview2", std::string("nav completed ok=") +
+                        (ok ? "1" : "0") + " status=" +
+                        std::to_string(static_cast<int>(st)));
+                    return S_OK;
+                }).Get(), nullptr);
+        webview_->add_ProcessFailed(
+            Callback<ICoreWebView2ProcessFailedEventHandler>(
+                [](ICoreWebView2*, ICoreWebView2ProcessFailedEventArgs* a) -> HRESULT {
+                    COREWEBVIEW2_PROCESS_FAILED_KIND k =
+                        COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+                    if (a) a->get_ProcessFailedKind(&k);
+                    log::Error("webview2", "process failed kind=" +
+                        std::to_string(static_cast<int>(k)));
+                    return S_OK;
+                }).Get(), nullptr);
     }
 
     void AttachMessageHandler() {
@@ -261,6 +303,8 @@ public:
         }
         std::string u = url;
         if (u.rfind("app://", 0) == 0) u = "https://app.owear/" + u.substr(6);
+        log::Info("webview2", "navigate → " + u);
+        if (controller_) controller_->put_IsVisible(TRUE);
         webview_->Navigate(Utf8ToWide(u).c_str());
     }
 

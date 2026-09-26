@@ -87,6 +87,9 @@ bool PlatformInit(int argc, char** argv) {
     (void)argc;
     (void)argv;
     g_mainThreadId = GetCurrentThreadId();
+    // DPI awareness ANTES de crear ventanas: sin esto, en monitores escalados
+    // WebView2/el layout quedan mal (patrón de ole).
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     SetUnhandledExceptionFilter(&OwUnhandledFilter);
     AddVectoredExceptionHandler(1, &OwVectoredHandler);
 
