@@ -12,6 +12,10 @@ dist/
 # Node
 node_modules/
 
+# Estado de tooling / dev
+.scrakk/
+.owear/
+
 # CMake / IDE
 .cache/
 .vscode/
