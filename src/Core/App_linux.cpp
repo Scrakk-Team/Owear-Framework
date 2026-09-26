@@ -8,6 +8,7 @@
 
 #include <gtk/gtk.h>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -23,12 +24,14 @@ bool PlatformInit(int argc, char** argv) {
 namespace {
 std::mutex g_pendingMu;
 std::queue<std::function<void()>> g_pending;
+std::atomic<bool> g_drainScheduled{false};
 
-gboolean OnIdle(gpointer) {
+void DrainPending() {
     std::queue<std::function<void()>> batch;
     {
         std::lock_guard lock(g_pendingMu);
         batch.swap(g_pending);
+        g_drainScheduled = false;
     }
     while (!batch.empty()) {
         auto fn = std::move(batch.front());
@@ -39,7 +42,6 @@ gboolean OnIdle(gpointer) {
             log::Error("app", std::string("excepción en Post(): ") + e.what());
         }
     }
-    return G_SOURCE_CONTINUE; // fuente permanente; GTK la mata con gtk_main_quit
 }
 } // namespace
 
@@ -48,7 +50,12 @@ void PlatformPost(std::function<void()> fn) {
         std::lock_guard lock(g_pendingMu);
         g_pending.push(std::move(fn));
     }
-    g_idle_add_full(G_PRIORITY_HIGH_IDLE, OnIdle, nullptr, nullptr);
+    if (!g_drainScheduled.exchange(true)) {
+        g_idle_add_full(G_PRIORITY_HIGH_IDLE, [](gpointer) -> gboolean {
+            DrainPending();
+            return G_SOURCE_REMOVE;
+        }, nullptr, nullptr);
+    }
 }
 
 int RunMainLoop() {

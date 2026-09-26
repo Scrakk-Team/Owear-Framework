@@ -139,13 +139,10 @@ bool PlatformInit(int argc, char** argv) {
 }
 
 void PlatformPost(std::function<void()> fn) {
-    bool wake = false;
     {
         std::lock_guard lock(g_pendingMu);
-        wake = g_pending.empty(); // solo despierta si la cola estaba vacía
         g_pending.push(std::move(fn));
     }
-    if (!wake) return;
     if (g_pumpHwnd && PostMessageW(g_pumpHwnd, kWmOwPump, 0, 0)) return;
     // canal viejo: PostThreadMessage exige que la cola del destino exista
     // (PlatformInit la crea con PeekMessage PM_NOREMOVE); si falla lo
