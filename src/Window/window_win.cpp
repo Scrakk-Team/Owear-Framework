@@ -126,33 +126,43 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
     case WM_NCCALCSIZE: {
-        // F3.5 — overlay real: si es ventana con titlebar CUSTOM, quitamos el
-        // área no-cliente (técnica de Electron/ole) PERO dejamos los bordes de
-        // resize. Devolver 0 sin ajustar rgrc[0] deja el cliente del tamaño de
-        // la ventana y rompe el hit-testing del marco en Windows 10.
-        if (wp && pdata && pdata->customTitlebar) {
-            auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lp);
-            const int frame = GetSystemMetrics(SM_CXSIZEFRAME) +
-                              GetSystemMetrics(SM_CXPADDEDBORDER);
-            if (IsZoomed(hwnd)) {
-                params->rgrc[0].top += frame;
-                params->rgrc[0].left += frame;
-                params->rgrc[0].right -= frame;
-                params->rgrc[0].bottom -= frame;
-            } else {
-                params->rgrc[0].top += 1;
-                params->rgrc[0].left += frame;
-                params->rgrc[0].right -= frame;
-                params->rgrc[0].bottom -= frame;
-            }
-            return 0;
-        }
-        break;
+        // Custom: extiende el cliente a toda la ventana salvo los bordes de
+        // resize (izq/der/abajo) para no perder el resize nativo. El top solo
+        // se toca maximizado. Así desaparece el caption sin DwmExtendFrame
+        // (que en Win10 deja bordes blancos). Técnica Kubyshkin/Electron.
+        if (!wp || !(pdata && pdata->customTitlebar)) break;
+        UINT dpi = GetDpiForWindow(hwnd);
+        int frame_x = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
+        int frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+        int padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+        auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lp);
+        RECT* r = params->rgrc;
+        r->left += frame_x + padding;
+        r->right -= frame_x + padding;
+        r->bottom -= frame_y + padding;
+        if (IsZoomed(hwnd)) r->top += frame_y + padding;
+        return 0;
     }
     case WM_NCHITTEST: {
-        // deja que DWM resuelva botones/bordes; el drag de la titlebar custom
-        // llega por beginMoveDrag() (HTCAPTION sintético).
-        break;
+        // deja que el sistema resuelva bordes/esquinas (resize nativo).
+        LRESULT hit = DefWindowProcW(hwnd, msg, wp, lp);
+        switch (hit) {
+        case HTNOWHERE: case HTRIGHT: case HTLEFT: case HTTOPLEFT:
+        case HTTOP: case HTTOPRIGHT: case HTBOTTOMRIGHT: case HTBOTTOM:
+        case HTBOTTOMLEFT:
+            return hit;
+        }
+        if (!(pdata && pdata->customTitlebar)) return hit;
+        // El ajuste de NCCALCSIZE descoloca el área de resize superior.
+        UINT dpi = GetDpiForWindow(hwnd);
+        int frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+        int padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+        POINT pt{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+        ScreenToClient(hwnd, &pt);
+        if (!IsZoomed(hwnd) && pt.y > 0 && pt.y < frame_y + padding) return HTTOP;
+        // El drag de la titlebar lo dispara el web ([data-ow-drag] →
+        // beginMoveDrag). Aquí el resto es cliente.
+        return HTCLIENT;
     }
     default:
         break;
@@ -193,7 +203,11 @@ bool Window::Impl::PCreate() {
     if (opts.frameless || opts.titleBarStyle == TitleBarStyle::Hidden)
         style = WS_POPUP | WS_THICKFRAME | WS_SYSMENU |
                 (opts.resizable ? WS_MAXIMIZEBOX | WS_MINIMIZEBOX : 0);
-    // Custom conserva el estilo completo: WM_NCCALCSIZE extiende el cliente.
+    else if (pdata->customTitlebar)
+        // Custom: SIN WS_CAPTION (el caption lo hace el web + overlay nativo),
+        // pero con los flags que dan resize/snap (técnica Chromium/Kubyshkin).
+        style = WS_THICKFRAME | WS_SYSMENU |
+                (opts.resizable ? WS_MAXIMIZEBOX | WS_MINIMIZEBOX : 0);
 
     std::wstring title = Utf8ToWide(opts.title);
     HWND hwnd = CreateWindowExW(0, kOwWindowClass, title.c_str(), style,
@@ -214,6 +228,15 @@ bool Window::Impl::PCreate() {
     // origProc el propio OwWndProc → CallWindowProcW recursivo infinito
     // → 0xC00000FD en la init de WebView2 (mordido en CI).
     pdata->origProc = nullptr;
+
+    if (pdata->customTitlebar) {
+        // CRÍTICO: reaplica el marco AHORA que pdata está puesto. El primer
+        // WM_NCCALCSIZE ocurre dentro de CreateWindowEx (pdata aún null → lo
+        // maneja DefWindowProc y el caption se queda). Esto lo fuerza con
+        // nuestro handler → desaparece el titlebar del sistema (Win10).
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                     SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+    }
 
     if (!opts.resizable) {
         DWORD s = GetWindowLongW(hwnd, GWL_STYLE);
