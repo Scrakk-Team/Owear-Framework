@@ -242,9 +242,12 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
                 g.FillRectangle(&br, Gdiplus::Rect(x0, 0, x1 - x0, h));
             }
             Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), stroke);
+            // Centrado en ENTEROS (Electron: ClampToCenteredSize). Con coords
+            // float a veces caía en medio píxel y el AA de la X la difuminaba.
+            const int iw = x1 - x0;
             const float S = static_cast<float>(icon);
-            const float sx = x0 + (x1 - x0 - icon) / 2.0f;
-            const float sy = (h - icon) / 2.0f;
+            const float sx = static_cast<float>(x0 + (iw - icon) / 2);
+            const float sy = static_cast<float>((h - icon) / 2);
             Gdiplus::RectF symbol(sx, sy, S, S);
             auto strokeRect = [&](const Gdiplus::RectF& r) {
                 Gdiplus::RectF rr(r);
