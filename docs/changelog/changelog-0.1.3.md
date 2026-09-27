@@ -8,7 +8,10 @@ compilación cruzada Linux → Windows, **`titleBarOverlay`** (botones nativos d
 ventana dentro de la titlebar custom) en Linux, y un **puente Node** para
 exponer Node a la UI sin IPC por defecto. Se añade el **Bloque A de
 ejecución/IPC**: workers Node con canal, `windowId` en los handlers, envío
-dirigido `webContents.send` y `MessageChannel`/`MessagePort`.
+dirigido `webContents.send` y `MessageChannel`/`MessagePort`. Se suma el
+**Bloque B**: `protocol` (esquemas personalizados), `safeStorage` (DPAPI /
+AES-GCM), `theme` (nativeTheme) y permisos de `session`; y el sidecar Node ya
+muere con el kernel.
 
 ## Added
 
@@ -78,6 +81,35 @@ dirigido `webContents.send` y `MessageChannel`/`MessagePort`.
     `forkWorker` round-trip/exit y `createChannel` main↔main). Verificado además
     E2E en Linux (Xvfb): worker, `windowId`, `webContents.send` y puerto
     renderer↔main.
+- **Bloque B — protocolo / datos / OS** (`protocol`, `safestorage`, `theme`, `session`):
+  - **`protocol` (esquemas personalizados)** — el main registra un esquema y el
+    kernel lo sirve con **handler en el main** o **directorio**:
+    `app.protocol(name, { privileged, serve, handler })`. Handler puede devolver
+    `Response`, `{status, headers, body}` o `string`. Linux: registro dinámico en
+    WebKitGTK con `finish` asíncrono; Windows: `WebResourceRequested` + deferral.
+    Verificado en Linux (handler y `serve`).
+  - **`safeStorage`** (módulo `api/safestorage`) — `isAvailable`, `encrypt` →
+    `{data, encrypted}`, `decrypt` (acepta texto plano). **Windows: DPAPI**;
+    **Linux: AES-256-GCM** con clave local 0600 en el data dir de la app. SDK:
+    `ow.safeStorage`. Verificado en Linux (round-trip + persistencia de clave).
+  - **`theme` (nativeTheme)** (módulo `api/theme`) — `get`/`isDark`/`setSource`
+    (system|light|dark)/`watch` + evento `theme.changed`. **Linux: GSettings
+    `color-scheme` + tema GTK**; **Windows: registro `AppsUseLightTheme`** (watch
+    por sondeo). SDK: `ow.theme`. Verificado en Linux.
+  - **`session` — permisos del WebView** — `session.onPermissionRequest(handler)`
+    (deniega si no hay handler). `PermissionBroker` en el kernel + comandos
+    `session.setPermissionHandler`/`session.respondPermission`. **Linux: señal
+    `permission-request` de WebKitGTK**; **Windows: `add_PermissionRequested`
+    con deferral**. Verificado en Linux (geolocation).
+  - Pendiente de la sesión (roadmap): **particiones** (`session.fromPartition`)
+    y **`webRequest`** (`onBeforeRequest`/`onHeadersReceived`).
+- **Ciclo de vida del sidecar** — el proceso Node **muere con el kernel**:
+  Linux/macOS `PR_SET_PDEATHSIG(SIGTERM)` + `NodeManager::ShutdownSidecar()`
+  (SIGTERM y, si no sale, SIGKILL); Windows Job Object `KILL_ON_JOB_CLOSE` +
+  `TerminateProcess`. Verificado en Linux: tras `app.quit()` el PID del sidecar
+  desaparece.
+- **`docs/extra/probar-en-starter.md`** — guía viva (WIP) de cómo probar cada
+  sistema en el starter (Linux + Windows), que se irá rellenando.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,
