@@ -239,7 +239,10 @@ app.whenReady().then(() => {
 en la consola `path …`, `name …` y los eventos al cerrar/`app.quit()`. En Windows
 `userData` debe ser `%LOCALAPPDATA%\<OW_APP_ID>` y `exe` la carpeta de `owear.exe`.
 
-- **En el starter:** panel "App" con las rutas + contador de eventos. ⏳
+- **En el starter:** panel **`App (C1)`** (nombre, versión, empaquetada,
+  `userData`/`exe`/`appPath`) + eventos de ciclo de vida en la consola.
+  **Cableado** (el renderer llama `starter.appInfo`/`starter.appPaths` por el
+  puente Node; el main reenvía `app.event`). WIP, sin commitear. 🟡
 
 ---
 
