@@ -3,38 +3,38 @@
 
 # Tray en Linux y escritorios modernos (GNOME)
 
-Owear implementa el icono de bandeja en Linux con **dos backends**, elegidos en
-runtime:
+Owear implementa el icono de bandeja en Linux con **StatusNotifierItem (SNI)**
+nativo, hablando **directamente por D-Bus (GDBus)** — sin librerías externas.
+Implementa a mano `org.kde.StatusNotifierItem` (icono, título, estado, métodos
+`Activate`/`SecondaryActivate`/`ContextMenu`) y `com.canonical.dbusmenu` (el menú
+contextual), y se registra con `org.kde.StatusNotifierWatcher`.
 
-1. **AppIndicator (StatusNotifierItem)** — se carga con **`dlopen`** de
-   `libayatana-appindicator3.so.1` (o `libappindicator3.so.1`). **No requiere
-   headers de dev** para compilar. Es el estándar moderno y **funciona en
-   GNOME/Zorin (con la extensión appindicator), KDE y otros**.
-2. **`GtkStatusIcon`** (fallback) — bandeja X11 clásica (XEmbed): XFCE, MATE,
-   Cinnamon, LXQt… si no está la lib de AppIndicator.
-
-> No hace falta instalar nada para compilar. Si la librería existe en runtime
-> (suele estar en Zorin/Ubuntu/KDE), se usa AppIndicator; si no, GtkStatusIcon.
+> Antes se intentaba `libayatana-appindicator` por `dlopen`, pero en algunos
+> sistemas (p. ej. Zorin/GNOME) esa librería toma su *fallback* interno
+> (`GtkStatusIcon`) y no registra SNI. El SNI nativo es determinista.
 
 ## Matriz de escritorios
 
-| Escritorio | Backend usado | ¿Se ve? |
-|---|---|---|
-| **Zorin / GNOME** (con extensión appindicator) | AppIndicator | ✅ (con la extensión, que Zorin trae) |
-| GNOME **sin** extensión appindicator | AppIndicator (registra, pero el host no lo muestra) | ❌ → activa la extensión |
-| KDE Plasma | AppIndicator | ✅ |
-| XFCE / MATE / Cinnamon / LXQt | GtkStatusIcon (o AppIndicator) | ✅ |
-| Wayland puro (Sway/Hyprland) | AppIndicator | ✅ con un host SNI (p.ej. `waybar`) |
+| Escritorio | ¿Se ve? |
+|---|---|
+| **Zorin / GNOME** (con extensión appindicator) | ✅ (con la extensión, que Zorin trae) |
+| GNOME **sin** extensión appindicator | ❌ → activa la extensión |
+| KDE Plasma | ✅ |
+| XFCE / MATE / Cinnamon / LXQt (con plugin SNI) | ✅ |
+| Wayland puro (Sway/Hyprland) | ✅ con un host SNI (p.ej. `waybar`) |
 
-## Comprobar qué se está usando
-- Si la lib está: `ldconfig -p | grep -i appindicator`.
-- La extensión en GNOME: `gnome-extensions list | grep -i appindicator`.
+## Comprobar el entorno
+- Extensión en GNOME: `gnome-extensions list --enabled | grep -i appindicator`.
+- ¿Hay watcher? `gdbus call --session --dest org.kde.StatusNotifierWatcher \
+  --object-path /StatusNotifierWatcher \
+  --method org.freedesktop.DBus.Properties.Get \
+  org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems`.
 
 ## Limitaciones (documentadas)
-- Con **AppIndicator**, el icono **abre el menú** al hacer click; los eventos
-  `click`/`right-click`/`double-click` **no** se emiten (limitación del estándar).
-  Con **GtkStatusIcon** sí se emiten (`click`/`right-click`); el doble-click no es
-  fiable.
-- `setTitle` con AppIndicator usa una **etiqueta** junto al icono (según host);
-  `setToolTip` se mapea al título del indicador.
-- Si no hay bandeja/host, no hay nada que mostrar (no es un fallo de la app).
+- El icono **abre el menú** (el host lo pide por `ContextMenu`/lee `Menu`); los
+  eventos `click`/`right-click`/`double-click` **no** se emiten como en Windows
+  (limitación del estándar SNI en Linux). Windows sí los emite.
+- `setTitle` se usa como título del indicador; `setToolTip` se mapea igual.
+- `setPressedImage` no aplica.
+- Sin watcher/host (p. ej. GNOME sin la extensión) no hay nada que mostrar; no es
+  un fallo de la app.

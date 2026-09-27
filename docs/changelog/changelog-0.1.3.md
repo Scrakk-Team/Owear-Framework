@@ -178,9 +178,10 @@ PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray` y **C7** `nativeTheme`.
     `new Tray(image?)`, `setImage`, `setPressedImage`, `setToolTip`, `setTitle`,
     `setContextMenu(Menu)`, `popupContextMenu`, `destroy`, y eventos
     `click`/`right-click`/`double-click`. Icono = `NativeImage` o ruta → PNG
-    base64 al kernel. **Linux: AppIndicator (StatusNotifierItem) vía `dlopen`**
-    (funciona en GNOME/Zorin con la extensión, KDE…; **sin headers de dev**) con
-    **fallback a `GtkStatusIcon`** (X11/XFCE/MATE) → `docs/extra/GNOME.md`.
+    base64 al kernel. **Linux: SNI nativo (GDBus)** — `org.kde.StatusNotifierItem`
+    + `com.canonical.dbusmenu` implementados a mano (sin librerías), registrados
+    con el `StatusNotifierWatcher` (GNOME/Zorin con la extensión, KDE, XFCE+plugin)
+    → `docs/extra/GNOME.md`.
     **Windows: `Shell_NotifyIcon`** con
     menú contextual (`TrackPopupMenu`), eventos y **PNG→HICON** vía GDI+. El menú
     reutiliza el template de C5. Verificado en Linux (registro + ciclo);
