@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "safestorage",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "Almacenamiento cifrado por el SO: DPAPI (Windows) y AES-256-GCM con clave local (Linux). `encrypt` devuelve {data, encrypted}; `decrypt` acepta ambos formatos.",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["isAvailable", "encrypt", "decrypt"]
+}
