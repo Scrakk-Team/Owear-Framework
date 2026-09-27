@@ -14,6 +14,7 @@
 #include "../../Bridge/Shm.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
+#include "../../Session/WebRequestBroker.hpp"
 #include "ow/Bridge/Codec.h"
 #include "../../Core/Log.hpp"
 #include "ow/Base64.h"
@@ -58,6 +59,32 @@ std::string ContentTypeFromHeaders(const std::string& headersJson) {
         }
     }
     return "text/html";
+}
+
+/// webRequest (Linux): intercepta NAVEGACIONES (decide-policy). WebKitGTK 2.52
+/// ya no expone `send-request`, así que los subrecursos no se interceptan.
+gboolean OnDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
+                        WebKitPolicyDecisionType type, gpointer) {
+    if (type != WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION &&
+        type != WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION)
+        return FALSE;
+    if (!ow::WebRequestBroker::Get().Enabled()) return FALSE;
+    WebKitNavigationAction* action =
+        webkit_navigation_policy_decision_get_navigation_action(
+            WEBKIT_NAVIGATION_POLICY_DECISION(decision));
+    if (!action) return FALSE;
+    WebKitURIRequest* req = webkit_navigation_action_get_request(action);
+    const char* url = req ? webkit_uri_request_get_uri(req) : nullptr;
+    if (!url || !ow::WebRequestBroker::Get().Matches(url)) return FALSE;
+
+    g_object_ref(decision);
+    ow::WebRequestBroker::Get().BeforeRequest(
+        std::string(url), "GET", "{}", [decision](ow::WebRequestBroker::Action a) {
+            if (a.cancel) webkit_policy_decision_ignore(decision);
+            else webkit_policy_decision_use(decision);
+            g_object_unref(decision);
+        });
+    return TRUE; // gestionado (deferido)
 }
 
 /// Permisos del WebView: delega en PermissionBroker (la app decide).
@@ -190,6 +217,9 @@ public:
         // Permisos (geolocalización, notificaciones, media, pointer-lock).
         g_signal_connect(view_, "permission-request",
                          G_CALLBACK(OnPermissionRequest), nullptr);
+
+        // webRequest: intercepta navegaciones (decide-policy).
+        g_signal_connect(view_, "decide-policy", G_CALLBACK(OnDecidePolicy), nullptr);
 
         gtk_container_add(GTK_CONTAINER(parent), view_);
         gtk_widget_show(view_);

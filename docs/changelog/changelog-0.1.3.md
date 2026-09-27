@@ -107,10 +107,14 @@ muere con el kernel.
     Windows: perfil por partición (`…\owear\WebView2\<partición>`). Verificado en
     Linux: `persist:a` y `persist:b` no comparten `localStorage`; dos ventanas de
     la misma partición sí.
-  - Pendiente de la sesión (roadmap): **`webRequest`**
-    (`onBeforeRequest`/`onHeadersReceived`). En Linux requiere **web extensions**
-    de WebKitGTK (mecanismo aparte); en Windows se haría con
-    `WebResourceRequested` (ya montado para `protocol`).
+  - **`session` — `webRequest`** (`onBeforeRequest`: cancelar/redirigir) —
+    `webRequest.onBeforeRequest({ urls }, handler)`. Windows: **todos los
+    requests** (`WebResourceRequested` + deferral). Linux: **navegaciones**
+    (`decide-policy`); WebKitGTK 2.52 ya **no expone `send-request`**, así que
+    los subrecursos no se pueden interceptar en Linux (documentado). Verificado
+    en Linux (bloqueo de navegación).
+  - Pendiente de la sesión (roadmap): `webRequest.onHeadersReceived` y (Linux)
+    subrecursos — bloqueado por la API de WebKitGTK.
 - **Ciclo de vida del sidecar** — el proceso Node **muere con el kernel**:
   Linux/macOS `PR_SET_PDEATHSIG(SIGTERM)` + `NodeManager::ShutdownSidecar()`
   (SIGTERM y, si no sale, SIGKILL); Windows Job Object `KILL_ON_JOB_CLOSE` +

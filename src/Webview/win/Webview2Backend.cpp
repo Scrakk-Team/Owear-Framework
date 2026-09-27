@@ -16,6 +16,7 @@
 #include "../../Core/Log.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
+#include "../../Session/WebRequestBroker.hpp"
 #include "ow/detail/minjson.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -237,6 +238,9 @@ public:
 
         // protocol API: esquemas personalizados (dir o handler en el main)
         if (!pendingProtocols_.empty()) AttachProtocolHandlers();
+
+        // webRequest: intercepción de todos los requests (cancelar/redirigir).
+        AttachWebRequestHandler();
 
         // Permisos del WebView: delega en PermissionBroker (la app decide).
         webview_->add_PermissionRequested(
@@ -495,6 +499,60 @@ private:
             nullptr);
     }
 
+    void AttachWebRequestHandler() {
+        if (!webview_ || webRequestAttached_) return;
+        webRequestAttached_ = true;
+        webview_->AddWebResourceRequestedFilter(L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+        webview_->add_WebResourceRequested(
+            Callback<ICoreWebView2WebResourceRequestedEventHandler>(
+                [this](ICoreWebView2*, ICoreWebView2WebResourceRequestedEventArgs* args)
+                    -> HRESULT {
+                    if (!args || !WebRequestBroker::Get().Enabled()) return S_OK;
+                    ComPtr<ICoreWebView2WebResourceRequest> req;
+                    if (FAILED(args->get_Request(&req)) || !req) return S_OK;
+                    LPWSTR uriRaw = nullptr;
+                    if (FAILED(req->get_Uri(&uriRaw)) || !uriRaw) return S_OK;
+                    std::string uri = WideToUtf8(uriRaw);
+                    CoTaskMemFree(uriRaw);
+
+                    const auto pos = uri.find("://");
+                    const std::string scheme =
+                        pos == std::string::npos ? "" : uri.substr(0, pos);
+                    // Los esquemas de `protocol` los gestiona el otro handler.
+                    if (ProtocolRegistry::Get().Has(scheme)) return S_OK;
+                    if (!WebRequestBroker::Get().Matches(uri)) return S_OK;
+
+                    ComPtr<ICoreWebView2Deferral> deferral;
+                    if (FAILED(args->GetDeferral(&deferral)) || !deferral) return S_OK;
+                    ComPtr<ICoreWebView2WebResourceRequestedEventArgs> hold = args;
+                    ComPtr<ICoreWebView2Environment> env = environment_;
+                    WebRequestBroker::Get().BeforeRequest(
+                        uri, "GET", "{}",
+                        [env, hold, deferral](WebRequestBroker::Action a) {
+                            if (a.cancel) {
+                                ComPtr<ICoreWebView2WebResourceResponse> resp;
+                                if (env)
+                                    env->CreateWebResourceResponse(nullptr, 403,
+                                                                   L"Forbidden", L"",
+                                                                   &resp);
+                                if (resp) hold->put_Response(resp.Get());
+                            } else if (!a.redirectUrl.empty()) {
+                                const std::wstring headers =
+                                    L"Location: " + Utf8ToWide(a.redirectUrl) + L"\r\n";
+                                ComPtr<ICoreWebView2WebResourceResponse> resp;
+                                if (env)
+                                    env->CreateWebResourceResponse(nullptr, 302, L"Found",
+                                                                   headers.c_str(), &resp);
+                                if (resp) hold->put_Response(resp.Get());
+                            }
+                            deferral->Complete();
+                        });
+                    return S_OK;
+                })
+                .Get(),
+            nullptr);
+    }
+
     HWND hwnd_ = nullptr;
     ComPtr<ICoreWebView2Environment> environment_;
     ComPtr<ICoreWebView2Controller> controller_;
@@ -506,6 +564,7 @@ private:
     std::string partition_;
     std::vector<std::string> pendingProtocols_;
     bool resourceHandlerAttached_ = false;
+    bool webRequestAttached_ = false;
 };
 
 } // namespace

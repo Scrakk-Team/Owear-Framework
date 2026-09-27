@@ -47,6 +47,7 @@ set(OW_KERNEL_SOURCES
     Control/ControlServer.cpp
     Protocol/ProtocolRegistry.cpp
     Session/PermissionBroker.cpp
+    Session/WebRequestBroker.cpp
     Window/Window_common.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp

@@ -113,7 +113,7 @@ ow.on('ow:port', ({ port }) => {
 | `theme` (nativeTheme) | claro/oscuro + forzar + evento | ✅ | 🟡 (compila) |
 | `session` permisos | geolocation/notifications/… | ✅ (geolocation) | 🟡 (compila) |
 | `session` particiones | `session.fromPartition` (perfiles) | ✅ | 🟡 (compila) |
-| `session` webRequest | `onBeforeRequest`/`onHeadersReceived` | ⏳ (necesita web extensions) | ⏳ (WebResourceRequested) |
+| `session` webRequest | `onBeforeRequest` (cancelar/redirigir) | ✅ (navegaciones) | 🟡 (compila; todos los requests) |
 
 ### 2.1 `protocol` con handler (contenido dinámico)
 
@@ -177,6 +177,22 @@ new BrowserWindow({ session: s.partition, url })   // perfil aislado
   dos ventanas de `persist:a` sí.
 - **En el starter:** botón "abrir en perfil 2" que abre una ventana con otra
   partición y compara `localStorage`. ⏳
+
+### 2.7 `webRequest` (intercepción)
+
+```ts
+webRequest.onBeforeRequest({ urls: ['*://example.com/*'] }, () => ({ cancel: true }))
+// o redirigir:
+webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (d) =>
+  d.url.startsWith('http://') ? { redirectURL: d.url.replace('http://', 'https://') } : undefined
+)
+```
+
+- **Windows**: intercepta todos los requests. **Linux**: navegaciones (WebKitGTK
+  2.52 ya no expone `send-request` para subrecursos).
+- Verificado en Linux: `location.href='https://example.com/'` queda bloqueado.
+- **En el starter:** panel con un input de patrón + botón "bloquear" y contador
+  de requests interceptados. ⏳
 
 ---
 
