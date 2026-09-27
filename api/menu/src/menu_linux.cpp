@@ -91,8 +91,38 @@ void popup(const ow_request_t* req, ow_response_t* res) {
     GSList* rg = nullptr;
     BuildItems(GTK_MENU_SHELL(m), ParseItems(*itemsV), &rg);
     gtk_widget_show_all(GTK_WIDGET(m));
-    gtk_menu_popup_at_pointer(m, nullptr); // popup async: vive hasta selección
-    RespondOk(res, "null");
+
+    // El popup se lanza desde un click asíncrono (botón del renderer): NO hay
+    // "trigger event" de GDK, así que gtk_menu_popup_at_pointer(nullptr) falla.
+    // Lo colocamos con un rect de 1px en la posición del cursor sobre el root
+    // window (válido siempre).
+    gint px = 0, py = 0;
+    if (GdkDisplay* dpy = gdk_display_get_default()) {
+        if (GdkSeat* seat = gdk_display_get_default_seat(dpy)) {
+            if (GdkDevice* ptr = gdk_seat_get_pointer(seat))
+                gdk_device_get_position(ptr, nullptr, &px, &py);
+        }
+    }
+    GdkWindow* root = gdk_get_default_root_window();
+    if (root) {
+        GdkRectangle rect{px, py, 1, 1};
+        // Evento sintético de trigger (no hay uno real: el click llegó async).
+        GdkEvent* trigger = gdk_event_new(GDK_BUTTON_PRESS);
+        trigger->button.window = GDK_WINDOW(g_object_ref(root));
+        trigger->button.send_event = TRUE;
+        trigger->button.time = GDK_CURRENT_TIME;
+        trigger->button.x = px;
+        trigger->button.y = py;
+        trigger->button.x_root = px;
+        trigger->button.y_root = py;
+        trigger->button.button = 1;
+        gtk_menu_popup_at_rect(m, root, &rect, GDK_GRAVITY_NORTH_WEST,
+                               GDK_GRAVITY_NORTH_WEST, trigger);
+        gdk_event_free(trigger);
+    } else {
+        gtk_menu_popup_at_pointer(m, nullptr);
+    }
+    RespondOk(res, "null"); // popup async: vive hasta selección
 }
 
 } // namespace menu
