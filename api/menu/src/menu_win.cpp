@@ -1,12 +1,13 @@
 // Copyright 2026 Owear Contributors
 // SPDX-License-Identifier: Apache-2.0
 //
-// api/menu/src/menu_win.cpp — menú contextual nativo (TrackPopupMenu) en un
-// hilo de UI dedicado: los menús Win32 exigen ventana y bomba de mensajes
-// propias. Superficie idéntica a Linux: popup(items) + evento menu.click.
-// setApplicationMenu es noop POR DISEÑO (igual que Linux: no imponemos
-// menubar; el IDE dibuja el suyo en web si prefiere).
+// api/menu/src/menu_win.cpp — menú contextual nativo (TrackPopupMenu) con
+// template estilo Electron. Hilo de UI dedicado (los menús Win32 exigen ventana
+// y bomba propias). El click se emite como `menu.click {id, role, windowId}`
+// (al SDK del main y a los renderers). setApplicationMenu es noop aquí: el
+// menubar de aplicación lo aplica el kernel vía window.setApplicationMenu.
 //
+#include "ow/Menu.hpp"
 #include "ow/Json.h"
 #include "ow/Module.h"
 #include "ow_api.h"
@@ -21,8 +22,10 @@
 #include <vector>
 
 namespace menu {
+using ow::menu::Item;
+using ow::menu::ParseItems;
+using ow::menu::ClickPayload;
 
-using ow::json::Array;
 using ow::json::Value;
 using ow::json::Parse;
 using ow::Module::RespondError;
@@ -40,67 +43,76 @@ struct PopupCmd {
     std::string json;
     uint32_t win = 0;
     bool done = false;
-    std::string chosen;
+    Item chosen;
+    bool hasChosen = false;
 };
 
-static std::vector<std::string> s_labels; // cmdId-1000 → label
+static std::vector<Item> s_cmdItems; // cmd-1000 → Item
 
-static void AppendItems(HMENU m, const Array& items) {
-    for (const auto& it : items) {
-        if (!it.IsObject()) continue;
-        std::string type = it.Find("type") && (*it.Find("type")).IsString()
-                               ? (*it.Find("type")).AsString()
-                               : "normal";
-        if (type == "separator") {
+static std::wstring ToWide(const std::string& s) {
+    if (s.empty()) return L"";
+    int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
+    std::wstring w(n, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), w.data(), n);
+    return w;
+}
+
+static void AppendItems(HMENU m, const std::vector<Item>& items) {
+    for (const Item& it : items) {
+        if (!it.visible) continue;
+        if (it.type == "separator") {
             AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
             continue;
         }
-        std::string label =
-            it.Find("label") && (*it.Find("label")).IsString()
-                ? (*it.Find("label")).AsString()
-                : "";
-        int wl = MultiByteToWideChar(CP_UTF8, 0, label.c_str(),
-                                     static_cast<int>(label.size()), nullptr, 0);
-        std::wstring w(wl, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, label.c_str(),
-                            static_cast<int>(label.size()), w.data(), wl);
-
-        const Value* sub = it.Find("submenu");
-        if (sub && sub->IsArray()) {
+        const std::wstring disp =
+            ToWide(it.label + (it.accelerator.empty() ? "" : ("\t" + it.accelerator)));
+        if (!it.submenu.empty()) {
             HMENU sm = CreatePopupMenu();
-            AppendItems(sm, sub->AsArray());
-            AppendMenuW(m, MF_POPUP, reinterpret_cast<UINT_PTR>(sm), w.c_str());
-        } else {
-            UINT_PTR cmd = s_labels.size() + 1000;
-            s_labels.push_back(label);
-            AppendMenuW(m, MF_STRING, cmd, w.c_str());
+            AppendItems(sm, it.submenu);
+            AppendMenuW(m, MF_POPUP | (it.enabled ? 0 : MF_GRAYED),
+                        reinterpret_cast<UINT_PTR>(sm), disp.c_str());
+            continue;
+        }
+        UINT flags = MF_STRING;
+        if (!it.enabled) flags |= MF_GRAYED;
+        if (it.checked) flags |= MF_CHECKED;
+        const UINT_PTR cmd = s_cmdItems.size() + 1000;
+        s_cmdItems.push_back(it);
+        AppendMenuW(m, flags, cmd, disp.c_str());
+        if (it.type == "radio") {
+            MENUITEMINFOW mii{};
+            mii.cbSize = sizeof(mii);
+            mii.fMask = MIIM_FTYPE;
+            mii.fType = MFT_RADIOCHECK;
+            SetMenuItemInfoW(m, cmd, FALSE, &mii);
         }
     }
 }
 
-static LRESULT CALLBACK MenuWndProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
-    if (m == kMsgPopup) {
+static LRESULT CALLBACK MenuWndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == kMsgPopup) {
         auto* c = reinterpret_cast<PopupCmd*>(lp);
         HMENU hm = CreatePopupMenu();
-        s_labels.clear();
+        s_cmdItems.clear();
         auto parsed = Parse(c->json);
-        if (parsed.value && parsed.value->IsArray() &&
-            !parsed.value->AsArray().empty() &&
-            (*parsed.value).AsArray()[0].IsArray())
-            AppendItems(hm, (*parsed.value).AsArray()[0].AsArray());
+        const Value* items = nullptr;
+        if (parsed.value && parsed.value->IsArray() && !parsed.value->AsArray().empty()) {
+            const Value& a0 = parsed.value->AsArray()[0];
+            items = a0.IsObject() ? a0.Find("items") : &a0;
+        }
+        if (items && items->IsArray()) AppendItems(hm, ParseItems(*items));
 
         POINT pt;
         GetCursorPos(&pt);
-        SetForegroundWindow(h); // requisito para que el menú descarte bien
-        int cmd = TrackPopupMenuEx(hm,
-                                   TPM_RIGHTBUTTON | TPM_RETURNCMD |
-                                       TPM_NONOTIFY,
+        SetForegroundWindow(h);
+        int cmd = TrackPopupMenuEx(hm, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
                                    pt.x, pt.y, h, nullptr);
-        PostMessageW(h, WM_NULL, 0, 0); // disipa el estado de foreground
+        PostMessageW(h, WM_NULL, 0, 0);
         DestroyMenu(hm);
-
-        if (cmd >= 1000 && static_cast<size_t>(cmd - 1000) < s_labels.size())
-            c->chosen = s_labels[static_cast<size_t>(cmd - 1000)];
+        if (cmd >= 1000 && (size_t)(cmd - 1000) < s_cmdItems.size()) {
+            c->chosen = s_cmdItems[cmd - 1000];
+            c->hasChosen = true;
+        }
         {
             std::lock_guard lk(s_mu);
             c->done = true;
@@ -108,7 +120,7 @@ static LRESULT CALLBACK MenuWndProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         s_cv.notify_all();
         return 0;
     }
-    return DefWindowProcW(h, m, wp, lp);
+    return DefWindowProcW(h, msg, wp, lp);
 }
 
 static void MenuThread() {
@@ -117,21 +129,23 @@ static void MenuThread() {
     wc.lpszClassName = L"owear-menu";
     wc.hInstance = GetModuleHandleW(nullptr);
     RegisterClassW(&wc);
-    s_hwnd = CreateWindowExW(0, wc.lpszClassName, nullptr, 0, 0, 0, 0, 0,
-                             HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
+    s_hwnd = CreateWindowExW(0, wc.lpszClassName, nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE,
+                             nullptr, wc.hInstance, nullptr);
     MSG msg;
     while (GetMessage(&msg, s_hwnd, 0, 0) > 0) {
         TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        DispatchMessageW(&msg);
     }
 }
 
-// args: [items]
+// args: [ { items: [...], x?, y? } ]  (o legacy: [ items ])
 void popup(const ow_request_t* req, ow_response_t* res) {
     auto parsed = Parse(std::string_view(req->json, req->json_len));
-    if (!parsed.value || !parsed.value->IsArray() ||
-        parsed.value->AsArray().empty())
-        return RespondError(res, "items requeridos");
+    if (!parsed.value || !parsed.value->IsArray() || parsed.value->AsArray().empty())
+        return RespondError(res, "args inválidos");
+    const Value& a0 = parsed.value->AsArray()[0];
+    const Value* items = a0.IsObject() ? a0.Find("items") : &a0;
+    if (!items || !items->IsArray()) return RespondError(res, "items requeridos");
 
     static std::once_flag once;
     std::call_once(once, [] { std::thread(MenuThread).detach(); });
@@ -144,13 +158,13 @@ void popup(const ow_request_t* req, ow_response_t* res) {
     PostMessageW(s_hwnd, kMsgPopup, 0, reinterpret_cast<LPARAM>(&c));
     {
         std::unique_lock lk(s_mu);
-        s_cv.wait(lk, [&] { return c.done; }); // bloquea hasta selección
+        s_cv.wait(lk, [&] { return c.done; });
     }
 
-    if (!c.chosen.empty() && g_host && g_host->emit_event) {
-        std::string json = "{\"label\":" + Value(c.chosen).Serialize() +
-                           ",\"windowId\":" + std::to_string(c.win) + "}";
-        g_host->emit_event(g_host->ctx, c.win, "menu.click", json.c_str());
+    if (c.hasChosen && g_host && g_host->emit_event) {
+        const std::string payload = ClickPayload(c.chosen, c.win);
+        // window_id = 0 → SDK (main) + todas las ventanas
+        g_host->emit_event(g_host->ctx, 0, "menu.click", payload.c_str());
     }
     RespondOk(res, "null");
 }
@@ -166,12 +180,10 @@ extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
         {"popup", &menu::popup},
         {"setApplicationMenu",
          [](const ow_request_t*, ow_response_t* res) {
-             // noop por diseño — idéntico a Linux (no imponemos menubar)
-             ow::Module::RespondOk(res, "\"noop\"");
+             ow::Module::RespondOk(res, "\"aplicado-por-kernel\"");
          }},
     };
-    static const ow_module_desc_t d{
-        "menu", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};
+    static const ow_module_desc_t d{"menu", OW_VERSION_STRING, fns,
+                                    sizeof(fns) / sizeof(fns[0])};
     return &d;
 }
-

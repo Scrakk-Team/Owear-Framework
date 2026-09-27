@@ -161,6 +161,16 @@ muere con el kernel.
     (bilineal), `crop`. JPEG: `getSize` (SOF) y `toJPEG` (si la fuente ya es
     JPEG). `webContents.capturePage()` ahora devuelve un `NativeImage`.
     Verificado (tests SDK).
+  - **`Menu`/`MenuItem` (C5)** — API pulida estilo Electron en el **main**:
+    `Menu.buildFromTemplate([...])`, `setApplicationMenu`/`getApplicationMenu`,
+    `menu.popup({ window, x, y })`. `MenuItem`: `id`, `label`, `role` (quit,
+    minimize, close, reload, toggleDevTools, undo/cut/copy/paste/selectAll…),
+    `type` (normal/separator/submenu/**checkbox**/**radio**), `checked`, `enabled`,
+    `visible`, `accelerator` (display), `submenu`, `click(item, window)`. Los
+    **clicks van al main** (handlers `click` + roles). Kernel: template común
+    (`ow/Menu.hpp`) con tipos/estados; Linux GTK (`GtkCheck/RadioMenuItem`) y
+    Windows `HMENU` (popup `TrackPopupMenu` + **menubar** vía
+    `window.setApplicationMenu` + `WM_COMMAND`). Tests SDK; Windows compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

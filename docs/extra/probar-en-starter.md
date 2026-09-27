@@ -322,6 +322,35 @@ nativeImage.createFromBuffer(buf) / createFromDataURL(url)
 
 ---
 
+### 5.5 C5 — `Menu` / `MenuItem`
+
+| | Estado |
+|---|---|
+| Linux | ✅ popup GTK (roles/checkbox/radio); menubar noop por diseño |
+| Windows | 🟡 compila (popup `HMENU` + menubar nativo) |
+
+```ts
+const menu = Menu.buildFromTemplate([
+  { label: 'Archivo', submenu: [
+      { label: 'Nuevo', accelerator: 'CmdOrCtrl+N', click: () => nuevo() },
+      { type: 'separator' },
+      { role: 'quit' },
+  ]},
+  { label: 'Ver', submenu: [
+      { label: 'Barra lateral', type: 'checkbox', checked: true, click: (mi) => toggle(mi.checked) },
+      { role: 'toggleDevTools' },
+  ]},
+])
+Menu.setApplicationMenu(menu)          // menubar (Windows)
+menu.popup({ window: win })            // contextual
+```
+
+- Clicks → **main** (handlers `click` + roles). `accelerator` solo **display** en v1.
+- **En el starter:** botón **Menú contextual** + menubar; los clicks salen en la
+  consola (`menu → …`). Cableado (WIP). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

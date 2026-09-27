@@ -111,6 +111,10 @@ public:
     /// Captura la página del WebView (PNG) de forma ASÍNCRONA.
     void CapturePage(std::function<void(bool ok, const std::string& png)> cb);
 
+    /// Aplica (o quita) el menubar de aplicación. `itemsJson` = array de items
+    /// (mismo formato que `menu.popup`). Windows: HMENU nativo; Linux: noop.
+    void SetApplicationMenu(const std::string& itemsJson);
+
     // ── webview ────────────────────────────────────────────────────
     void LoadURL(const std::string& url);
     /// Evalúa JS en la página. callback recibe el resultado JSON o null.

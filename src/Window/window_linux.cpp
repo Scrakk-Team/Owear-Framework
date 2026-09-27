@@ -893,6 +893,10 @@ bool Window::Impl::PCreate() {
 }
 
 // ── plataforma: titlebar ─────────────────────────────────────────────────────
+void Window::Impl::PSetApplicationMenu(const std::string&) {
+    // noop por diseño: en GNOME/Linux no imponemos menubar (el IDE dibuja el suyo).
+}
+
 void Window::Impl::PApplyTitleBar() {
     if (!pdata || !pdata->window) return;
     switch (opts.titleBarStyle) {

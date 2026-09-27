@@ -411,6 +411,10 @@ void Window::CapturePage(std::function<void(bool ok, const std::string& png)> cb
     if (impl_->webview) impl_->webview->CapturePage(std::move(cb));
     else if (cb) cb(false, {});
 }
+
+void Window::SetApplicationMenu(const std::string& itemsJson) {
+    impl_->PSetApplicationMenu(itemsJson);
+}
 void* Window::NativeHandle() const {
     return impl_->webview ? impl_->webview->NativeWidget() : nullptr;
 }

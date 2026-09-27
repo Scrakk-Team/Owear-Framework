@@ -1,23 +1,24 @@
 // Copyright 2026 Owear Contributors
 // SPDX-License-Identifier: Apache-2.0
 //
-// api/menu/src/menu_linux.cpp — context menus GTK (popup).
-// NOTA: el menú de aplicación es OBLIGATORIO en macOS y OPCIONAL aquí.
-// En GNOME/Linux las apps modernas no ponen menubar — v1 expone solo popup;
-// el IDE dibuja sus propios menús web si prefiere (no invadimos).
+// api/menu/src/menu_linux.cpp — menús GTK (popup) con template estilo Electron.
 //
+// setApplicationMenu es NOOP por diseño (GNOME no usa menubar; el IDE dibuja el
+// suyo en web). El click se emite como `menu.click {id, role, windowId}` (al SDK
+// del main y a los renderers).
+//
+#include "ow/Menu.hpp"
 #include "ow/Json.h"
 #include "ow/Module.h"
 #include "ow_api.h"
 
 #include <gtk/gtk.h>
 
-#include <deque>
-
 namespace menu {
+using ow::menu::Item;
+using ow::menu::ParseItems;
+using ow::menu::ClickPayload;
 
-using ow::json::Array;
-using ow::json::Object;
 using ow::json::Value;
 using ow::Module::RespondError;
 using ow::Module::RespondOk;
@@ -25,59 +26,72 @@ using ow::Module::RespondOk;
 static const ow_module_host_t* g_host = nullptr;
 static uint32_t g_win = 0;
 
-static void OnItemActivate(GtkMenuItem*, gpointer user_data) {
+static void OnItemActivate(GtkMenuItem* mi, gpointer) {
     if (!g_host || !g_host->emit_event) return;
-    auto* label = static_cast<std::string*>(user_data);
-    std::string json = "{\"label\":" + ow::json::Value(*label).Serialize() +
-                       ",\"windowId\":" + std::to_string(g_win) + "}";
-    g_host->emit_event(g_host->ctx, g_win, "menu.click", json.c_str());
+    const char* id = static_cast<const char*>(g_object_get_data(G_OBJECT(mi), "ow-id"));
+    const char* role =
+        static_cast<const char*>(g_object_get_data(G_OBJECT(mi), "ow-role"));
+    Item it;
+    it.id = id ? id : "";
+    it.role = role ? role : "";
+    const std::string payload = ClickPayload(it, g_win);
+    // window_id = 0 → SDK (main) + todas las ventanas
+    g_host->emit_event(g_host->ctx, 0, "menu.click", payload.c_str());
 }
 
-static void BuildItems(GtkMenuShell* shell, const Array& items,
-                       std::deque<std::string>& labels) {
-    for (const auto& it : items) {
-        if (!it.IsObject()) continue;
-        std::string type =
-            it.Find("type") && (*it.Find("type")).IsString()
-                ? (*it.Find("type")).AsString() : "normal";
-        if (type == "separator") {
+static void BuildItems(GtkMenuShell* shell, const std::vector<Item>& items,
+                       GSList** radioGroup) {
+    for (const Item& it : items) {
+        if (!it.visible) continue;
+        if (it.type == "separator") {
             gtk_menu_shell_append(shell, gtk_separator_menu_item_new());
             continue;
         }
-        const Value* labelV = it.Find("label");
-        std::string label =
-            labelV && labelV->IsString() ? labelV->AsString() : "";
-        GtkWidget* w = gtk_menu_item_new_with_label(label.c_str());
-        gtk_menu_shell_append(shell, w);
+        const std::string label =
+            it.accelerator.empty() ? it.label : it.label + "\t" + it.accelerator;
+        GtkWidget* w = nullptr;
+        if (it.type == "checkbox")
+            w = gtk_check_menu_item_new_with_mnemonic(label.c_str());
+        else if (it.type == "radio") {
+            w = gtk_radio_menu_item_new_with_mnemonic(*radioGroup, label.c_str());
+            *radioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(w));
+        } else
+            w = gtk_menu_item_new_with_mnemonic(label.c_str());
 
-        const Value* sub = it.Find("submenu");
-        if (sub && sub->IsArray()) {
+        if (it.type == "checkbox" || it.type == "radio")
+            gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(w), it.checked);
+        if (!it.enabled) gtk_widget_set_sensitive(w, FALSE);
+        g_object_set_data_full(G_OBJECT(w), "ow-id", g_strdup(it.id.c_str()), g_free);
+        g_object_set_data_full(G_OBJECT(w), "ow-role", g_strdup(it.role.c_str()), g_free);
+
+        gtk_menu_shell_append(shell, w);
+        if (!it.submenu.empty()) {
             GtkWidget* subm = gtk_menu_new();
             gtk_menu_item_set_submenu(GTK_MENU_ITEM(w), subm);
-            BuildItems(GTK_MENU_SHELL(subm), sub->AsArray(), labels);
+            GSList* rg = nullptr;
+            BuildItems(GTK_MENU_SHELL(subm), it.submenu, &rg);
         } else {
-            labels.push_back(label);
-            g_signal_connect(w, "activate",
-                             G_CALLBACK(+[](GtkMenuItem* m, gpointer ud) {
-                                 OnItemActivate(m, ud);
-                             }),
-                             &labels.back());
+            g_signal_connect(w, "activate", G_CALLBACK(OnItemActivate), nullptr);
         }
     }
 }
 
+// args: [ { items: [...], x?, y? } ]  (o legacy: [ items ])
 void popup(const ow_request_t* req, ow_response_t* res) {
     auto parsed = ow::json::Parse(std::string_view(req->json, req->json_len));
     if (!parsed.value || !parsed.value->IsArray() || parsed.value->AsArray().empty())
-        return RespondError(res, "items requeridos");
+        return RespondError(res, "args inválidos");
+    const Value& a0 = parsed.value->AsArray()[0];
+    const Value* itemsV = &a0;
+    if (a0.IsObject()) itemsV = a0.Find("items");
+    if (!itemsV || !itemsV->IsArray()) return RespondError(res, "items requeridos");
     g_win = req->window_id;
 
     GtkMenu* m = GTK_MENU(gtk_menu_new());
-    std::deque<std::string> labels;
-    BuildItems(GTK_MENU_SHELL(m), parsed.value->AsArray()[0].AsArray(), labels);
+    GSList* rg = nullptr;
+    BuildItems(GTK_MENU_SHELL(m), ParseItems(*itemsV), &rg);
     gtk_widget_show_all(GTK_WIDGET(m));
-    gtk_menu_popup_at_pointer(m, nullptr); // en el cursor
-    // popup es async en GTK3: el menú vive hasta selección
+    gtk_menu_popup_at_pointer(m, nullptr); // popup async: vive hasta selección
     RespondOk(res, "null");
 }
 
@@ -92,11 +106,11 @@ extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
         {"popup", &menu::popup},
         {"setApplicationMenu",
          [](const ow_request_t*, ow_response_t* res) {
-             // desactivable por diseño: en Linux/GNOME no imponemos menubar
+             // noop por diseño: en GNOME/Linux no imponemos menubar
              ow::Module::RespondOk(res, "\"noop\"");
          }},
     };
-    static const ow_module_desc_t d{
-        "menu", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};
+    static const ow_module_desc_t d{"menu", OW_VERSION_STRING, fns,
+                                    sizeof(fns) / sizeof(fns[0])};
     return &d;
 }

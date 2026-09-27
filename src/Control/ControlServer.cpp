@@ -496,6 +496,15 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         resultJson = "null";
         return true;
     }
+    // ── menu: menubar de aplicación ──────────────────────────────────────
+    if (cmd == "menu.setApplicationMenu") {
+        const V* items = params.Find("items");
+        const std::string itemsJson = items ? items->Serialize() : "[]";
+        for (auto& [wid, w] : LiveWindows()) w->SetApplicationMenu(itemsJson);
+        resultJson = "null";
+        return true;
+    }
+
     // ── protocol: esquemas personalizados (main → kernel) ────────────────
     if (cmd == "protocol.register") {
         const V* name = params.Find("scheme");

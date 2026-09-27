@@ -113,6 +113,9 @@ public:
     virtual void PSetTitle(const std::string& title);
     virtual std::string PGetTitle() const;
     virtual void PApplyTitleBar();
+
+    /// Aplica un menubar de aplicación (Windows: HMENU; Linux: noop).
+    virtual void PSetApplicationMenu(const std::string& itemsJson);
     virtual void PBeginMoveDrag();
     virtual void PBeginResizeDrag(const std::string& edge);
 
