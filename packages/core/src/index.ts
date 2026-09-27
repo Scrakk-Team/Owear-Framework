@@ -1018,10 +1018,9 @@ export class WebContents extends EventEmitter {
 
   /** Captura la página (PNG) y la devuelve como objeto con `toPNG()`/`toDataURL()`. */
   async capturePage(): Promise<NativeImage> {
-    const r = await channel.call<{ data: string; format: string }>('module.invoke', {
-      module: 'window',
-      method: 'capturePage',
-      args: [this.id, { base64: true }],
+    const r = await channel.call<{ data: string; format: string }>('window.capturePage', {
+      windowId: this.id,
+      base64: true,
     })
     return {
       toPNG: () => Buffer.from(r.data, 'base64'),

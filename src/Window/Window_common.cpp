@@ -406,6 +406,11 @@ std::string Window::WebviewCommand(uint32_t id, const std::string& op,
 void Window::RegisterProtocol(const std::string& scheme) {
     if (impl_->webview) impl_->webview->RegisterProtocol(scheme);
 }
+
+void Window::CapturePage(std::function<void(bool ok, const std::string& png)> cb) {
+    if (impl_->webview) impl_->webview->CapturePage(std::move(cb));
+    else if (cb) cb(false, {});
+}
 void* Window::NativeHandle() const {
     return impl_->webview ? impl_->webview->NativeWidget() : nullptr;
 }

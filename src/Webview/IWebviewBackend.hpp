@@ -19,6 +19,8 @@ using WebMessageHandler = std::function<void(std::string_view text)>;
 using EvalCallback = std::function<void(std::string_view resultJson, bool ok)>;
 /// Emisor de eventos del WebView hacia la ventana (p. ej. beforeInput).
 using WebviewEventSink = std::function<void(const std::string& name, std::string_view json)>;
+/// Callback de captura de página: `ok` + bytes PNG.
+using CaptureCallback = std::function<void(bool ok, const std::string& png)>;
 
 class IWebviewBackend {
 public:
@@ -36,6 +38,11 @@ public:
 
     /// Registra el emisor de eventos del WebView (beforeInput, etc.).
     virtual void SetEventSink(WebviewEventSink /*sink*/) {}
+
+    /// Captura la página (PNG) de forma ASÍNCRONA (sin pump anidado).
+    virtual void CapturePage(CaptureCallback cb) {
+        if (cb) cb(false, {});
+    }
 
     virtual void LoadURL(const std::string& url) = 0;
 

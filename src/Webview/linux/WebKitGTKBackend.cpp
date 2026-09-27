@@ -63,6 +63,14 @@ std::string ContentTypeFromHeaders(const std::string& headersJson) {
     return "text/html";
 }
 
+/// Escribe un PNG de cairo a un std::string.
+cairo_status_t WritePngToStdString(void* closure, const unsigned char* data,
+                                   unsigned int length) {
+    static_cast<std::string*>(closure)->append(reinterpret_cast<const char*>(data),
+                                               length);
+    return CAIRO_STATUS_SUCCESS;
+}
+
 /// webRequest (Linux): intercepta NAVEGACIONES (decide-policy) + window.open.
 gboolean OnDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
                         WebKitPolicyDecisionType type, gpointer) {
@@ -105,8 +113,7 @@ gboolean OnDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
 }
 
 /// Permisos del WebView: delega en PermissionBroker (la app decide).
-gboolean OnPermissionRequest(WebKitWebView*, WebKitPermissionRequest* req, gpointer) {
-    const char* name = "unknown";
+gboolean OnPermissionRequest(WebKitWebView*, WebKitPermissionRequest* req, gpointer) {    const char* name = "unknown";
     if (WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(req)) name = "geolocation";
     else if (WEBKIT_IS_NOTIFICATION_PERMISSION_REQUEST(req)) name = "notifications";
     else if (WEBKIT_IS_USER_MEDIA_PERMISSION_REQUEST(req)) name = "media";
@@ -411,6 +418,35 @@ public:
                            "\",\"modifiers\":" + mods + "}";
         self->EmitEvent("beforeInput", json);
         return FALSE; // no consumir
+    }
+
+    void CapturePage(CaptureCallback cb) override {
+        if (!view_ || !cb) {
+            if (cb) cb(false, {});
+            return;
+        }
+        auto* holder = new CaptureCallback(std::move(cb));
+        webkit_web_view_get_snapshot(
+            WEBKIT_WEB_VIEW(view_), WEBKIT_SNAPSHOT_REGION_VISIBLE,
+            WEBKIT_SNAPSHOT_OPTIONS_NONE, nullptr,
+            +[](GObject* obj, GAsyncResult* result, gpointer ud) {
+                auto* cb = static_cast<CaptureCallback*>(ud);
+                GError* err = nullptr;
+                cairo_surface_t* surface = webkit_web_view_get_snapshot_finish(
+                    WEBKIT_WEB_VIEW(obj), result, &err);
+                if (!surface || err) {
+                    if (err) g_error_free(err);
+                    (*cb)(false, {});
+                } else {
+                    std::string png;
+                    cairo_surface_write_to_png_stream(surface, &WritePngToStdString,
+                                                      &png);
+                    cairo_surface_destroy(surface);
+                    (*cb)(true, png);
+                }
+                delete cb;
+            },
+            holder);
     }
 
     void Resize(int x, int y, int w, int h) override {

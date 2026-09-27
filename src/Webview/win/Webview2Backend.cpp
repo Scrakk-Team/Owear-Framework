@@ -475,6 +475,47 @@ public:
 
     void* NativeWidget() const override { return hwnd_; }
 
+    void CapturePage(CaptureCallback cb) override {
+        if (!webview_ || !cb) {
+            if (cb) cb(false, {});
+            return;
+        }
+        IStream* stream = nullptr;
+        if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &stream)) || !stream) {
+            cb(false, {});
+            return;
+        }
+        struct Ctx {
+            IStream* stream;
+            CaptureCallback* cb;
+        };
+        auto* ctx = new Ctx{stream, new CaptureCallback(std::move(cb))};
+        webview_->CapturePreview(
+            COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, stream,
+            Callback<ICoreWebView2CapturePreviewCompletedHandler>(
+                [ctx](HRESULT error) -> HRESULT {
+                    std::string png;
+                    if (SUCCEEDED(error)) {
+                        STATSTG st{};
+                        ctx->stream->Stat(&st, STATFLAG_NONAME);
+                        LARGE_INTEGER z{};
+                        z.QuadPart = 0;
+                        ctx->stream->Seek(z, STREAM_SEEK_SET, nullptr);
+                        png.resize(static_cast<size_t>(st.cbSize.QuadPart));
+                        ULONG read = 0;
+                        ctx->stream->Read(png.data(),
+                                          static_cast<ULONG>(png.size()), &read);
+                        png.resize(read);
+                    }
+                    ctx->stream->Release();
+                    (*ctx->cb)(SUCCEEDED(error), png);
+                    delete ctx->cb;
+                    delete ctx;
+                    return S_OK;
+                })
+                .Get());
+    }
+
     void SetEventSink(WebviewEventSink sink) override { sink_ = std::move(sink); }
     void EmitEvent(const std::string& name, const std::string& json) {
         if (sink_) sink_(name, json);

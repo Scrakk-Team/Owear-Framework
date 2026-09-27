@@ -17,6 +17,8 @@
 #include "../Runtime/NodeManager.hpp"
 #include "ow/App.h"
 #include "ow/Window.h"
+#include "ow/Base64.h"
+#include "ow/Shm.h"
 #include "ow/detail/minjson.hpp"
 
 #include <cstdlib>
@@ -651,6 +653,42 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         return true; // respuesta ya enviada (o pendiente) — evita doble send
     }
 
+    if (cmd == "window.capturePage") {
+        const V* b = params.Find("base64");
+        const bool base64 = b && b->IsBool() && b->AsBool();
+        // Respuesta asíncrona: el backend captura y responde al terminar
+        // (sin pump anidado, que en Windows reentraba y crasheaba).
+        w->CapturePage([this, clientId, id, base64](bool ok, const std::string& png) {
+            if (!ok) {
+                SendResponse(clientId, id, false, "null", "capture falló");
+                return;
+            }
+            std::string result;
+            if (base64) {
+                json::Object o;
+                o.emplace_back("data", V(ow::b64::Encode(png)));
+                o.emplace_back("format", V("png"));
+                result = V(std::move(o)).Serialize();
+            } else {
+                const char* sid = ow_shm_put(
+                    reinterpret_cast<const uint8_t*>(png.data()), png.size());
+                if (!sid || !*sid) {
+                    SendResponse(clientId, id, false, "null", "SHM llena");
+                    return;
+                }
+                json::Object shm;
+                shm.emplace_back("id", V(std::string(sid)));
+                shm.emplace_back("size", V(static_cast<int64_t>(png.size())));
+                json::Object o;
+                o.emplace_back("__ow_shm", V(std::move(shm)));
+                o.emplace_back("format", V("png"));
+                result = V(std::move(o)).Serialize();
+            }
+            SendResponse(clientId, id, true, result, "");
+        });
+        return true; // respuesta pendiente — evita doble send
+    }
+
     error = "comando desconocido: " + cmd;
     return false;
 }
@@ -687,7 +725,7 @@ void ControlServer::HandleLine(uint64_t clientId, std::string_view line) {
     bool ok = HandleCommand(clientId, reqId, cmd, paramsJson, resultJson, error);
 
     // window.eval responde async (evita duplicar)
-    if (ok && cmd == "window.eval") return;
+    if (ok && (cmd == "window.eval" || cmd == "window.capturePage")) return;
 
     SendResponse(clientId, reqId, ok, resultJson, error);
 }

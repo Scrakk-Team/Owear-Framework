@@ -108,6 +108,9 @@ public:
     /// (se llama al crear la ventana y al registrar un esquema ya con ventanas).
     void RegisterProtocol(const std::string& scheme);
 
+    /// Captura la página del WebView (PNG) de forma ASÍNCRONA.
+    void CapturePage(std::function<void(bool ok, const std::string& png)> cb);
+
     // ── webview ────────────────────────────────────────────────────
     void LoadURL(const std::string& url);
     /// Evalúa JS en la página. callback recibe el resultado JSON o null.
