@@ -490,30 +490,33 @@ public:
             CaptureCallback* cb;
         };
         auto* ctx = new Ctx{stream, new CaptureCallback(std::move(cb))};
-        webview_->CapturePreview(
-            COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, stream,
-            Callback<ICoreWebView2CapturePreviewCompletedHandler>(
-                [ctx](HRESULT error) -> HRESULT {
-                    std::string png;
-                    if (SUCCEEDED(error)) {
-                        STATSTG st{};
-                        ctx->stream->Stat(&st, STATFLAG_NONAME);
-                        LARGE_INTEGER z{};
-                        z.QuadPart = 0;
-                        ctx->stream->Seek(z, STREAM_SEEK_SET, nullptr);
-                        png.resize(static_cast<size_t>(st.cbSize.QuadPart));
-                        ULONG read = 0;
-                        ctx->stream->Read(png.data(),
-                                          static_cast<ULONG>(png.size()), &read);
-                        png.resize(read);
-                    }
-                    ctx->stream->Release();
-                    (*ctx->cb)(SUCCEEDED(error), png);
-                    delete ctx->cb;
-                    delete ctx;
-                    return S_OK;
-                })
-                .Get());
+        captureHandler_ = Callback<ICoreWebView2CapturePreviewCompletedHandler>(
+            [ctx](HRESULT error) -> HRESULT {
+                std::string png;
+                if (SUCCEEDED(error)) {
+                    STATSTG st{};
+                    ctx->stream->Stat(&st, STATFLAG_NONAME);
+                    LARGE_INTEGER z{};
+                    z.QuadPart = 0;
+                    ctx->stream->Seek(z, STREAM_SEEK_SET, nullptr);
+                    png.resize(static_cast<size_t>(st.cbSize.QuadPart));
+                    ULONG read = 0;
+                    ctx->stream->Read(png.data(), static_cast<ULONG>(png.size()),
+                                      &read);
+                    png.resize(read);
+                }
+                ctx->stream->Release();
+                log::Info("webview2", std::string("capturePage: done ok=") +
+                                         (SUCCEEDED(error) ? "1" : "0") +
+                                         " bytes=" + std::to_string(png.size()));
+                (*ctx->cb)(SUCCEEDED(error), png);
+                delete ctx->cb;
+                delete ctx;
+                return S_OK;
+            });
+        webview_->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
+                                 stream, captureHandler_.Get());
+        log::Info("webview2", "capturePage: CapturePreview lanzado");
     }
 
     void SetEventSink(WebviewEventSink sink) override { sink_ = std::move(sink); }
@@ -672,6 +675,7 @@ private:
     ComPtr<ICoreWebView2> webview_;
     WebMessageHandler messageHandler_;
     WebviewEventSink sink_;
+    ComPtr<ICoreWebView2CapturePreviewCompletedHandler> captureHandler_;
     std::vector<std::string> pendingInitScripts_;
     std::string pendingUrl_;
     std::filesystem::path assetRoot_;
