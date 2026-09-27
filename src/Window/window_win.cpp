@@ -21,6 +21,8 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shlobj.h>
+#include <gdiplus.h>
+#pragma comment(lib, "gdiplus.lib")
 
 // WebView2 (para las webviews embebidas). Si no está el SDK, se compilan a
 // vacío las funciones de webviews (Linux las tiene; Windows las añade aquí).
@@ -172,88 +174,99 @@ COLORREF ParseHexColorRef(const std::string& in, COLORREF def) {
 /// Barra de botones (ventana hija OPACA) estilo Win10/11, como Electron:
 /// minimizar = línea, maximizar = cuadrado, restaurar = dos cuadrados, cerrar =
 /// X; icono 10px; hover blanco 10% (close #E81123). Fondo = titleBarOverlay.color.
+void EnsureGdiplus() {
+    static ULONG_PTR token = 0;
+    if (!token) {
+        Gdiplus::GdiplusStartupInput in;
+        Gdiplus::GdiplusStartup(&token, &in, nullptr);
+    }
+}
+
+/// Barra de botones (popup top-level LAYERED) dibujada estilo Win10/11 con GDI+
+/// y compuesta con UpdateLayeredWindow (alpha por píxel): fondo transparente
+/// (se ve la titlebar) + glifos. Minimizar = línea, maximizar = cuadrado,
+/// restaurar = dos cuadrados, cerrar = X; hover blanco ~10% (close #E81123).
 void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hwnd, &ps);
     RECT rc;
     GetClientRect(hwnd, &rc);
     const int w = rc.right, h = rc.bottom;
-    if (w <= 0 || h <= 0) {
-        EndPaint(hwnd, &ps);
-        return;
-    }
-    if (!pd) {
-        EndPaint(hwnd, &ps);
-        return;
-    }
+    if (w <= 0 || h <= 0 || !pd) return;
+    EnsureGdiplus();
 
-    HBRUSH bg = CreateSolidBrush(kCapKey);
-    FillRect(hdc, &rc, bg);
-    DeleteObject(bg);
+    HDC screen = GetDC(nullptr);
+    HDC mem = CreateCompatibleDC(screen);
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h; // top-down
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP bmp = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HGDIOBJ old = SelectObject(mem, bmp);
 
-    // DPI: usa el de la ventana principal (el popup puede devolver 0 antes de
-    // asociarse a un monitor → icon=0 → glifos invisibles).
+    // DPI de la ventana principal (el popup puede devolver 0 → icon=0).
     UINT dpi = pd->hwnd ? GetDpiForWindow(pd->hwnd) : 96;
     if (dpi < 96) dpi = 96;
     const bool maximized = IsZoomed(pd->hwnd);
     const int bw = w / 3;
     int icon = MulDiv(12, static_cast<int>(dpi), 96);
     if (icon < 8) icon = 12;
-    int penW = MulDiv(1, static_cast<int>(dpi), 96);
-    if (penW < 1) penW = 1;
+    float stroke = static_cast<float>(MulDiv(1, static_cast<int>(dpi), 96));
+    if (stroke < 1.0f) stroke = 1.0f;
     {
-        static bool logged = false;
-        if (!logged) {
-            logged = true;
-            char lb[96];
-            std::snprintf(lb, sizeof(lb), "caption paint: w=%d h=%d fg=0x%06lX icon=%d",
-                          w, h, static_cast<unsigned long>(pd->capFg), icon);
-            log::Info("window", lb);
+        Gdiplus::Graphics g(mem);
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        g.Clear(Gdiplus::Color(0, 0, 0, 0));
+        for (int i = 0; i < 3; ++i) {
+            const int x0 = i * bw, x1 = (i == 2) ? w : (i + 1) * bw;
+            const bool hot = pd->capHover == i;
+            const bool press = pd->capPress == i;
+            if (hot || press) {
+                BYTE a;
+                Gdiplus::Color base;
+                if (i == 2) {
+                    base = Gdiplus::Color(255, 0xE8, 0x11, 0x23);
+                    a = press ? 0x98 : 255;
+                } else {
+                    base = Gdiplus::Color(255, 255, 255, 255);
+                    a = press ? 0x33 : 0x1A;
+                }
+                Gdiplus::SolidBrush b(
+                    Gdiplus::Color(a, base.GetR(), base.GetG(), base.GetB()));
+                g.FillRectangle(&b, Gdiplus::Rect(x0, 0, x1 - x0, h));
+            }
+            Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), stroke);
+            const int cx0 = x0 + (x1 - x0 - icon) / 2, cy0 = (h - icon) / 2;
+            const int cx1 = cx0 + icon, cy1 = cy0 + icon;
+            if (i == 0) {
+                int y = (cy0 + cy1) / 2;
+                g.DrawLine(&pen, cx0, y, cx1, y);
+            } else if (i == 1 && !maximized) {
+                g.DrawRectangle(&pen, cx0, cy0, icon - 1, icon - 1);
+            } else if (i == 1) {
+                int sep = icon / 5;
+                g.DrawRectangle(&pen, cx0, cy0 + sep, icon - sep - 1, icon - sep - 1);
+                g.DrawRectangle(&pen, cx0 + sep, cy0, icon - sep - 1, icon - sep - 1);
+            } else {
+                g.DrawLine(&pen, cx0, cy0, cx1, cy1);
+                g.DrawLine(&pen, cx1, cy0, cx0, cy1);
+            }
         }
     }
 
-    for (int i = 0; i < 3; ++i) {
-        const int x0 = i * bw, x1 = (i == 2) ? w : (i + 1) * bw;
-        const bool hot = pd->capHover == i;
-        const bool press = pd->capPress == i;
-        RECT r{x0, 0, x1, h};
-        if (hot || press) {
-            COLORREF c;
-            if (i == 2)
-                c = press ? RGB(0xB0, 0x0D, 0x18) : RGB(0xE8, 0x11, 0x23);
-            else
-                c = BlendColor(pd->capBg, RGB(255, 255, 255), press ? 0.20 : 0.10);
-            HBRUSH hb = CreateSolidBrush(c);
-            FillRect(hdc, &r, hb);
-            DeleteObject(hb);
-        }
-        COLORREF fg = (i == 2 && (hot || press)) ? RGB(255, 255, 255) : pd->capFg;
-        HPEN pen = CreatePen(PS_SOLID, penW, fg);
-        HPEN oldPen = static_cast<HPEN>(SelectObject(hdc, pen));
-        HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
-        const int cx0 = x0 + (x1 - x0 - icon) / 2, cy0 = (h - icon) / 2;
-        const int cx1 = cx0 + icon, cy1 = cy0 + icon;
-        if (i == 0) {
-            int y = (cy0 + cy1) / 2;
-            MoveToEx(hdc, cx0, y, nullptr);
-            LineTo(hdc, cx1, y);
-        } else if (i == 1 && !maximized) {
-            Rectangle(hdc, cx0, cy0, cx1, cy1);
-        } else if (i == 1) {
-            int sep = icon / 5;
-            Rectangle(hdc, cx0, cy0 + sep, cx1 - sep, cy1);
-            Rectangle(hdc, cx0 + sep, cy0, cx1, cy1 - sep);
-        } else {
-            MoveToEx(hdc, cx0, cy0, nullptr);
-            LineTo(hdc, cx1, cy1);
-            MoveToEx(hdc, cx1, cy0, nullptr);
-            LineTo(hdc, cx0, cy1);
-        }
-        SelectObject(hdc, oldBrush);
-        SelectObject(hdc, oldPen);
-        DeleteObject(pen);
-    }
-    EndPaint(hwnd, &ps);
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+    POINT dst{wr.left, wr.top}, src{0, 0};
+    SIZE size{w, h};
+    BLENDFUNCTION bf{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
+    UpdateLayeredWindow(hwnd, screen, &dst, &size, mem, &src, 0, &bf, ULW_ALPHA);
+
+    SelectObject(mem, old);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+    ReleaseDC(nullptr, screen);
 }
 
 LRESULT CALLBACK CaptionWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -554,7 +567,6 @@ bool Window::Impl::PCreate() {
             L"", WS_POPUP, 0, 0, 10, 10, hwnd /*owner*/, nullptr,
             GetModuleHandleW(nullptr), nullptr);
         if (pdata->captionBar) {
-            SetLayeredWindowAttributes(pdata->captionBar, kCapKey, 0, LWA_COLORKEY);
             SetWindowLongPtrW(pdata->captionBar, GWLP_USERDATA,
                               reinterpret_cast<LONG_PTR>(pdata));
             PositionCaptionBar(pdata);
