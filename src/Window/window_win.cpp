@@ -191,10 +191,14 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
     FillRect(hdc, &rc, bg);
     DeleteObject(bg);
 
-    const UINT dpi = GetDpiForWindow(hwnd);
+    // DPI: usa el de la ventana principal (el popup puede devolver 0 antes de
+    // asociarse a un monitor → icon=0 → glifos invisibles).
+    UINT dpi = pd->hwnd ? GetDpiForWindow(pd->hwnd) : 96;
+    if (dpi < 96) dpi = 96;
     const bool maximized = IsZoomed(pd->hwnd);
     const int bw = w / 3;
-    const int icon = MulDiv(12, static_cast<int>(dpi), 96);
+    int icon = MulDiv(12, static_cast<int>(dpi), 96);
+    if (icon < 8) icon = 12;
     int penW = MulDiv(1, static_cast<int>(dpi), 96);
     if (penW < 1) penW = 1;
     {
