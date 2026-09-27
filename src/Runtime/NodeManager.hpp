@@ -54,6 +54,9 @@ public:
     /// Env: OW_CONTROL_SOCKET, PATH con node al frente. Devuelve pid o -1.
     static long Spawn(const std::filesystem::path& nodeBin, const std::string& entryJs);
 
+    /// Termina el sidecar Node (idempotente). Se llama al salir del kernel.
+    static void ShutdownSidecar();
+
     /// Directorio cache (XDG).
     static std::filesystem::path CacheRoot();
 

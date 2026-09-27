@@ -100,6 +100,8 @@ int App::Main(int argc, char** argv, const AppOptions& options) {
     if (!internal::Bootstrap(argc, argv, options)) return 1;
     if (g_onReady) g_onReady();
     int code = internal::RunMainLoop();
+    // El sidecar Node debe morir con el kernel (no dejarlo huérfano).
+    NodeManager::ShutdownSidecar();
     ModuleLoader::Shutdown();
     ControlServer::Get().Stop();
     return code;

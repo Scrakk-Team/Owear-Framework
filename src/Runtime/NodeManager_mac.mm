@@ -6,11 +6,17 @@
 #include "NodeManager.hpp"
 #include "../Control/ControlServer.hpp"
 
+#include <signal.h>
 #include <unistd.h>
 
 #include <cstdlib>
 
 namespace ow {
+
+namespace {
+/// PID del sidecar Node (para terminarlo al salir del kernel).
+long g_sidecarPid = -1;
+} // namespace
 
 long NodeManager::Spawn(const std::filesystem::path& nodeBin,
                         const std::string& entryJs) {
@@ -29,7 +35,20 @@ long NodeManager::Spawn(const std::filesystem::path& nodeBin,
         execl(bin.c_str(), bin.c_str(), entryJs.c_str(), static_cast<char*>(nullptr));
         _exit(127);
     }
+    g_sidecarPid = static_cast<long>(pid);
     return static_cast<long>(pid);
+}
+
+void NodeManager::ShutdownSidecar() {
+    if (g_sidecarPid <= 0) return;
+    const long pid = g_sidecarPid;
+    g_sidecarPid = -1;
+    if (::kill(pid, SIGTERM) != 0) return;
+    for (int i = 0; i < 20; ++i) {
+        if (::kill(pid, 0) != 0) return;
+        usleep(10 * 1000);
+    }
+    ::kill(pid, SIGKILL);
 }
 
 } // namespace ow

@@ -7,12 +7,19 @@
 #include "../Control/ControlServer.hpp"
 
 #include <fcntl.h>
+#include <signal.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 #include <cstdlib>
 #include <cstring>
 
 namespace ow {
+
+namespace {
+/// PID del sidecar Node (para terminarlo al salir del kernel).
+long g_sidecarPid = -1;
+} // namespace
 
 long NodeManager::Spawn(const std::filesystem::path& nodeBin,
                         const std::string& entryJs) {
@@ -34,6 +41,8 @@ long NodeManager::Spawn(const std::filesystem::path& nodeBin,
     if (pid < 0) return -1;
     if (pid == 0) {
         // hijo
+        // Si el kernel muere (incluso con SIGKILL), el sidecar se va con él.
+        prctl(PR_SET_PDEATHSIG, SIGTERM);
         setenv("OW_CONTROL_SOCKET", ControlServer::Get().SocketPath().c_str(), 1);
         setenv("PATH", newPath.c_str(), 1);
         setenv("NODE_ENV", std::getenv("NODE_ENV") ? std::getenv("NODE_ENV") : "development",
@@ -42,7 +51,21 @@ long NodeManager::Spawn(const std::filesystem::path& nodeBin,
               static_cast<char*>(nullptr));
         _exit(127); // exec falló
     }
+    g_sidecarPid = static_cast<long>(pid);
     return static_cast<long>(pid);
+}
+
+void NodeManager::ShutdownSidecar() {
+    if (g_sidecarPid <= 0) return;
+    const long pid = g_sidecarPid;
+    g_sidecarPid = -1;
+    if (::kill(pid, SIGTERM) != 0) return;
+    // Margen breve para una salida limpia; luego SIGKILL.
+    for (int i = 0; i < 20; ++i) {
+        if (::kill(pid, 0) != 0) return; // ya no existe
+        usleep(10 * 1000);
+    }
+    ::kill(pid, SIGKILL);
 }
 
 } // namespace ow
