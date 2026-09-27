@@ -1,43 +1,40 @@
 <!-- Copyright 2026 Owear Contributors
      SPDX-License-Identifier: Apache-2.0 -->
 
-# Tray en Linux y el caso GNOME
+# Tray en Linux y escritorios modernos (GNOME)
 
-Owear implementa el icono de bandeja en Linux con **`GtkStatusIcon` (GTK3)**, sin
-dependencias extra. Es el mecanismo **legacy** de bandeja, y su visibilidad
-depende del escritorio:
+Owear implementa el icono de bandeja en Linux con **dos backends**, elegidos en
+runtime:
 
-| Escritorio | `GtkStatusIcon` (X11) | Notas |
+1. **AppIndicator (StatusNotifierItem)** — se carga con **`dlopen`** de
+   `libayatana-appindicator3.so.1` (o `libappindicator3.so.1`). **No requiere
+   headers de dev** para compilar. Es el estándar moderno y **funciona en
+   GNOME/Zorin (con la extensión appindicator), KDE y otros**.
+2. **`GtkStatusIcon`** (fallback) — bandeja X11 clásica (XEmbed): XFCE, MATE,
+   Cinnamon, LXQt… si no está la lib de AppIndicator.
+
+> No hace falta instalar nada para compilar. Si la librería existe en runtime
+> (suele estar en Zorin/Ubuntu/KDE), se usa AppIndicator; si no, GtkStatusIcon.
+
+## Matriz de escritorios
+
+| Escritorio | Backend usado | ¿Se ve? |
 |---|---|---|
-| XFCE, KDE (X11), MATE, Cinnamon, LXQt | ✅ se ve | Hay "system tray" clásico |
-| GNOME (X11) | ⚠️ normalmente **no** | GNOME quitó la bandeja clásica |
-| GNOME (Wayland) | ❌ no | Igual que arriba |
-| Sway/Hyprland (Wayland) | ❌ | Sin bandeja XEmbed |
+| **Zorin / GNOME** (con extensión appindicator) | AppIndicator | ✅ (con la extensión, que Zorin trae) |
+| GNOME **sin** extensión appindicator | AppIndicator (registra, pero el host no lo muestra) | ❌ → activa la extensión |
+| KDE Plasma | AppIndicator | ✅ |
+| XFCE / MATE / Cinnamon / LXQt | GtkStatusIcon (o AppIndicator) | ✅ |
+| Wayland puro (Sway/Hyprland) | AppIndicator | ✅ con un host SNI (p.ej. `waybar`) |
 
-## ¿Por qué no AppIndicator por defecto?
-El estándar moderno en GNOME es **`libayatana-appindicator` (StatusNotifierItem)**,
-pero:
-1. Requiere `libayatana-appindicator3-dev` instalado (no viene por defecto).
-2. En GNOME necesita además la **extensión "AppIndicator and KStatusNotifierItem
-   Support"** (no viene de serie; en Ubuntu sí).
+## Comprobar qué se está usando
+- Si la lib está: `ldconfig -p | grep -i appindicator`.
+- La extensión en GNOME: `gnome-extensions list | grep -i appindicator`.
 
-Por eso Owear usa `GtkStatusIcon` (compila siempre, funciona en la mayoría de
-escritorios) y deja AppIndicator como mejora opcional futura.
-
-## Qué hacer según el escritorio
-- **XFCE/KDE/MATE/Cinnamon**: funciona tal cual.
-- **GNOME**: 
-  - Ubuntu: instala la extensión *AppIndicator* (suele venir) y, si acaso,
-    `sudo apt install gnome-shell-extension-appindicator`.
-  - O usa **X11** + la extensión *Tray Icons: Reloaded*.
-- **Wayland puro (Sway/Hyprland)**: no hay soporte de bandeja; documenta en tu
-  app que el icono puede no aparecer.
-
-## Comportamiento en Owear
-- Se soportan **click** (izquierdo), **right-click** (muestra el menú contextual)
-  y el **menú contextual** (`setContextMenu`/`popupContextMenu`).
-- **Doble-click** no es fiable con `GtkStatusIcon` (se emite solo donde el SO lo
-  da); en Windows sí.
-- `setTitle` es noop en Linux (GtkStatusIcon no tiene texto lateral).
-- Si no hay bandeja, `GtkStatusIcon` puede emitir algún `Gtk-CRITICAL` interno
-  (no es un fallo de la app; en un escritorio con bandeja no ocurre).
+## Limitaciones (documentadas)
+- Con **AppIndicator**, el icono **abre el menú** al hacer click; los eventos
+  `click`/`right-click`/`double-click` **no** se emiten (limitación del estándar).
+  Con **GtkStatusIcon** sí se emiten (`click`/`right-click`); el doble-click no es
+  fiable.
+- `setTitle` con AppIndicator usa una **etiqueta** junto al icono (según host);
+  `setToolTip` se mapea al título del indicador.
+- Si no hay bandeja/host, no hay nada que mostrar (no es un fallo de la app).

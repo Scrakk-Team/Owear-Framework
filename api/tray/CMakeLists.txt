@@ -9,5 +9,5 @@ elseif(OW_PLATFORM STREQUAL "win")
 endif()
 ow_add_module(tray
     SOURCES src/tray_${OW_PLATFORM}.${OW_SRC_EXT}
-    LIBS ${TRAY_LIBS_STR} ${OW_GUI_LIBS}
+    LIBS ${TRAY_LIBS_STR} ${OW_GUI_LIBS} ${CMAKE_DL_LIBS}
     INCLUDES ${OW_GUI_INCS})
