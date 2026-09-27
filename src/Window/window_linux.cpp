@@ -15,6 +15,7 @@
 //    eventos X para el filtro GDK).
 //
 #include "Window_p.hpp"
+#include "../Core/App.hpp"
 #include "../Core/Log.hpp"
 #include "../Protocol/ProtocolRegistry.hpp"
 #include "ow/detail/minjson.hpp"
@@ -768,7 +769,9 @@ bool Window::Impl::PCreate() {
 
     // Con overlay, el webview es el child principal del GtkOverlay.
     GtkWidget* contentParent = pdata->overlay ? pdata->overlay : win;
-    if (!webview->Create(contentParent, WebviewArgsWithSession(opts.webviewArgs, opts.session)))
+    std::vector<std::string> wargs = opts.webviewArgs;
+    for (const auto& a : internal::CommandArgs()) wargs.push_back(a);
+    if (!webview->Create(contentParent, WebviewArgsWithSession(wargs, opts.session)))
         return false;
     pdata->webviewReady = true;
 

@@ -12,6 +12,7 @@
 //
 #include "Window_p.hpp"
 #include "../Core/Log.hpp"
+#include "../Core/App.hpp"
 #include "ow/detail/minjson.hpp"
 #include "../Protocol/ProtocolRegistry.hpp"
 
@@ -568,7 +569,9 @@ bool Window::Impl::PCreate() {
     }
 
     log::Info("window", "PCreate: webview->Create");
-    if (!webview->Create(hwnd, WebviewArgsWithSession(opts.webviewArgs, opts.session))) {
+    std::vector<std::string> wargs = opts.webviewArgs;
+    for (const auto& a : internal::CommandArgs()) wargs.push_back(a);
+    if (!webview->Create(hwnd, WebviewArgsWithSession(wargs, opts.session))) {
         log::Error("window", "backend webview rechazó la creación");
         return false;
     }

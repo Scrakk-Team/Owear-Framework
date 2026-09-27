@@ -12,6 +12,7 @@
 #include "../IWebviewBackend.hpp"
 #include "../../Bridge/Dispatcher.hpp"
 #include "../../Bridge/Shm.hpp"
+#include "../../Control/ControlServer.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
 #include "../../Session/WebRequestBroker.hpp"
@@ -220,6 +221,15 @@ public:
 
         // webRequest: intercepta navegaciones (decide-policy).
         g_signal_connect(view_, "decide-policy", G_CALLBACK(OnDecidePolicy), nullptr);
+
+        // app.on('child-process-gone') si el WebProcess muere.
+        g_signal_connect(view_, "web-process-crashed",
+                         G_CALLBACK(+[](WebKitWebView*, gpointer) {
+                             ow::ControlServer::Get().BroadcastEvent(
+                                 "app.event",
+                                 R"({"name":"child-process-gone","payload":{"reason":"crashed"}})");
+                         }),
+                         nullptr);
 
         gtk_container_add(GTK_CONTAINER(parent), view_);
         gtk_widget_show(view_);

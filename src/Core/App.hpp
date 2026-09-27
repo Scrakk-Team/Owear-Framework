@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace ow::internal {
 
@@ -30,6 +31,17 @@ void PlatformDelay(int ms, std::function<void()> fn);
 bool Bootstrap(int argc, char** argv, const AppOptions& options);
 
 void RequestQuit(int exitCode);
+
+/// Directorio del ejecutable del kernel (app.getPath('exe') en el SDK).
+std::string ExecutableDir();
+
+/// Nombre de la app (OW_APP_NAME o app.setName).
+std::string AppName();
+void SetAppName(const std::string& name);
+
+/// Argumentos de línea de comandos acumulados (app.commandLine.*).
+void AppendCommandArg(const std::string& arg);
+const std::vector<std::string>& CommandArgs();
 
 /// Descriptor del módulo interno ow-window (titlebar custom, drags, etc).
 const ow_module_desc_t* WindowModuleDescriptor();

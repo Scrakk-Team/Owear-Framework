@@ -122,6 +122,18 @@ muere con el kernel.
   desaparece.
 - **`docs/extra/probar-en-starter.md`** — guía viva (WIP) de cómo probar cada
   sistema en el starter (Linux + Windows), que se irá rellenando.
+- **Bloque C — shell de app** (empezado por C1):
+  - **`app` completo** — `getPath`/`setPath` (home, appData, userData, temp,
+    cache, logs, downloads, documents, desktop, pictures, music, videos, exe,
+    appPath), `getName`/`setName`, `getVersion` (de `package.json`),
+    `isPackaged`, `getAppPath`, **`commandLine`** (`appendSwitch`/`appendArgument`/
+    `getSwitchValue`/`hasSwitch`, aplicado al crear el WebView: Windows
+    `AdditionalBrowserArguments`; Linux best-effort) y **eventos**
+    (`window-all-closed`, `before-quit`, `will-quit`, `second-instance`,
+    `child-process-gone`). Kernel: `app.info` extendido (`name/appPath/exePath/
+    packaged`), `app.setName`, `app.commandLine.*`. SDK: `app` es EventEmitter.
+    Verificado en Linux (rutas, identidad, `commandLine` y los 3 eventos);
+    Windows compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

@@ -18,6 +18,9 @@
 #include "ow/Window.h"
 #include "ow/detail/minjson.hpp"
 
+#include <cstdlib>
+#include <filesystem>
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -141,6 +144,9 @@ void ControlServer::WireWindowEvents(WindowId id, Window* w) {
         params.emplace_back("name", json::Value("closed"));
         params.emplace_back("payload", json::Value(nullptr));
         BroadcastEvent("window.event", json::Value(std::move(params)).Serialize());
+        // app.on('window-all-closed') cuando se cierra la última ventana.
+        if (LiveWindows().empty())
+            BroadcastEvent("app.event", R"({"name":"window-all-closed","payload":null})");
         // destruye el objeto C++ fuera del signal handler de GTK
         App::Post([dead] { delete dead; });
     });
@@ -198,7 +204,51 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         o.emplace_back("pid", V(CurrentPid()));
         o.emplace_back("version", V(OW_VERSION_STRING));
         o.emplace_back("socket", V(socketPath_));
+        o.emplace_back("name", V(internal::AppName()));
+
+        const char* mainEnv = std::getenv("OW_APP_MAIN");
+        const char* assetsEnv = std::getenv("OW_ASSETS_DIR");
+        std::string appPath;
+        if (mainEnv && *mainEnv)
+            appPath = std::filesystem::path(mainEnv).parent_path().string();
+        else if (assetsEnv && *assetsEnv)
+            appPath = assetsEnv;
+        else {
+            std::error_code ec;
+            appPath = std::filesystem::current_path(ec).string();
+        }
+        o.emplace_back("appPath", V(appPath));
+        o.emplace_back("exePath", V(internal::ExecutableDir()));
+        const char* packagedEnv = std::getenv("OW_PACKAGED");
+        const bool packaged =
+            (packagedEnv && std::string(packagedEnv) == "1") ||
+            ((!mainEnv || !*mainEnv) && assetsEnv && *assetsEnv);
+        o.emplace_back("packaged", V(packaged));
         resultJson = V(std::move(o)).Serialize();
+        return true;
+    }
+    if (cmd == "app.setName") {
+        const V* n = params.Find("name");
+        if (!n || !n->IsString()) { error = "name requerido"; return false; }
+        internal::SetAppName(n->AsString());
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "app.commandLine.appendSwitch") {
+        const V* k = params.Find("key");
+        if (!k || !k->IsString()) { error = "key requerido"; return false; }
+        std::string arg = "--" + k->AsString();
+        if (const V* v = params.Find("value"); v && v->IsString() && !v->AsString().empty())
+            arg += "=" + v->AsString();
+        internal::AppendCommandArg(arg);
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "app.commandLine.appendArgument") {
+        const V* a = params.Find("arg");
+        if (!a || !a->IsString()) { error = "arg requerido"; return false; }
+        internal::AppendCommandArg(a->AsString());
+        resultJson = "null";
         return true;
     }
 

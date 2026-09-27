@@ -211,6 +211,38 @@ DISPLAY=:99 OW_APP_MAIN=... OW_MODULES_DIR="$(ls -d build/linux-release/api/*/ |
 
 ---
 
+## 5. Bloque C — shell de app
+
+### 5.1 C1 — `app` (rutas, identidad, commandLine, eventos)
+
+| | Estado |
+|---|---|
+| Linux | ✅ **verificado** (rutas, `setPath`, `getName/getVersion/isPackaged/getAppPath`, `commandLine`, `window-all-closed`/`before-quit`/`will-quit`) |
+| Windows | 🟡 compila + script de prueba abajo |
+
+```ts
+// app/main.ts
+app.on('window-all-closed', () => console.log('window-all-closed'))
+app.on('before-quit', () => console.log('before-quit'))
+app.on('will-quit', () => console.log('will-quit'))
+
+app.whenReady().then(() => {
+  for (const n of ['home', 'userData', 'temp', 'logs', 'downloads', 'exe', 'appPath'])
+    console.log('path', n, '=', app.getPath(n))
+  console.log('name', app.getName(), 'version', app.getVersion(), 'packaged', app.isPackaged())
+  app.commandLine.appendSwitch('use-gl', 'angle')
+  console.log('switch use-gl =', app.commandLine.getSwitchValue('use-gl'))
+})
+```
+
+**En Windows** (tras el pull del kernel), ejecuta el starter/dev de tu app y busca
+en la consola `path …`, `name …` y los eventos al cerrar/`app.quit()`. En Windows
+`userData` debe ser `%LOCALAPPDATA%\<OW_APP_ID>` y `exe` la carpeta de `owear.exe`.
+
+- **En el starter:** panel "App" con las rutas + contador de eventos. ⏳
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

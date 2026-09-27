@@ -340,11 +340,97 @@ nodeHandlers.set('__ow_port_post', (msg: { id: number; data: unknown }) => {
   return null
 })
 
+// ── app: rutas, identidad, commandLine y eventos de ciclo de vida ──────────
+const appEmitter = new EventEmitter()
+let appNameOverride: string | null = null
+let appInfoCache:
+  | { name: string; version: string; appPath: string; exePath: string; packaged: boolean }
+  | null = null
+const pathOverrides = new Map<string, string>()
+
+channel.on('app.event', (params: any) => {
+  appEmitter.emit(params?.name, params?.payload)
+})
+
+function readPackageJson(): { name?: string; version?: string } {
+  const dirs = [
+    process.cwd(),
+    process.env.OW_APP_MAIN ? path.dirname(process.env.OW_APP_MAIN) : '',
+    process.env.OW_ASSETS_DIR ?? '',
+  ]
+  for (const dir of dirs) {
+    if (!dir) continue
+    try {
+      return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    } catch {
+      /* siguiente */
+    }
+  }
+  return {}
+}
+const appPkg = readPackageJson()
+
+function appId(): string {
+  return process.env.OW_APP_ID || process.env.OW_APP_NAME || appPkg.name || 'app'
+}
+
+/** Rutas síncronas estilo Electron (mismas convenciones que el módulo `path`). */
+function computePath(name: string): string {
+  const home = os.homedir()
+  const win = process.platform === 'win32'
+  const appData = win
+    ? process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming')
+    : process.env.XDG_DATA_HOME ?? path.join(home, '.local', 'share')
+  const localData = win
+    ? process.env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local')
+    : process.env.XDG_DATA_HOME ?? path.join(home, '.local', 'share')
+  switch (name) {
+    case 'home':
+      return home
+    case 'appData':
+      return appData
+    case 'userData':
+      return win ? path.join(localData, appId()) : path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), appId())
+    case 'sessionData':
+      return appInfoCache?.appPath ? path.join(appInfoCache.appPath, 'session') : path.join(localData, appId(), 'session')
+    case 'cache':
+      return win ? path.join(localData, 'owear', 'cache') : process.env.XDG_CACHE_HOME ?? path.join(home, '.cache')
+    case 'temp':
+      return os.tmpdir()
+    case 'logs':
+      return path.join(computePath('userData'), 'logs')
+    case 'downloads':
+      return win ? path.join(home, 'Downloads') : (process.env.XDG_DOWNLOAD_DIR ?? path.join(home, 'Downloads'))
+    case 'documents':
+      return path.join(home, 'Documents')
+    case 'desktop':
+      return path.join(home, 'Desktop')
+    case 'pictures':
+      return path.join(home, 'Pictures')
+    case 'music':
+      return path.join(home, 'Music')
+    case 'videos':
+      return path.join(home, 'Videos')
+    case 'exe':
+      return appInfoCache?.exePath ?? path.dirname(process.execPath)
+    case 'appPath':
+      return appInfoCache?.appPath ?? process.cwd()
+    default:
+      return ''
+  }
+}
+
 export const app = {
   /** Conecta con el kernel. Resuelve cuando el canal de control está listo. */
   whenReady(): Promise<void> {
     if (!readyPromise) {
-      readyPromise = channel.connect(socketPathFromEnv()).then(() => undefined)
+      readyPromise = channel.connect(socketPathFromEnv()).then(async () => {
+        try {
+          appInfoCache = await channel.call('app.info')
+        } catch {
+          /* sin kernel: rutas locales */
+        }
+      })
     }
     return readyPromise
   },
@@ -355,6 +441,64 @@ export const app = {
 
   info(): Promise<{ pid: number; version: string; socket: string }> {
     return channel.call('app.info')
+  },
+
+  // ── rutas / identidad (estilo Electron) ────────────────────────────────
+  /** Ruta estándar del sistema (home, userData, temp, logs, downloads, exe…). */
+  getPath(name: string): string {
+    return pathOverrides.get(name) ?? computePath(name)
+  },
+  setPath(name: string, value: string): void {
+    pathOverrides.set(name, value)
+  },
+  getName(): string {
+    return appNameOverride ?? appInfoCache?.name ?? process.env.OW_APP_NAME ?? appPkg.name ?? 'Owear App'
+  },
+  setName(name: string): void {
+    appNameOverride = name
+    void channel.call('app.setName', { name }).catch(() => undefined)
+  },
+  /** Versión de la app (package.json); si no, la del kernel. */
+  getVersion(): string {
+    return appPkg.version ?? appInfoCache?.version ?? '0.0.0'
+  },
+  isPackaged(): boolean {
+    return !!appInfoCache?.packaged
+  },
+  getAppPath(): string {
+    return appInfoCache?.appPath ?? process.cwd()
+  },
+
+  /**
+   * Opciones de línea de comandos del WebView. `appendSwitch` se aplica al
+   * crear la ventana (Windows: AdditionalBrowserArguments; Linux: best-effort).
+   */
+  commandLine: {
+    _switches: new Map<string, string | undefined>(),
+    appendSwitch(key: string, value?: string): void {
+      this._switches.set(key, value)
+      void channel.call('app.commandLine.appendSwitch', { key, value }).catch(() => undefined)
+    },
+    appendArgument(arg: string): void {
+      void channel.call('app.commandLine.appendArgument', { arg }).catch(() => undefined)
+    },
+    getSwitchValue(key: string): string {
+      return this._switches.get(key) ?? ''
+    },
+    hasSwitch(key: string): boolean {
+      return this._switches.has(key)
+    },
+  },
+
+  // ── eventos de ciclo de vida (EventEmitter) ────────────────────────────
+  on(event: 'before-quit' | 'will-quit' | 'window-all-closed' | 'second-instance' | 'activate' | 'child-process-gone' | string, listener: (...args: any[]) => void): void {
+    appEmitter.on(event, listener)
+  },
+  off(event: string, listener: (...args: any[]) => void): void {
+    appEmitter.off(event, listener)
+  },
+  once(event: string, listener: (...args: any[]) => void): void {
+    appEmitter.once(event, listener)
   },
 
   /**

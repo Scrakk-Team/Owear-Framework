@@ -14,6 +14,7 @@
 //
 #include "../IWebviewBackend.hpp"
 #include "../../Core/Log.hpp"
+#include "../../Control/ControlServer.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
 #include "../../Session/WebRequestBroker.hpp"
@@ -327,6 +328,9 @@ public:
                     if (a) a->get_ProcessFailedKind(&k);
                     log::Error("webview2", "process failed kind=" +
                         std::to_string(static_cast<int>(k)));
+                    std::string payload = "{\"name\":\"child-process-gone\",\"payload\":{\"kind\":" +
+                                          std::to_string(static_cast<int>(k)) + "}}";
+                    ow::ControlServer::Get().BroadcastEvent("app.event", payload);
                     return S_OK;
                 }).Get(), nullptr);
     }
