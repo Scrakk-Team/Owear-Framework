@@ -72,11 +72,8 @@ function stockModulesPath() {
     const m = path.join(path.dirname(kb), 'modules')
     if (fs.existsSync(m)) return m
   }
-  const rt = runtimePackageDir()
-  if (rt) {
-    const m = path.join(rt, 'bin', 'modules')
-    if (fs.existsSync(m)) return m
-  }
+  // Dev en el monorepo: preferir el BUILD LOCAL (mismo build que el kernel)
+  // ANTES del runtime package, que puede ser un artefacto prebuilt antiguo.
   const api = path.resolve(__dirname, '../../../build', platformPreset(), 'api')
   if (fs.existsSync(api)) {
     const dirs = fs
@@ -84,6 +81,11 @@ function stockModulesPath() {
       .filter((d) => d.isDirectory() && d.name !== 'CMakeFiles')
       .map((d) => path.join(api, d.name))
     if (dirs.length) return dirs.join(path.delimiter)
+  }
+  const rt = runtimePackageDir()
+  if (rt) {
+    const m = path.join(rt, 'bin', 'modules')
+    if (fs.existsSync(m)) return m
   }
   return ''
 }
