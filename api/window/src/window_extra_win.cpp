@@ -91,6 +91,12 @@ void capturePage(const ow_request_t* req, ow_response_t* res) {
     uint32_t id = WinId(args);
     NEED_WIN(id)
 
+    bool wantB64 = false;
+    if (args.IsArray() && args.AsArray().size() > 1 && args.AsArray()[1].IsObject()) {
+        if (const Value* b = args.AsArray()[1].Find("base64"); b && b->IsBool())
+            wantB64 = b->AsBool();
+    }
+
     // stream en memoria para recibir el PNG
     IStream* stream = nullptr;
     if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &stream)) || !stream)
@@ -146,6 +152,13 @@ void capturePage(const ow_request_t* req, ow_response_t* res) {
     stream->Read(ctx.png.data(), static_cast<ULONG>(ctx.png.size()), &read);
     ctx.png.resize(read);
     stream->Release();
+
+    if (wantB64) {
+        Object o;
+        o.emplace_back("data", Value(ow::b64::Encode(ctx.png)));
+        o.emplace_back("format", Value("png"));
+        return RespondOk(res, Value(std::move(o)).Serialize().c_str());
+    }
 
     const char* sid = ow_shm_put(ctx.png.data(), ctx.png.size());
     if (!sid || !*sid) return RespondError(res, "SHM llena");

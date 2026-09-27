@@ -11,6 +11,7 @@
 #include "../Protocol/ProtocolRegistry.hpp"
 #include "../Session/PermissionBroker.hpp"
 #include "../Session/WebRequestBroker.hpp"
+#include "../Session/WindowOpenBroker.hpp"
 #include "../Window/Window_p.hpp"
 #include "../Core/Log.hpp"
 #include "../Runtime/NodeManager.hpp"
@@ -131,6 +132,7 @@ void ControlServer::WireWindowEvents(WindowId id, Window* w) {
     w->On("didFinishLoad", forward("didFinishLoad"));
     w->On("didFailLoad", forward("didFailLoad"));
     w->On("pageTitleUpdated", forward("pageTitleUpdated"));
+    w->On("beforeInput", forward("beforeInput"));
     // F3.4: closeRequested se reenvía al SDK con requestId; el kernel
     // decide con window.respondCloseRequest o el timeout
     // OW_CLOSE_TIMEOUT_MS (default 1000 ms).
@@ -548,6 +550,24 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         const V* allow = params.Find("allow");
         PermissionBroker::Get().Resolve(static_cast<uint64_t>(rid->AsInt()),
                                         allow && allow->IsBool() ? allow->AsBool() : false);
+        resultJson = "null";
+        return true;
+    }
+
+    // ── webContents: ventanas emergentes (window.open) ───────────────────
+    if (cmd == "webContents.setWindowOpenHandler") {
+        const V* on = params.Find("enabled");
+        WindowOpenBroker::Get().SetEnabled(
+            on ? (on->IsBool() ? on->AsBool() : true) : true);
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "webContents.respondWindowOpen") {
+        const V* rid = params.Find("id");
+        if (!rid || !rid->IsNumber()) { error = "id requerido"; return false; }
+        const V* act = params.Find("action");
+        const bool allow = !(act && act->IsString() && act->AsString() == "deny");
+        WindowOpenBroker::Get().Resolve(static_cast<uint64_t>(rid->AsInt()), allow);
         resultJson = "null";
         return true;
     }

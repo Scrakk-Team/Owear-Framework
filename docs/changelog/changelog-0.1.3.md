@@ -143,6 +143,17 @@ muere con el kernel.
     GtkMessageDialog (con checkbox); Windows: `IFileOpenDialog`/`IFileSaveDialog`
     + `TaskDialogIndirect`. SDK: `ow.dialog`. Registrado en Linux (5 funciones);
     Windows compila. (`open`/`messageBox` se mantienen.)
+  - **`webContents` (C3)** — `win.webContents` es un objeto estilo Electron:
+    `send`, `capturePage()` (PNG → `{toPNG(), toDataURL()}`; el kernel devuelve
+    base64 con `{base64:true}`), `loadURL`, `reload`, `openDevTools`, `getURL`,
+    `getTitle`, `executeJavaScript`, y **`setWindowOpenHandler`** (allow/deny de
+    `window.open`). **Eventos** con nombres Electron: `did-finish-load`,
+    `did-fail-load`, `did-start-navigation`, `did-navigate`, `page-title-updated`,
+    **`before-input-event`** (teclado: WebKitGTK `key-press/release-event`;
+    WebView2 `AcceleratorKeyPressed`). Kernel: event sink en el backend + broker
+    de ventanas emergentes (`WindowOpenBroker`) + `capturePage` `{base64}`.
+    Verificado en Linux (`did-finish-load`, `capturePage`, `getURL`); Windows
+    compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

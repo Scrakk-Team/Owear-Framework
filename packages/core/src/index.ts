@@ -928,11 +928,125 @@ export function nativeModuleInfo(name: string): Promise<NativeModuleInfo> {
   return channel.call('module.info', { name })
 }
 
+// ── webContents (C3) ────────────────────────────────────────────────────────
+
+export interface NativeImage {
+  toPNG(): Buffer
+  toDataURL(): string
+}
+
+export interface WindowOpenDetails {
+  url: string
+}
+export type WindowOpenHandler = (
+  details: WindowOpenDetails
+) =>
+  | { action: 'allow' | 'deny'; overrideBrowserWindowOptions?: Record<string, unknown> }
+  | void
+
+/** Eventos de ventana → nombres estilo Electron de webContents. */
+const WC_EVENT_NAMES: Record<string, string> = {
+  didFinishLoad: 'did-finish-load',
+  didFailLoad: 'did-fail-load',
+  navigationStarted: 'did-start-navigation',
+  loadCommitted: 'did-navigate',
+  pageTitleUpdated: 'page-title-updated',
+  beforeInput: 'before-input-event',
+}
+
+let windowOpenHandler: WindowOpenHandler | null = null
+
+channel.on('webContents.windowOpen', (params: any) => {
+  const { id, url } = params ?? {}
+  let action: 'allow' | 'deny' = 'allow'
+  try {
+    const r = windowOpenHandler?.({ url })
+    if (r && r.action === 'deny') action = 'deny'
+  } catch {
+    /* handler lanzó → allow */
+  }
+  void channel.call('webContents.respondWindowOpen', { id, action })
+})
+
+/**
+ * Vista del contenido web de una ventana (estilo Electron).
+ * Eventos: `did-finish-load`, `did-fail-load`, `did-start-navigation`,
+ * `did-navigate`, `page-title-updated`, `before-input-event`.
+ * `setWindowOpenHandler` controla `window.open`/`target=_blank`.
+ */
+export class WebContents extends EventEmitter {
+  private _windowId: number | null
+
+  constructor(windowId: number | null = null) {
+    super()
+    this._windowId = windowId
+  }
+
+  _setWindowId(id: number): void {
+    this._windowId = id
+  }
+
+  get id(): number {
+    return this._windowId ?? -1
+  }
+
+  /** Envía un evento SOLO a esta ventana (renderer: `ow.on(name, cb)`). */
+  send(name: string, payload?: unknown): Promise<void> {
+    if (this._windowId == null)
+      return Promise.reject(new Error('ventana aún no creada'))
+    return channel.call('node.emit', { name, payload, windowId: this._windowId })
+  }
+
+  loadURL(url: string): Promise<void> {
+    return channel.call('window.loadURL', { windowId: this.id, url })
+  }
+  reload(): Promise<void> {
+    return invokeNative('window', 'reload', this.id)
+  }
+  openDevTools(): Promise<void> {
+    return invokeNative('window', 'openDevTools', this.id)
+  }
+  getURL(): Promise<string> {
+    return invokeNative<string>('window', 'getURL', this.id)
+  }
+  getTitle(): Promise<string> {
+    return invokeNative<string>('window', 'getTitle', this.id)
+  }
+  executeJavaScript<T = unknown>(js: string): Promise<T> {
+    return channel.call<T>('window.eval', { windowId: this.id, js })
+  }
+
+  /** Captura la página (PNG) y la devuelve como objeto con `toPNG()`/`toDataURL()`. */
+  async capturePage(): Promise<NativeImage> {
+    const r = await channel.call<{ data: string; format: string }>('module.invoke', {
+      module: 'window',
+      method: 'capturePage',
+      args: [this.id, { base64: true }],
+    })
+    return {
+      toPNG: () => Buffer.from(r.data, 'base64'),
+      toDataURL: () => `data:image/png;base64,${r.data}`,
+    }
+  }
+
+  /**
+   * Controla `window.open`/`target=_blank`. Devuelve `{action:'deny'}` para
+   * bloquear o `{action:'allow'}` para permitir (por defecto).
+   */
+  setWindowOpenHandler(handler: WindowOpenHandler | null): void {
+    windowOpenHandler = handler ?? null
+    void channel
+      .call('webContents.setWindowOpenHandler', { windowId: this.id, enabled: !!handler })
+      .catch(() => undefined)
+  }
+}
+
 // ── BrowserWindow ───────────────────────────────────────────────────────────
 
 export class BrowserWindow extends EventEmitter {
   private _id: number | null = null
   private _options: WindowOptions
+  private _wc = new WebContents(null)
   private _onWindowEvent: (params: any) => void
   private _onDisconnected: () => void
 
@@ -945,6 +1059,7 @@ export class BrowserWindow extends EventEmitter {
     this._onWindowEvent = (params: any) => {
       if (params.windowId !== this._id) return
       this.emit(params.name, params.payload)
+      this._wc.emit(WC_EVENT_NAMES[params.name] ?? params.name, params.payload)
       if (params.name === 'closed') this._unwireEvents()
     }
     this._onDisconnected = () => this.emit('disconnected')
@@ -955,6 +1070,7 @@ export class BrowserWindow extends EventEmitter {
     const params: Record<string, unknown> = { ...this._options }
     const res = await channel.call<{ windowId: number }>('window.create', params)
     this._id = res.windowId
+    this._wc._setWindowId(res.windowId)
     this._wireEvents()
     this.emit('ready-to-show', this._id)
   }
@@ -1063,21 +1179,12 @@ export class BrowserWindow extends EventEmitter {
   }
 
   /**
-   * Vista de `webContents` de esta ventana (paridad Electron): envío dirigido
-   * main → renderer SOLO a esta ventana. El renderer lo recibe con
-   * `ow.on(name, cb)`.
+   * `webContents` de esta ventana (estilo Electron): `send`, `capturePage`,
+   * eventos (`did-finish-load`, `before-input-event`, …) y
+   * `setWindowOpenHandler`.
    */
-  get webContents(): WebContentsHandle {
-    const id = this._id
-    return {
-      get id() {
-        return id ?? -1
-      },
-      send: (name: string, payload?: unknown) =>
-        id == null
-          ? Promise.reject(new Error('ventana aún no creada'))
-          : channel.call('node.emit', { name, payload, windowId: id }),
-    }
+  get webContents(): WebContents {
+    return this._wc
   }
 }
 

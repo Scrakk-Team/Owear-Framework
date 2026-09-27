@@ -773,6 +773,9 @@ bool Window::Impl::PCreate() {
     for (const auto& a : internal::CommandArgs()) wargs.push_back(a);
     if (!webview->Create(contentParent, WebviewArgsWithSession(wargs, opts.session)))
         return false;
+    webview->SetEventSink([this](const std::string& name, std::string_view json) {
+        Window::Impl::EmitPlatformEvent(this, name, json);
+    });
     pdata->webviewReady = true;
 
     // ── eventos de navegación (siempre activos) ────────────────────────

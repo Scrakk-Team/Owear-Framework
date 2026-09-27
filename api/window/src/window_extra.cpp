@@ -84,6 +84,13 @@ void capturePage(const ow_request_t* req, ow_response_t* res) {
     uint32_t id = WinId(args);
     NEED_WIN(id)
 
+    // {base64:true} → devuelve los bytes en base64 (para el main), si no SHM.
+    bool wantB64 = false;
+    if (args.IsArray() && args.AsArray().size() > 1 && args.AsArray()[1].IsObject()) {
+        if (const Value* b = args.AsArray()[1].Find("base64"); b && b->IsBool())
+            wantB64 = b->AsBool();
+    }
+
     SnapCtx ctx;
     webkit_web_view_get_snapshot(view, WEBKIT_SNAPSHOT_REGION_VISIBLE,
                                  WEBKIT_SNAPSHOT_OPTIONS_NONE, nullptr,
@@ -96,6 +103,13 @@ void capturePage(const ow_request_t* req, ow_response_t* res) {
     std::string png;
     cairo_surface_write_to_png_stream(ctx.surface, &PngWrite, &png);
     cairo_surface_destroy(ctx.surface);
+
+    if (wantB64) {
+        Object o;
+        o.emplace_back("data", Value(ow::b64::Encode(png)));
+        o.emplace_back("format", Value("png"));
+        return RespondOk(res, Value(std::move(o)).Serialize().c_str());
+    }
 
     const char* sid = ow_shm_put(reinterpret_cast<const uint8_t*>(png.data()),
                                  png.size());

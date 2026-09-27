@@ -575,6 +575,9 @@ bool Window::Impl::PCreate() {
         log::Error("window", "backend webview rechazó la creación");
         return false;
     }
+    webview->SetEventSink([this](const std::string& name, std::string_view json) {
+        Window::Impl::EmitPlatformEvent(this, name, json);
+    });
 
     const char* assetsDir = std::getenv("OW_ASSETS_DIR");
     if (assetsDir && *assetsDir)

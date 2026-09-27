@@ -16,6 +16,7 @@
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
 #include "../../Session/WebRequestBroker.hpp"
+#include "../../Session/WindowOpenBroker.hpp"
 #include "ow/Bridge/Codec.h"
 #include "../../Core/Log.hpp"
 #include "ow/Base64.h"
@@ -62,20 +63,35 @@ std::string ContentTypeFromHeaders(const std::string& headersJson) {
     return "text/html";
 }
 
-/// webRequest (Linux): intercepta NAVEGACIONES (decide-policy). WebKitGTK 2.52
-/// ya no expone `send-request`, así que los subrecursos no se interceptan.
+/// webRequest (Linux): intercepta NAVEGACIONES (decide-policy) + window.open.
 gboolean OnDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
                         WebKitPolicyDecisionType type, gpointer) {
     if (type != WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION &&
         type != WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION)
         return FALSE;
-    if (!ow::WebRequestBroker::Get().Enabled()) return FALSE;
     WebKitNavigationAction* action =
         webkit_navigation_policy_decision_get_navigation_action(
             WEBKIT_NAVIGATION_POLICY_DECISION(decision));
     if (!action) return FALSE;
     WebKitURIRequest* req = webkit_navigation_action_get_request(action);
     const char* url = req ? webkit_uri_request_get_uri(req) : nullptr;
+
+    // window.open / target=_blank → la app decide (setWindowOpenHandler).
+    if (type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION &&
+        ow::WindowOpenBroker::Get().Enabled()) {
+        g_object_ref(decision);
+        ow::WindowOpenBroker::Get().Request(
+            std::string(url ? url : ""), [decision](bool allow) {
+                if (allow)
+                    webkit_policy_decision_use(decision);
+                else
+                    webkit_policy_decision_ignore(decision);
+                g_object_unref(decision);
+            });
+        return TRUE;
+    }
+
+    if (!ow::WebRequestBroker::Get().Enabled()) return FALSE;
     if (!url || !ow::WebRequestBroker::Get().Matches(url)) return FALSE;
 
     g_object_ref(decision);
@@ -231,6 +247,10 @@ public:
                          }),
                          nullptr);
 
+        // before-input-event (teclado).
+        g_signal_connect(view_, "key-press-event", G_CALLBACK(OnKeyEvent), this);
+        g_signal_connect(view_, "key-release-event", G_CALLBACK(OnKeyEvent), this);
+
         gtk_container_add(GTK_CONTAINER(parent), view_);
         gtk_widget_show(view_);
         return view_ != nullptr;
@@ -358,6 +378,39 @@ public:
                     });
             },
             this, nullptr);
+    }
+
+    void SetEventSink(WebviewEventSink sink) override { sink_ = std::move(sink); }
+    void EmitEvent(const std::string& name, const std::string& json) {
+        if (sink_) sink_(name, json);
+    }
+
+    /// before-input-event: teclas del WebView (no se consumen).
+    static gboolean OnKeyEvent(GtkWidget*, GdkEventKey* e, gpointer ud) {
+        auto* self = static_cast<WebKitGTKBackend*>(ud);
+        if (!self || !e) return FALSE;
+        const char* type = (e->type == GDK_KEY_RELEASE) ? "keyUp" : "keyDown";
+        std::string key;
+        if (e->keyval) {
+            if (const char* n = gdk_keyval_name(e->keyval)) key = n;
+        }
+        std::string mods = "[";
+        auto add = [&](bool on, const char* m) {
+            if (!on) return;
+            if (mods.size() > 1) mods += ",";
+            mods += "\"";
+            mods += m;
+            mods += "\"";
+        };
+        add((e->state & GDK_CONTROL_MASK) != 0, "control");
+        add((e->state & GDK_SHIFT_MASK) != 0, "shift");
+        add((e->state & GDK_MOD1_MASK) != 0, "alt");
+        add((e->state & GDK_SUPER_MASK) != 0, "meta");
+        mods += "]";
+        std::string json = std::string("{\"type\":\"") + type + "\",\"key\":\"" + key +
+                           "\",\"modifiers\":" + mods + "}";
+        self->EmitEvent("beforeInput", json);
+        return FALSE; // no consumir
     }
 
     void Resize(int x, int y, int w, int h) override {
@@ -524,6 +577,7 @@ private:
     WebKitUserContentManager* manager_ = nullptr;
     WebKitWebContext* context_ = nullptr;
     WebMessageHandler handler_;
+    WebviewEventSink sink_;
     std::filesystem::path assetRoot_;
     std::set<std::string> registeredSchemes_;
 };

@@ -18,6 +18,7 @@
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
 #include "../../Session/WebRequestBroker.hpp"
+#include "../../Session/WindowOpenBroker.hpp"
 #include "ow/detail/minjson.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -282,6 +283,50 @@ public:
                 .Get(),
             nullptr);
 
+        // before-input-event (teclado). No se consume (Handled=false).
+        controller_->add_AcceleratorKeyPressed(
+            Callback<ICoreWebView2AcceleratorKeyPressedEventHandler>(
+                [this](ICoreWebView2Controller*,
+                       ICoreWebView2AcceleratorKeyPressedEventArgs* a) -> HRESULT {
+                    if (!a) return S_OK;
+                    COREWEBVIEW2_KEY_EVENT_KIND kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
+                    a->get_KeyEventKind(&kind);
+                    UINT vk = 0;
+                    a->get_VirtualKey(&vk);
+                    const bool down = kind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN ||
+                                      kind == COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN;
+                    std::string json = std::string("{\"type\":\"") +
+                                       (down ? "keyDown" : "keyUp") +
+                                       "\",\"virtualKey\":" + std::to_string(vk) +
+                                       ",\"key\":\"" + KeyName(vk) + "\"}";
+                    EmitEvent("beforeInput", json);
+                    return S_OK;
+                })
+                .Get(),
+            nullptr);
+
+        // window.open / target=_blank → la app decide (setWindowOpenHandler).
+        webview_->add_NewWindowRequested(
+            Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+                [this](ICoreWebView2*, ICoreWebView2NewWindowRequestedEventArgs* a)
+                    -> HRESULT {
+                    if (!a || !WindowOpenBroker::Get().Enabled()) return S_OK;
+                    LPWSTR uriRaw = nullptr;
+                    a->get_Uri(&uriRaw);
+                    std::string url = uriRaw ? WideToUtf8(uriRaw) : "";
+                    if (uriRaw) CoTaskMemFree(uriRaw);
+                    ComPtr<ICoreWebView2Deferral> deferral;
+                    a->GetDeferral(&deferral);
+                    ComPtr<ICoreWebView2NewWindowRequestedEventArgs> hold = a;
+                    WindowOpenBroker::Get().Request(url, [hold, deferral](bool allow) {
+                        if (!allow) hold->put_Handled(TRUE);
+                        if (deferral) deferral->Complete();
+                    });
+                    return S_OK;
+                })
+                .Get(),
+            nullptr);
+
         if (!pendingUrl_.empty()) {
             std::string u = pendingUrl_;
             pendingUrl_.clear();
@@ -430,6 +475,29 @@ public:
 
     void* NativeWidget() const override { return hwnd_; }
 
+    void SetEventSink(WebviewEventSink sink) override { sink_ = std::move(sink); }
+    void EmitEvent(const std::string& name, const std::string& json) {
+        if (sink_) sink_(name, json);
+    }
+
+    static std::string KeyName(UINT vk) {
+        if (vk >= 'A' && vk <= 'Z') return std::string(1, static_cast<char>(vk));
+        if (vk >= '0' && vk <= '9') return std::string(1, static_cast<char>(vk));
+        switch (vk) {
+        case VK_RETURN: return "Enter";
+        case VK_ESCAPE: return "Escape";
+        case VK_TAB: return "Tab";
+        case VK_SPACE: return "Space";
+        case VK_BACK: return "Backspace";
+        case VK_DELETE: return "Delete";
+        case VK_UP: return "ArrowUp";
+        case VK_DOWN: return "ArrowDown";
+        case VK_LEFT: return "ArrowLeft";
+        case VK_RIGHT: return "ArrowRight";
+        default: return {};
+        }
+    }
+
 private:
     static std::string ContentTypeFromJson(const std::string& headersJson) {
         auto parsed = ow::json::Parse(headersJson);
@@ -562,6 +630,7 @@ private:
     ComPtr<ICoreWebView2Controller> controller_;
     ComPtr<ICoreWebView2> webview_;
     WebMessageHandler messageHandler_;
+    WebviewEventSink sink_;
     std::vector<std::string> pendingInitScripts_;
     std::string pendingUrl_;
     std::filesystem::path assetRoot_;

@@ -274,6 +274,30 @@ await ow.invoke('dialog', 'showMessageBox', {
 
 ---
 
+### 5.3 C3 — `webContents`
+
+| | Estado |
+|---|---|
+| Linux | ✅ verificado (`did-finish-load`, `capturePage`, `getURL`, `send`) |
+| Windows | 🟡 compila (eventos + `AcceleratorKeyPressed`) |
+
+```ts
+const wc = win.webContents
+wc.on('did-finish-load', () => …)
+wc.on('before-input-event', (e) => console.log(e.key))
+wc.send('canal', { … })                 // → renderer ow.on('canal')
+const img = await wc.capturePage()      // { toPNG(): Buffer, toDataURL(): string }
+wc.setWindowOpenHandler(({ url }) => ({ action: 'deny' }))  // bloquear popups
+await wc.executeJavaScript('location.href')   // loadURL/reload/openDevTools/getURL/getTitle
+```
+
+- `window.open` sin gesto de usuario puede no disparar el evento (el motor lo
+  bloquea antes); con un click real sí.
+- **En el starter:** botón **Capturar página** + eventos `webContents` en la
+  consola. Cableado (WIP). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

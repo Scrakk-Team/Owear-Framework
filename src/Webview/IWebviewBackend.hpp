@@ -17,6 +17,8 @@ namespace ow {
 using WebMessageHandler = std::function<void(std::string_view text)>;
 /// Callback de evaluación JS: resultado como JSON ("null" si no hay).
 using EvalCallback = std::function<void(std::string_view resultJson, bool ok)>;
+/// Emisor de eventos del WebView hacia la ventana (p. ej. beforeInput).
+using WebviewEventSink = std::function<void(const std::string& name, std::string_view json)>;
 
 class IWebviewBackend {
 public:
@@ -31,6 +33,9 @@ public:
 
     /// Registra el receptor de mensajes JS→nativo.
     virtual void SetMessageHandler(WebMessageHandler handler) = 0;
+
+    /// Registra el emisor de eventos del WebView (beforeInput, etc.).
+    virtual void SetEventSink(WebviewEventSink /*sink*/) {}
 
     virtual void LoadURL(const std::string& url) = 0;
 
