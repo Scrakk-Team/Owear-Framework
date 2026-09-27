@@ -58,8 +58,8 @@ std::string BuildBridgeScript() {
       // timeout de veto OW_CLOSE_TIMEOUT_MS, que hacía que tardase en cerrar).
       if (name === 'closeRequested' && payload && payload.requestId) {
         try {
-          window.__ow.invoke('ow-window', 'respondCloseRequest',
-                             window.__owWindowId, payload.requestId, true);
+          window.ow.invoke('ow-window', 'respondCloseRequest',
+                           window.__owWindowId, payload.requestId, true);
         } catch (e) {}
       }
     },
