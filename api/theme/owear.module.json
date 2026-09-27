@@ -1,0 +1,9 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "theme",
+  "kind": "module",
+  "version": "0.1.0",
+  "description": "nativeTheme: preferencia clara/oscura del sistema, forzarla (system|light|dark) y evento theme.changed. Linux (GSettings/GTK), Windows (registro).",
+  "platforms": ["linux", "win", "mac"],
+  "functions": ["get", "isDark", "setSource", "watch", "unwatch"]
+}

@@ -389,6 +389,39 @@ export function invokeNative<T = unknown>(
   return channel.call<T>('module.invoke', { module, method, args })
 }
 
+// ── nativeTheme ─────────────────────────────────────────────────────────────
+
+export interface ThemeInfo {
+  dark: boolean
+  source: 'system' | 'light' | 'dark'
+  highContrast: boolean
+  reducedTransparency: boolean
+}
+
+/**
+ * Tema nativo del sistema (módulo `theme`). `watch()` emite `theme.changed`
+ * (recibible con `channel.on('theme.changed', …)` o en el renderer con
+ * `ow.on('theme.changed', …)`).
+ */
+export const theme = {
+  get(): Promise<ThemeInfo> {
+    return invokeNative<ThemeInfo>('theme', 'get')
+  },
+  isDark(): Promise<boolean> {
+    return invokeNative<boolean>('theme', 'isDark')
+  },
+  /** Fuerza la preferencia: 'system' | 'light' | 'dark'. */
+  setSource(source: 'system' | 'light' | 'dark'): Promise<ThemeInfo> {
+    return invokeNative<ThemeInfo>('theme', 'setSource', source)
+  },
+  watch(): Promise<void> {
+    return invokeNative<void>('theme', 'watch')
+  },
+  unwatch(): Promise<void> {
+    return invokeNative<void>('theme', 'unwatch')
+  },
+}
+
 /** Metadatos de un módulo nativo cargado en el kernel. */
 export interface NativeModuleInfo {
   name: string

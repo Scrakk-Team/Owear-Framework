@@ -4,7 +4,7 @@
 # Regenerar: node tools/gen-apis.mjs
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 15 módulos .owm
+# 16 módulos .owm
 
 add_subdirectory(capturer)
 add_subdirectory(clipboard)
@@ -19,5 +19,6 @@ add_subdirectory(power)
 add_subdirectory(process)
 add_subdirectory(screen)
 add_subdirectory(shell)
+add_subdirectory(theme)
 add_subdirectory(tray)
 add_subdirectory(updater)
