@@ -134,6 +134,15 @@ muere con el kernel.
     packaged`), `app.setName`, `app.commandLine.*`. SDK: `app` es EventEmitter.
     Verificado en Linux (rutas, identidad, `commandLine` y los 3 eventos);
     Windows compila.
+  - **`dialog` completo (C2)** — `showOpenDialog` (`properties`:
+    `openFile`/`openDirectory`/`multiSelections`/`showHiddenFiles`, `filters`,
+    `defaultPath`, `buttonLabel` → `{ canceled, filePaths }`), `showSaveDialog`
+    (`filters`, `defaultPath` → `{ canceled, filePath }`) y `showMessageBox`
+    (`type`, `message`/`detail`, `buttons`, `defaultId`, `cancelId`,
+    `checkboxLabel` → `{ response, checkboxChecked }`). Linux: GtkFileChooser +
+    GtkMessageDialog (con checkbox); Windows: `IFileOpenDialog`/`IFileSaveDialog`
+    + `TaskDialogIndirect`. SDK: `ow.dialog`. Registrado en Linux (5 funciones);
+    Windows compila. (`open`/`messageBox` se mantienen.)
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

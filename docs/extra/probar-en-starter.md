@@ -246,6 +246,34 @@ en la consola `path …`, `name …` y los eventos al cerrar/`app.quit()`. En Wi
 
 ---
 
+### 5.2 C2 — `dialog` completo
+
+| | Estado |
+|---|---|
+| Linux | ✅ registrado (5 funciones); los diálogos son modales (no automatizables) |
+| Windows | 🟡 compila (`IFileDialog` + `TaskDialogIndirect`) |
+
+```ts
+// abrir varios
+const r = await ow.invoke('dialog', 'showOpenDialog', {
+  title: 'Abrir varios',
+  properties: ['openFile', 'multiSelections'],
+  filters: [{ name: 'Texto', extensions: ['txt', 'md'] }],
+})                       // → { canceled, filePaths }
+// guardar
+await ow.invoke('dialog', 'showSaveDialog', { defaultPath: 'x.txt' }) // → { canceled, filePath }
+// mensaje con botones + checkbox
+await ow.invoke('dialog', 'showMessageBox', {
+  type: 'question', message: '¿Continuar?', buttons: ['Sí', 'No'],
+  checkboxLabel: 'No volver a preguntar',
+})                       // → { response, checkboxChecked }
+```
+
+- **En el starter:** botones **Abrir varios…**, **Guardar como…**, **Diálogo con
+  botones** (cableados). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

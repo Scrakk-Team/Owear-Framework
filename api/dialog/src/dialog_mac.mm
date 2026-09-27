@@ -109,12 +109,26 @@ void messageBox(const ow_request_t* req, ow_response_t* res) {
     RespondOk(res, Value(static_cast<int64_t>(r - 1000)).Serialize().c_str());
 }
 
+// ── C2 (stub macOS; fuera de 0.1.x) ─────────────────────────────────────────
+void showOpenDialog(const ow_request_t*, ow_response_t* res) {
+    RespondOk(res, "{\"canceled\":true,\"filePaths\":[]}");
+}
+void showSaveDialog(const ow_request_t*, ow_response_t* res) {
+    RespondOk(res, "{\"canceled\":true,\"filePath\":\"\"}");
+}
+void showMessageBox(const ow_request_t*, ow_response_t* res) {
+    RespondOk(res, "{\"response\":0,\"checkboxChecked\":false}");
+}
+
 } // namespace dlg
 
 extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
     static const ow_fn_entry_t fns[] = {
         {"open", &dlg::open},
         {"messageBox", &dlg::messageBox},
+        {"showOpenDialog", &dlg::showOpenDialog},
+        {"showSaveDialog", &dlg::showSaveDialog},
+        {"showMessageBox", &dlg::showMessageBox},
     };
     static const ow_module_desc_t d{
         "dialog", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};
