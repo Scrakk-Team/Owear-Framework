@@ -182,105 +182,87 @@ void EnsureGdiplus() {
     }
 }
 
-/// Barra de botones (popup top-level LAYERED) dibujada estilo Win10/11 con GDI+
-/// y compuesta con UpdateLayeredWindow (alpha por píxel): fondo transparente
-/// (se ve la titlebar) + glifos. Minimizar = línea, maximizar = cuadrado,
-/// restaurar = dos cuadrados, cerrar = X; hover blanco ~10% (close #E81123).
+/// Barra de botones (popup top-level OPACO, fondo = titleBarOverlay.color) con
+/// los iconos EXACTOS de Electron (windows_icon_painter.cc): icono 10px,
+/// min/max/restore sin anti-alias y rect insetado 0.5, restore = dos cuadrados
+/// de 8px desplazados 2 (delante abajo-izq, detras recortado), cerrar = X con AA.
+/// Opaco a propósito: un layered haría hit-test por alpha (hover impreciso).
 void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(hwnd, &ps);
     RECT rc;
     GetClientRect(hwnd, &rc);
     const int w = rc.right, h = rc.bottom;
-    if (w <= 0 || h <= 0 || !pd) return;
+    if (w <= 0 || h <= 0 || !pd) {
+        EndPaint(hwnd, &ps);
+        return;
+    }
     EnsureGdiplus();
 
-    HDC screen = GetDC(nullptr);
-    HDC mem = CreateCompatibleDC(screen);
-    BITMAPINFO bi{};
-    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth = w;
-    bi.bmiHeader.biHeight = -h; // top-down
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-    void* bits = nullptr;
-    HBITMAP bmp = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
-    HGDIOBJ old = SelectObject(mem, bmp);
-
-    // DPI de la ventana principal (el popup puede devolver 0 → icon=0).
     UINT dpi = pd->hwnd ? GetDpiForWindow(pd->hwnd) : 96;
     if (dpi < 96) dpi = 96;
     const bool maximized = IsZoomed(pd->hwnd);
     const int bw = w / 3;
-    int icon = MulDiv(10, static_cast<int>(dpi), 96); // PaintSymbol: 10px
+    int icon = MulDiv(10, static_cast<int>(dpi), 96);
     if (icon < 6) icon = 10;
     float stroke = static_cast<float>(MulDiv(1, static_cast<int>(dpi), 96));
     if (stroke < 1.0f) stroke = 1.0f;
-    {
-        Gdiplus::Graphics g(mem);
-        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-        g.Clear(Gdiplus::Color(0, 0, 0, 0));
-        for (int i = 0; i < 3; ++i) {
-            const int x0 = i * bw, x1 = (i == 2) ? w : (i + 1) * bw;
-            const bool hot = pd->capHover == i;
-            const bool press = pd->capPress == i;
-            if (hot || press) {
-                BYTE a;
-                Gdiplus::Color base;
-                if (i == 2) {
-                    base = Gdiplus::Color(255, 0xE8, 0x11, 0x23);
-                    a = press ? 0x98 : 255;
-                } else {
-                    base = Gdiplus::Color(255, 255, 255, 255);
-                    a = press ? 0x33 : 0x1A;
-                }
-                Gdiplus::SolidBrush b(
-                    Gdiplus::Color(a, base.GetR(), base.GetG(), base.GetB()));
-                g.FillRectangle(&b, Gdiplus::Rect(x0, 0, x1 - x0, h));
-            }
-            Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), stroke);
-            const float S = static_cast<float>(icon);
-            const float sx = x0 + (x1 - x0 - icon) / 2.0f;
-            const float sy = (h - icon) / 2.0f;
-            auto strokeRect = [&](const Gdiplus::RectF& r) {
-                Gdiplus::RectF rr(r);
-                rr.Inflate(-stroke * 0.5f, -stroke * 0.5f); // inset 0.5 (Electron)
-                g.DrawRectangle(&pen, rr);
-            };
-            if (i == 0) { // minimizar: línea (sin AA)
-                g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
-                g.DrawLine(&pen, sx, sy + S / 2.0f, sx + S, sy + S / 2.0f);
-            } else if (i == 1 && !maximized) { // maximizar: cuadrado (sin AA)
-                g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
-                strokeRect(Gdiplus::RectF(sx, sy, S, S));
-            } else if (i == 1) { // restaurar: dos cuadrados (Electron)
-                g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
-                int sepI = static_cast<int>(2.0 * static_cast<double>(dpi) / 96.0);
-                if (sepI < 1) sepI = 2;
-                const float sep = static_cast<float>(sepI);
-                Gdiplus::RectF front(sx, sy + sep, S - sep, S - sep);
-                strokeRect(front);
-                g.SetClip(front, Gdiplus::CombineModeExclude);
-                strokeRect(Gdiplus::RectF(sx + sep, sy, S - sep, S - sep));
-                g.ResetClip();
-            } else { // cerrar: X (con AA)
-                g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-                g.DrawLine(&pen, sx, sy, sx + S, sy + S);
-                g.DrawLine(&pen, sx + S, sy, sx, sy + S);
-            }
+
+    Gdiplus::Graphics g(hdc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    g.Clear(Gdiplus::Color(255, GetRValue(pd->capBg), GetGValue(pd->capBg),
+                           GetBValue(pd->capBg)));
+
+    for (int i = 0; i < 3; ++i) {
+        const int x0 = i * bw, x1 = (i == 2) ? w : (i + 1) * bw;
+        const bool hot = pd->capHover == i;
+        const bool press = pd->capPress == i;
+        if (hot || press) {
+            COLORREF c;
+            if (i == 2)
+                c = press ? RGB(0xB0, 0x0D, 0x18) : RGB(0xE8, 0x11, 0x23);
+            else
+                c = BlendColor(pd->capBg, RGB(255, 255, 255), press ? 0.20 : 0.10);
+            Gdiplus::SolidBrush br(Gdiplus::Color(255, GetRValue(c),
+                                                  GetGValue(c), GetBValue(c)));
+            g.FillRectangle(&br, Gdiplus::Rect(x0, 0, x1 - x0, h));
+        }
+
+        Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), stroke);
+        const float S = static_cast<float>(icon);
+        const float sx = x0 + (x1 - x0 - icon) / 2.0f;
+        const float sy = (h - icon) / 2.0f;
+        Gdiplus::RectF symbol(sx, sy, S, S);
+        auto strokeRect = [&](const Gdiplus::RectF& r) {
+            Gdiplus::RectF rr(r);
+            rr.Inflate(-stroke * 0.5f, -stroke * 0.5f); // inset 0.5 (Electron)
+            g.DrawRectangle(&pen, rr);
+        };
+        if (i == 0) { // minimizar: línea (sin AA)
+            g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+            g.DrawLine(&pen, sx, sy + S / 2.0f, sx + S, sy + S / 2.0f);
+        } else if (i == 1 && !maximized) { // maximizar: cuadrado (sin AA)
+            g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+            strokeRect(symbol);
+        } else if (i == 1) { // restaurar: dos cuadrados (Electron)
+            g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+            int sepI = static_cast<int>(2.0 * static_cast<double>(dpi) / 96.0);
+            if (sepI < 1) sepI = 2;
+            const float sep = static_cast<float>(sepI);
+            Gdiplus::RectF front(sx, sy + sep, S - sep, S - sep);
+            strokeRect(front);
+            g.SetClip(front, Gdiplus::CombineModeExclude);
+            strokeRect(Gdiplus::RectF(sx + sep, sy, S - sep, S - sep));
+            g.ResetClip();
+        } else { // cerrar: X recortada al símbolo (con AA)
+            g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+            g.SetClip(symbol);
+            g.DrawLine(&pen, sx, sy, sx + S, sy + S);
+            g.DrawLine(&pen, sx + S, sy, sx, sy + S);
+            g.ResetClip();
         }
     }
-
-    RECT wr;
-    GetWindowRect(hwnd, &wr);
-    POINT dst{wr.left, wr.top}, src{0, 0};
-    SIZE size{w, h};
-    BLENDFUNCTION bf{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-    UpdateLayeredWindow(hwnd, screen, &dst, &size, mem, &src, 0, &bf, ULW_ALPHA);
-
-    SelectObject(mem, old);
-    DeleteObject(bmp);
-    DeleteDC(mem);
-    ReleaseDC(nullptr, screen);
+    EndPaint(hwnd, &ps);
 }
 
 LRESULT CALLBACK CaptionWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -577,9 +559,8 @@ bool Window::Impl::PCreate() {
         pdata->capFg =
             ParseHexColorRef(opts.titleBarOverlay.symbolColor, RGB(255, 255, 255));
         pdata->captionBar = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, kCaptionClass,
-            L"", WS_POPUP, 0, 0, 10, 10, hwnd /*owner*/, nullptr,
-            GetModuleHandleW(nullptr), nullptr);
+            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, kCaptionClass, L"", WS_POPUP, 0,
+            0, 10, 10, hwnd /*owner*/, nullptr, GetModuleHandleW(nullptr), nullptr);
         if (pdata->captionBar) {
             SetWindowLongPtrW(pdata->captionBar, GWLP_USERDATA,
                               reinterpret_cast<LONG_PTR>(pdata));
