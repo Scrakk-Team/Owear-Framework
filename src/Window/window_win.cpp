@@ -194,8 +194,19 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
     const UINT dpi = GetDpiForWindow(hwnd);
     const bool maximized = IsZoomed(pd->hwnd);
     const int bw = w / 3;
-    const int icon = MulDiv(10, static_cast<int>(dpi), 96);
-    const int penW = MulDiv(1, static_cast<int>(dpi), 96);
+    const int icon = MulDiv(12, static_cast<int>(dpi), 96);
+    int penW = MulDiv(1, static_cast<int>(dpi), 96);
+    if (penW < 1) penW = 1;
+    {
+        static bool logged = false;
+        if (!logged) {
+            logged = true;
+            char lb[96];
+            std::snprintf(lb, sizeof(lb), "caption paint: w=%d h=%d fg=0x%06lX icon=%d",
+                          w, h, static_cast<unsigned long>(pd->capFg), icon);
+            log::Info("window", lb);
+        }
+    }
 
     for (int i = 0; i < 3; ++i) {
         const int x0 = i * bw, x1 = (i == 2) ? w : (i + 1) * bw;
@@ -547,10 +558,11 @@ bool Window::Impl::PCreate() {
                 "window.__owTitlebarOverlay={enabled:true,height:" +
                 std::to_string(pdata->captionH) + ",width:" +
                 std::to_string(pdata->capW) + ",top:0,right:0};");
-            char cbuf[32];
-            std::snprintf(cbuf, sizeof(cbuf), "0x%06lX",
-                          static_cast<unsigned long>(pdata->capBg));
-            log::Info("window", std::string("titleBarOverlay: barra creada bg=") +
+            char cbuf[64];
+            std::snprintf(cbuf, sizeof(cbuf), "bg=0x%06lX fg=0x%06lX",
+                          static_cast<unsigned long>(pdata->capBg),
+                          static_cast<unsigned long>(pdata->capFg));
+            log::Info("window", std::string("titleBarOverlay: barra creada ") +
                                     cbuf + " w=" + std::to_string(pdata->capW) +
                                     " h=" + std::to_string(pdata->capH));
             SetTimer(hwnd, 1, 400, nullptr);
