@@ -45,6 +45,7 @@ set(OW_KERNEL_SOURCES
     Bridge/Dispatcher.cpp
     Bridge/Shm.cpp
     Control/ControlServer.cpp
+    Protocol/ProtocolRegistry.cpp
     Window/Window_common.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp

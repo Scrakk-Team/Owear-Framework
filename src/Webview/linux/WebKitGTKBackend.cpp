@@ -12,6 +12,7 @@
 #include "../IWebviewBackend.hpp"
 #include "../../Bridge/Dispatcher.hpp"
 #include "../../Bridge/Shm.hpp"
+#include "../../Protocol/ProtocolRegistry.hpp"
 #include "ow/Bridge/Codec.h"
 #include "../../Core/Log.hpp"
 #include "ow/Base64.h"
@@ -24,6 +25,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 
@@ -43,6 +45,18 @@ const char* MimeFromExt(const std::string& ext) {
     };
     auto it = k.find(ext);
     return it != k.end() ? it->second : "application/octet-stream";
+}
+
+/// Extrae el valor de "content-type" del JSON de headers (`{"content-type":"…"}`).
+std::string ContentTypeFromHeaders(const std::string& headersJson) {
+    auto parsed = ow::json::Parse(headersJson);
+    if (parsed.value && parsed.value->IsObject()) {
+        for (const auto& [k, v] : parsed.value->AsObject()) {
+            if (k == "content-type" && v.IsString()) return v.AsString();
+            if (k == "Content-Type" && v.IsString()) return v.AsString();
+        }
+    }
+    return "text/html";
 }
 
 /// Respuesta binaria sin copia: GBytes estático sobre memoria existente.
@@ -223,6 +237,51 @@ public:
         assetRoot_ = root;
     }
 
+    /// Esquema gestionado por ProtocolRegistry (dir del kernel o handler en el
+    /// main). Los flags privileged se leen del registro.
+    void RegisterProtocol(const std::string& scheme) override {
+        if (scheme.empty() || registeredSchemes_.count(scheme)) return;
+        const ProtocolScheme* s = ProtocolRegistry::Get().Find(scheme);
+        if (!s) return;
+        registeredSchemes_.insert(scheme);
+
+        if (s->secure || s->cors) {
+            if (WebKitSecurityManager* sm =
+                    webkit_web_context_get_security_manager(context_)) {
+                if (s->secure) webkit_security_manager_register_uri_scheme_as_secure(sm, scheme.c_str());
+                if (s->cors) webkit_security_manager_register_uri_scheme_as_cors_enabled(sm, scheme.c_str());
+            }
+        }
+
+        webkit_web_context_register_uri_scheme(
+            context_, scheme.c_str(),
+            [](WebKitURISchemeRequest* request, gpointer) {
+                const std::string uri = webkit_uri_scheme_request_get_uri(request);
+                std::string name = uri;
+                const auto pos = name.find("://");
+                if (pos != std::string::npos) name.resize(pos);
+
+                g_object_ref(request); // vive hasta que responda el main
+                ProtocolRegistry::Get().Dispatch(
+                    name, uri, "GET", "{}", "",
+                    [request](ProtocolRegistry::Response r) {
+                        if (!r.resolved) {
+                            FinishError(request, G_IO_ERROR_NOT_FOUND,
+                                        r.error.empty() ? "no encontrado" : r.error.c_str());
+                        } else {
+                            GBytes* bytes = g_bytes_new(r.body.data(), r.body.size());
+                            GInputStream* stream = g_memory_input_stream_new_from_bytes(bytes);
+                            g_bytes_unref(bytes);
+                            const std::string ct = ContentTypeFromHeaders(r.headersJson);
+                            webkit_uri_scheme_request_finish(request, stream, -1, ct.c_str());
+                            g_object_unref(stream);
+                        }
+                        g_object_unref(request);
+                    });
+            },
+            this, nullptr);
+    }
+
     void Resize(int x, int y, int w, int h) override {
         (void)x; (void)y; (void)w; (void)h; // GTK gestiona layout
     }
@@ -388,6 +447,7 @@ private:
     WebKitWebContext* context_ = nullptr;
     WebMessageHandler handler_;
     std::filesystem::path assetRoot_;
+    std::set<std::string> registeredSchemes_;
 };
 
 } // namespace

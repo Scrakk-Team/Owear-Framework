@@ -13,6 +13,7 @@
 #include "Window_p.hpp"
 #include "../Core/Log.hpp"
 #include "ow/detail/minjson.hpp"
+#include "../Protocol/ProtocolRegistry.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #ifndef UNICODE
@@ -577,6 +578,10 @@ bool Window::Impl::PCreate() {
         webview->RegisterAssetScheme("app", std::filesystem::path(assetsDir));
     else
         webview->RegisterAssetScheme("app", std::filesystem::current_path() / "dist");
+
+    // protocol API: esquemas registrados por el main antes de crear la ventana.
+    for (const auto& s : ProtocolRegistry::Get().All())
+        webview->RegisterProtocol(s.name);
 
     // titleBarOverlay: botones nativos (min/max/close) sobre la titlebar custom.
     if (pdata->customTitlebar && opts.titleBarOverlay.enabled) {

@@ -14,9 +14,12 @@
 //
 #include "../IWebviewBackend.hpp"
 #include "../../Core/Log.hpp"
+#include "../../Protocol/ProtocolRegistry.hpp"
+#include "ow/detail/minjson.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <objbase.h>
 #include <shlobj.h>
 
 #pragma comment(lib, "ole32.lib")
@@ -27,6 +30,8 @@
 #include <wrl/client.h>
 #include <wrl/event.h>
 
+#include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -207,6 +212,9 @@ public:
         // assets locales
         if (!assetRoot_.empty()) AttachAssetMapping();
 
+        // protocol API: esquemas personalizados (dir o handler en el main)
+        if (!pendingProtocols_.empty()) AttachProtocolHandlers();
+
         if (!pendingUrl_.empty()) {
             std::string u = pendingUrl_;
             pendingUrl_.clear();
@@ -332,6 +340,17 @@ public:
         if (webview_) AttachAssetMapping();
     }
 
+    /// Esquema gestionado por ProtocolRegistry (dir o handler en el main).
+    /// En WebView2 se intercepta con WebResourceRequested (respuesta diferida).
+    void RegisterProtocol(const std::string& scheme) override {
+        if (scheme.empty()) return;
+        if (std::find(pendingProtocols_.begin(), pendingProtocols_.end(), scheme) !=
+            pendingProtocols_.end())
+            return;
+        pendingProtocols_.push_back(scheme);
+        if (webview_) AttachProtocolHandlers();
+    }
+
     void Resize(int x, int y, int w, int h) override {
         (void)x;
         (void)y;
@@ -342,6 +361,78 @@ public:
     void* NativeWidget() const override { return hwnd_; }
 
 private:
+    static std::string ContentTypeFromJson(const std::string& headersJson) {
+        auto parsed = ow::json::Parse(headersJson);
+        if (parsed.value && parsed.value->IsObject()) {
+            for (const auto& [k, v] : parsed.value->AsObject()) {
+                if ((k == "content-type" || k == "Content-Type") && v.IsString())
+                    return v.AsString();
+            }
+        }
+        return "text/html";
+    }
+
+    void AttachProtocolHandlers() {
+        if (!webview_) return;
+        for (const auto& s : pendingProtocols_)
+            webview_->AddWebResourceRequestedFilter(
+                Utf8ToWide(s + "://*").c_str(), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+        if (resourceHandlerAttached_) return;
+        resourceHandlerAttached_ = true;
+
+        webview_->add_WebResourceRequested(
+            Callback<ICoreWebView2WebResourceRequestedEventHandler>(
+                [this](ICoreWebView2*, ICoreWebView2WebResourceRequestedEventArgs* args)
+                    -> HRESULT {
+                    if (!args) return S_OK;
+                    ComPtr<ICoreWebView2WebResourceRequest> req;
+                    if (FAILED(args->get_Request(&req)) || !req) return S_OK;
+                    LPWSTR uriRaw = nullptr;
+                    if (FAILED(req->get_Uri(&uriRaw)) || !uriRaw) return S_OK;
+                    std::string uri = WideToUtf8(uriRaw);
+                    CoTaskMemFree(uriRaw);
+
+                    const auto pos = uri.find("://");
+                    if (pos == std::string::npos) return S_OK;
+                    const std::string scheme = uri.substr(0, pos);
+                    if (!ProtocolRegistry::Get().Has(scheme)) return S_OK;
+
+                    ComPtr<ICoreWebView2Deferral> deferral;
+                    if (FAILED(args->GetDeferral(&deferral)) || !deferral) return S_OK;
+                    ComPtr<ICoreWebView2WebResourceRequestedEventArgs> hold = args;
+                    ComPtr<ICoreWebView2Environment> env = environment_;
+
+                    ProtocolRegistry::Get().Dispatch(
+                        scheme, uri, "GET", "{}", "",
+                        [this, hold, deferral, env](ProtocolRegistry::Response r) {
+                            ComPtr<IStream> stream;
+                            if (!r.body.empty()) {
+                                HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, r.body.size());
+                                if (h) {
+                                    if (void* p = GlobalLock(h)) {
+                                        std::memcpy(p, r.body.data(), r.body.size());
+                                        GlobalUnlock(h);
+                                    }
+                                    CreateStreamOnHGlobal(h, TRUE, &stream);
+                                }
+                            }
+                            const std::string ct = ContentTypeFromJson(r.headersJson);
+                            const std::wstring headers =
+                                L"Content-Type: " + Utf8ToWide(ct) +
+                                L"\r\nAccess-Control-Allow-Origin: *\r\n";
+                            ComPtr<ICoreWebView2WebResourceResponse> resp;
+                            if (env)
+                                env->CreateWebResourceResponse(stream.Get(), r.status, L"OK",
+                                                               headers.c_str(), &resp);
+                            if (resp) hold->put_Response(resp.Get());
+                            deferral->Complete();
+                        });
+                    return S_OK;
+                })
+                .Get(),
+            nullptr);
+    }
+
     HWND hwnd_ = nullptr;
     ComPtr<ICoreWebView2Environment> environment_;
     ComPtr<ICoreWebView2Controller> controller_;
@@ -350,6 +441,8 @@ private:
     std::vector<std::string> pendingInitScripts_;
     std::string pendingUrl_;
     std::filesystem::path assetRoot_;
+    std::vector<std::string> pendingProtocols_;
+    bool resourceHandlerAttached_ = false;
 };
 
 } // namespace

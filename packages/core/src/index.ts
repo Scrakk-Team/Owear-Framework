@@ -206,6 +206,76 @@ channel.on('node.request', (params: any) => {
     .catch(() => undefined)
 })
 
+// ── protocol (esquemas personalizados) ──────────────────────────────────────
+export interface ProtocolRequest {
+  url: string
+  method: string
+  headers: Record<string, string>
+  /** Cuerpo de la request en base64 (formato del bridge). */
+  body: string
+}
+
+export type ProtocolHandlerResult =
+  | Response
+  | { status?: number; headers?: Record<string, string>; body?: string | Uint8Array }
+  | string
+  | null
+  | undefined
+
+export type ProtocolHandler = (
+  req: ProtocolRequest
+) => ProtocolHandlerResult | Promise<ProtocolHandlerResult>
+
+const protocolHandlers = new Map<string, ProtocolHandler>()
+
+async function normalizeProtocolResponse(
+  res: ProtocolHandlerResult
+): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+  if (res == null) return { status: 404, headers: {}, body: '' }
+  if (typeof res === 'string')
+    return { status: 200, headers: { 'content-type': 'text/html' }, body: toB64(res) }
+  if (typeof Response !== 'undefined' && res instanceof Response) {
+    const headers: Record<string, string> = {}
+    res.headers.forEach((v, k) => {
+      headers[k] = v
+    })
+    const body = Buffer.from(await res.arrayBuffer()).toString('base64')
+    return { status: res.status, headers, body }
+  }
+  const r = res as { status?: number; headers?: Record<string, string>; body?: string | Uint8Array }
+  let body = ''
+  if (r.body instanceof Uint8Array) body = Buffer.from(r.body).toString('base64')
+  else if (typeof r.body === 'string') body = toB64(r.body)
+  return { status: r.status ?? 200, headers: r.headers ?? {}, body }
+}
+
+function toB64(text: string): string {
+  return Buffer.from(text, 'utf-8').toString('base64')
+}
+
+channel.on('protocol.request', (params: any) => {
+  const { reqId, scheme, url, method, headers, body } = params ?? {}
+  const handler = protocolHandlers.get(scheme)
+  Promise.resolve()
+    .then(() =>
+      handler
+        ? handler({ url, method, headers: headers ?? {}, body: body ?? '' })
+        : null
+    )
+    .then((res) => normalizeProtocolResponse(res ?? null))
+    .then((out) =>
+      channel.call('protocol.respond', {
+        reqId,
+        status: out.status,
+        headers: out.headers,
+        body: out.body,
+      })
+    )
+    .catch(() =>
+      channel.call('protocol.respond', { reqId, status: 500, headers: {}, body: '' })
+    )
+})
+
 // ── MessagePort (canal bidireccional main ↔ renderer) ───────────────────────
 // Cada endpoint vive o en el main o en un renderer. Los mensajes se enrutan por
 // el bridge. El payload viaja como JSON (igual que el resto del bridge); el
@@ -369,6 +439,37 @@ export const app = {
       name,
       payload: { port: port.portId },
       windowId,
+    })
+  },
+
+  /**
+   * Registra un esquema personalizado (protocol API, estilo intermedio):
+   *   app.protocol('scrakk-ext', { privileged: { secure: true, cors: true },
+   *     handler: async (req) => new Response('<h1>hola</h1>', { headers: {...} }) })
+   *   app.protocol('assets', { serve: '/ruta/al/dir' })  // el kernel sirve el dir
+   * El handler corre en el main (Node); puede devolver un `Response`, un objeto
+   * `{ status, headers, body }`, un string o `null`.
+   */
+  protocol(
+    name: string,
+    options: {
+      privileged?: {
+        secure?: boolean
+        cors?: boolean
+        stream?: boolean
+        standard?: boolean
+        fetch?: boolean
+      }
+      serve?: string
+      handler?: ProtocolHandler
+    } = {}
+  ): Promise<void> {
+    protocolHandlers.set(name, options.handler as ProtocolHandler)
+    return channel.call('protocol.register', {
+      scheme: name,
+      privileged: options.privileged,
+      dir: options.serve,
+      handler: typeof options.handler === 'function',
     })
   },
 }

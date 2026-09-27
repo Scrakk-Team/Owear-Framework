@@ -403,6 +403,9 @@ std::string Window::WebviewCommand(uint32_t id, const std::string& op,
                                    const std::string& argsJson) {
     return impl_->PWebviewCommand(id, op, argsJson);
 }
+void Window::RegisterProtocol(const std::string& scheme) {
+    if (impl_->webview) impl_->webview->RegisterProtocol(scheme);
+}
 void* Window::NativeHandle() const {
     return impl_->webview ? impl_->webview->NativeWidget() : nullptr;
 }

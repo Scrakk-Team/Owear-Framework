@@ -16,6 +16,7 @@
 //
 #include "Window_p.hpp"
 #include "../Core/Log.hpp"
+#include "../Protocol/ProtocolRegistry.hpp"
 #include "ow/detail/minjson.hpp"
 
 #include <gtk/gtk.h>
@@ -871,6 +872,10 @@ bool Window::Impl::PCreate() {
         webview->RegisterAssetScheme("app", std::filesystem::path(assetsDir));
     else
         webview->RegisterAssetScheme("app", std::filesystem::current_path() / "dist");
+
+    // protocol API: esquemas registrados por el main antes de crear la ventana.
+    for (const auto& s : ProtocolRegistry::Get().All())
+        webview->RegisterProtocol(s.name);
 
     if (pdata->overlay) {
         if (pdata->isWayland) BuildResizeEdges(this);

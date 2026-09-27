@@ -41,6 +41,10 @@ public:
     virtual void RegisterAssetScheme(const std::string& scheme,
                                      const std::filesystem::path& root) = 0;
 
+    /// Registra un esquema gestionado por ProtocolRegistry (dir o handler en el
+    /// main). Los flags privileged se leen del propio registro.
+    virtual void RegisterProtocol(const std::string& /*scheme*/) {}
+
     virtual void Resize(int x, int y, int w, int h) = 0;
 
     /// Referencia nativa cruda (GtkWidget*, etc) — para tests y debug.

@@ -100,6 +100,10 @@ public:
     std::string WebviewCommand(uint32_t id, const std::string& op,
                                const std::string& argsJson);
 
+    /// Registra un esquema de ProtocolRegistry en el webview de esta ventana
+    /// (se llama al crear la ventana y al registrar un esquema ya con ventanas).
+    void RegisterProtocol(const std::string& scheme);
+
     // ── webview ────────────────────────────────────────────────────
     void LoadURL(const std::string& url);
     /// Evalúa JS en la página. callback recibe el resultado JSON o null.
