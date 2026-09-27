@@ -78,6 +78,8 @@ void ControlServer::ForwardNodeCall(WindowId windowId, uint64_t invokeId,
     json::Object p;
     p.emplace_back("reqId", json::Value(static_cast<int64_t>(reqId)));
     p.emplace_back("fn", json::Value(fn));
+    // Ventana de origen: el handler del main la recibe como contexto (app.handleContext).
+    p.emplace_back("windowId", json::Value(static_cast<int64_t>(windowId)));
     auto parsed = json::Parse(argsJson);
     p.emplace_back("args",
                    parsed.value ? std::move(*parsed.value) : json::Value(nullptr));

@@ -383,6 +383,59 @@ function prepareMain(cwd, outDir) {
   return out
 }
 
+/**
+ * Entries de worker de la app: `app/workers/**\/*.{ts,mts,js,mjs}`.
+ * Se compilan a <outDir>/workers/ conservando la ruta relativa, y el kernel
+ * expone el directorio al main vía OW_APP_WORKERS para `app.forkWorker()`.
+ */
+function findWorkerEntries(cwd) {
+  const dir = path.join(cwd, 'app', 'workers')
+  if (!fs.existsSync(dir)) return []
+  const out = []
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (/\.(ts|mts|js|mjs)$/.test(e.name)) out.push(p)
+    }
+  }
+  walk(dir)
+  return out
+}
+
+function prepareWorkers(cwd, outDir) {
+  const entries = findWorkerEntries(cwd)
+  if (!entries.length) return null
+
+  const root = path.join(cwd, 'app', 'workers')
+  const workersDir = path.join(outDir, 'workers')
+  const built = []
+
+  for (const entry of entries) {
+    const rel = path.relative(root, entry)
+    const out = path.join(workersDir, rel.replace(/\.(ts|mts)$/, '.js'))
+    fs.mkdirSync(path.dirname(out), { recursive: true })
+
+    if (entry.endsWith('.js') || entry.endsWith('.mjs')) {
+      fs.copyFileSync(entry, out)
+    } else {
+      log(`compilando worker ${path.relative(cwd, entry)}…`)
+      const r = spawnSync(
+        'npx',
+        [
+          'esbuild', entry,
+          '--bundle', '--platform=node', '--format=esm',
+          '--packages=external', `--outfile=${out}`, '--log-level=warning',
+        ],
+        { cwd, stdio: 'inherit', shell: process.platform === 'win32' }
+      )
+      if (r.status !== 0) die(`no se pudo compilar el worker ${path.relative(cwd, entry)}`)
+    }
+    built.push(out)
+  }
+  return workersDir
+}
+
 async function cmdDev() {
   const cwd = process.cwd()
   if (!fs.existsSync(path.join(cwd, 'package.json'))) die('ejecuta dentro de tu app')
@@ -418,6 +471,9 @@ async function cmdDev() {
   const mainJs = prepareMain(cwd, path.join(cwd, '.owear'))
   if (mainJs) log(`proceso principal: ${path.relative(cwd, mainJs)}`)
 
+  const workersDir = prepareWorkers(cwd, path.join(cwd, '.owear'))
+  if (workersDir) log(`workers: ${path.relative(cwd, workersDir)}`)
+
   log(`lanzando kernel: ${kernelBin}`)
   const kernel = spawn(kernelBin, [], {
     stdio: 'inherit',
@@ -426,6 +482,7 @@ async function cmdDev() {
       OW_APP_NAME: JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8')).name ?? 'Owear App',
       OW_DEV_SERVER_URL: 'http://localhost:5173/',
       ...(mainJs ? { OW_APP_MAIN: mainJs } : {}),
+      ...(workersDir ? { OW_APP_WORKERS: workersDir } : {}),
       ...(() => {
         // módulos stock (fs/path/…) + los nativos de la app, si los hay
         const dirs = [stockModulesPath(), modulesDir].filter(Boolean)
@@ -453,6 +510,9 @@ async function cmdBuild() {
 
   const mainJs = prepareMain(cwd, path.join(cwd, 'dist'))
 
+  const workersDir = prepareWorkers(cwd, path.join(cwd, 'dist'))
+  if (workersDir) log(`workers: ${path.relative(cwd, workersDir)}`)
+
   const nativeDir = path.join(cwd, 'native')
   if (fs.existsSync(nativeDir)) {
     const out = path.join(cwd, 'dist', 'modules')
@@ -473,6 +533,7 @@ async function cmdBuild() {
     .join(path.delimiter)
   console.log(
     `  OW_ASSETS_DIR=dist${mainJs ? ' OW_APP_MAIN=dist/main.js' : ''}` +
+      `${workersDir ? ' OW_APP_WORKERS=dist/workers' : ''}` +
       `${runMods ? ` OW_MODULES_DIR="${runMods}"` : ''} ./owear`
   )
 }

@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/worker.test.mjs test/port.test.mjs"
   },
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",

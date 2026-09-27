@@ -19,6 +19,7 @@ import { EventEmitter } from 'node:events'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
+import { forkWorker, type ForkWorkerOptions, type WorkerHandle } from './node/worker.js'
 
 // ── tipos de la API pública ─────────────────────────────────────────────────
 
@@ -40,6 +41,17 @@ export interface Bounds {
   y: number
   width: number
   height: number
+}
+
+/**
+ * Vista mínima de `webContents` (paridad con Electron) para el envío dirigido
+ * main → renderer. `send` llega al renderer como `ow.on(name, cb)`.
+ */
+export interface WebContentsHandle {
+  /** Id de la ventana/webContents (-1 si aún no se creó). */
+  readonly id: number
+  /** Envía un evento SOLO a esta ventana. */
+  send(name: string, payload?: unknown): Promise<void>
 }
 
 export type WindowEventMap = {
@@ -161,14 +173,27 @@ let readyPromise: Promise<void> | null = null
 // app.handle y se responde con `node.respond`. Es OPT-IN: solo para features
 // que necesitan Node (p. ej. el extension host).
 type NodeHandler = (...args: any[]) => unknown | Promise<unknown>
+/** Handler con contexto: recibe la ventana de origen y luego los args. */
+export type ContextNodeHandler = (
+  context: { windowId: number },
+  ...args: any[]
+) => unknown | Promise<unknown>
 const nodeHandlers = new Map<string, NodeHandler>()
+const nodeContextHandlers = new Map<string, ContextNodeHandler>()
 
 channel.on('node.request', (params: any) => {
-  const { reqId, fn, args } = params ?? {}
+  const { reqId, fn, args, windowId } = params ?? {}
   const handler = nodeHandlers.get(fn)
+  const ctxHandler = nodeContextHandlers.get(fn)
   const argsArr = Array.isArray(args) ? args : args === undefined ? [] : [args]
   Promise.resolve()
-    .then(() => (handler ? handler(...argsArr) : undefined))
+    .then(() =>
+      ctxHandler
+        ? ctxHandler({ windowId: typeof windowId === 'number' ? windowId : 0 }, ...argsArr)
+        : handler
+          ? handler(...argsArr)
+          : undefined
+    )
     .then(
       (result) => channel.call('node.respond', { reqId, ok: true, result }),
       (err) =>
@@ -179,6 +204,64 @@ channel.on('node.request', (params: any) => {
         })
     )
     .catch(() => undefined)
+})
+
+// ── MessagePort (canal bidireccional main ↔ renderer) ───────────────────────
+// Cada endpoint vive o en el main o en un renderer. Los mensajes se enrutan por
+// el bridge. El payload viaja como JSON (igual que el resto del bridge); el
+// transporte binario sin copia kernel→renderer sigue siendo `ow-shm://`.
+export interface MessagePortMain {
+  /** Id global del endpoint (para transferirlo a un renderer). */
+  readonly portId: number
+  /** Envía un mensaje al otro extremo. */
+  postMessage(message: unknown): void
+  on(event: 'message', listener: (message: unknown) => void): this
+  start(): void
+  close(): void
+}
+
+type PortSide = { kind: 'main' } | { kind: 'renderer'; windowId: number }
+interface PortRecord {
+  id: number
+  peer: number
+  side: PortSide
+  emitter: EventEmitter
+}
+
+const portRecords = new Map<number, PortRecord>()
+let nextPortId = 1
+
+function deliverPort(fromId: number, data: unknown): void {
+  const rec = portRecords.get(fromId)
+  if (!rec) return
+  const peer = portRecords.get(rec.peer)
+  if (!peer) return
+  if (peer.side.kind === 'main') {
+    peer.emitter.emit('message', data)
+  } else {
+    void channel.call('node.emit', {
+      name: '__ow_port:msg',
+      payload: { id: peer.id, data },
+      windowId: peer.side.windowId,
+    })
+  }
+}
+
+function makeMainPort(id: number): MessagePortMain {
+  const rec = portRecords.get(id)!
+  return Object.assign(rec.emitter, {
+    portId: id,
+    postMessage: (data: unknown) => deliverPort(id, data),
+    start: () => undefined,
+    close: () => portRecords.delete(id),
+  }) as unknown as MessagePortMain
+}
+
+// Handler reservado: el renderer publica en un puerto con
+// `ow.invoke('node','call',{ fn:'__ow_port_post', args:[{ id, data }] })`.
+nodeHandlers.set('__ow_port_post', (msg: { id: number; data: unknown }) => {
+  if (msg && typeof msg.id === 'number') deliverPort(msg.id, msg.data)
+  return null
 })
 
 export const app = {
@@ -225,11 +308,68 @@ export const app = {
   },
 
   /**
+   * Como `handle`, pero el handler recibe la ventana de origen:
+   *   app.handleContext('x', (ctx, payload) => ctx.windowId)
+   * `ctx.windowId` es 0 si la llamada no vino de una ventana concreta.
+   */
+  handleContext(fn: string, handler: ContextNodeHandler): () => void {
+    nodeContextHandlers.set(fn, handler)
+    return () => {
+      if (nodeContextHandlers.get(fn) === handler) nodeContextHandlers.delete(fn)
+    }
+  },
+
+  /**
    * Empuja un evento a los renderers, recibible con `ow.on(name, cb)`.
    * `windowId` opcional para dirigirlo a una ventana concreta.
    */
   send(name: string, payload?: unknown, windowId?: number): Promise<void> {
     return channel.call('node.emit', { name, payload, windowId })
+  },
+
+  /**
+   * Lanza un worker Node con canal de mensajes (reemplazo de
+   * `utilityProcess.fork`). El entry puede ser absoluto, relativo a
+   * `app.workersDir()`, o con `./` relativo al cwd.
+   *
+   *   const w = app.forkWorker('tree-sitter-worker.js')
+   *   w.postMessage({ op: 'tokenize', text })
+   *   w.on('message', (m) => …)
+   */
+  forkWorker(entry: string, options?: ForkWorkerOptions): WorkerHandle {
+    return forkWorker(entry, options)
+  },
+
+  /** Directorio de workers compilados (`OW_APP_WORKERS`), si `ow dev`/`ow build` lo definió. */
+  workersDir(): string | undefined {
+    return process.env.OW_APP_WORKERS
+  },
+
+  /**
+   * Crea un canal bidireccional de dos puertos. Ambos nacen en el main;
+   * transfiere uno a un renderer con `app.sendPort(windowId, name, port)`.
+   * El renderer lo recibe con `ow.on(name, ({ port }) => ow.port(port))`.
+   */
+  createChannel(): { port1: MessagePortMain; port2: MessagePortMain } {
+    const a = nextPortId++
+    const b = nextPortId++
+    portRecords.set(a, { id: a, peer: b, side: { kind: 'main' }, emitter: new EventEmitter() })
+    portRecords.set(b, { id: b, peer: a, side: { kind: 'main' }, emitter: new EventEmitter() })
+    return { port1: makeMainPort(a), port2: makeMainPort(b) }
+  },
+
+  /**
+   * Transfiere un puerto a una ventana. El renderer lo recibe como
+   * `ow.on(name, ({ port }) => { const p = ow.port(port); … })`.
+   */
+  sendPort(windowId: number, name: string, port: MessagePortMain): Promise<void> {
+    const rec = portRecords.get(port.portId)
+    if (rec) rec.side = { kind: 'renderer', windowId }
+    return channel.call('node.emit', {
+      name,
+      payload: { port: port.portId },
+      windowId,
+    })
   },
 }
 
@@ -405,7 +545,30 @@ export class BrowserWindow extends EventEmitter {
       titleBarOverlay: overlay,
     })
   }
+
+  /**
+   * Vista de `webContents` de esta ventana (paridad Electron): envío dirigido
+   * main → renderer SOLO a esta ventana. El renderer lo recibe con
+   * `ow.on(name, cb)`.
+   */
+  get webContents(): WebContentsHandle {
+    const id = this._id
+    return {
+      get id() {
+        return id ?? -1
+      },
+      send: (name: string, payload?: unknown) =>
+        id == null
+          ? Promise.reject(new Error('ventana aún no creada'))
+          : channel.call('node.emit', { name, payload, windowId: id }),
+    }
+  }
 }
+
+// ── workers Node (utilityProcess.fork) ──────────────────────────────────────
+
+export { forkWorker, resolveWorkerEntry } from './node/worker.js'
+export type { ForkWorkerOptions, WorkerHandle } from './node/worker.js'
 
 // ── utilidades del renderer (tipos del bridge inyectado) ────────────────────
 

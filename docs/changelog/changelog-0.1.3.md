@@ -6,7 +6,9 @@
 Arreglo de la ventana de Windows (en blanco / "no responde"), toolchain de
 compilación cruzada Linux → Windows, **`titleBarOverlay`** (botones nativos de
 ventana dentro de la titlebar custom) en Linux, y un **puente Node** para
-exponer Node a la UI sin IPC por defecto.
+exponer Node a la UI sin IPC por defecto. Se añade el **Bloque A de
+ejecución/IPC**: workers Node con canal, `windowId` en los handlers, envío
+dirigido `webContents.send` y `MessageChannel`/`MessagePort`.
 
 ## Added
 
@@ -51,6 +53,31 @@ exponer Node a la UI sin IPC por defecto.
   - **Opt-in**: los caminos calientes (fs, terminal/PTY…) siguen yendo directo
     renderer → kernel → módulo nativo, sin Node en medio. Pensado para exponer
     Node a la UI (p. ej. el extension host de VS Code).
+- **Bloque A — ejecución e IPC** (workers, contexto, webContents, MessagePort):
+  - **Workers Node con canal (`app.forkWorker`)** — reemplazo de
+    `utilityProcess.fork`: el main (que ya es Node real) lanza un hijo con canal
+    IPC (`child_process.fork`) y un **shim de `process.parentPort`** para que los
+    workers portados desde Electron funcionen **sin cambios**. CLI:
+    `app/workers/**` se compilan a `workers/` y se exponen en `OW_APP_WORKERS`
+    (`ow dev`/`ow build`); `app.workersDir()`. API: `postMessage/on(message|exit)/kill/pid`.
+  - **`windowId` en los handlers Node** — el kernel propaga la ventana de origen
+    al main y el SDK la expone con `app.handleContext(fn, (ctx, ...args) => …)`
+    (`ctx.windowId`). `app.handle` sigue igual (aditivo).
+  - **`webContents.send` dirigido** — `win.webContents.send(name, payload)` en el
+    SDK (paridad Electron) envía ONLY a esa ventana; el renderer lo recibe con
+    `ow.on(name, cb)`.
+  - **`MessageChannel`/`MessagePort` (`app.createChannel`)** — canal bidireccional
+    main ↔ renderer sin registrar handlers por llamada: `app.sendPort(windowId,
+    name, port)` transfiere un extremo; en el renderer `ow.port(id)` (bridge)
+    recibe con `ow.on(name, ({ port }) => …)`. Enrutado por el bridge; el
+    transporte binario sin copia kernel→renderer sigue siendo `ow-shm://`.
+  - **Módulos nativos N-API**: documentados en `docs/NATIVE.md` (runtime Node
+    real → addons N-API y prebuilds de Node cargan tal cual; los binarios de
+    Electron hay que reconstruirlos para Node).
+  - **Tests**: `@owear/core` estrena `node --test` (`packages/core/test`:
+    `forkWorker` round-trip/exit y `createChannel` main↔main). Verificado además
+    E2E en Linux (Xvfb): worker, `windowId`, `webContents.send` y puerto
+    renderer↔main.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

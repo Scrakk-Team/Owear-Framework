@@ -13,6 +13,7 @@ std::string BuildBridgeScript() {
   var pending = new Map();
   var nextId = 1;
   var listeners = new Map();
+  var ports = new Map();
 
   function send(obj) {
     try {
@@ -46,6 +47,12 @@ std::string BuildBridgeScript() {
       var payload = null;
       try { payload = (payloadLiteral == null) ? null : JSON.parse(payloadLiteral); }
       catch (e) {}
+      // Mensajes de MessagePort dirigidos a un endpoint local del renderer.
+      if (name === '__ow_port:msg' && payload && payload.id != null) {
+        var rec = ports.get(payload.id);
+        if (rec) rec.forEach(function(cb) { try { cb(payload.data); } catch (e) {} });
+        return;
+      }
       var set = listeners.get(name);
       if (set && set.size) {
         set.forEach(function(cb) {
@@ -158,6 +165,25 @@ std::string BuildBridgeScript() {
       var set = listeners.get(name);
       if (set) set.forEach(function(cb) { try { cb(payload); } catch (e) {} });
       send({ t: 'event', n: name, p: payload === undefined ? null : payload, w: window.__owWindowId || 0 });
+    },
+    /* MessagePort: endpoint local de un canal main↔renderer. Se crea con el id
+       que entrega el main (app.sendPort → ow.on(name, ({port}) => ow.port(port))). */
+    port: function(id) {
+      if (!ports.has(id)) ports.set(id, new Set());
+      return {
+        portId: id,
+        postMessage: function(data) {
+          window.ow.invoke('node', 'call', { fn: '__ow_port_post', args: [{ id: id, data: data }] });
+        },
+        on: function(name, cb) {
+          if (name !== 'message') return function() {};
+          if (!ports.has(id)) ports.set(id, new Set());
+          ports.get(id).add(cb);
+          return function() { var s = ports.get(id); if (s) s.delete(cb); };
+        },
+        start: function() {},
+        close: function() { ports.delete(id); }
+      };
     }
   };
 })();)JS";
