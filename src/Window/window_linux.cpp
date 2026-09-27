@@ -897,6 +897,11 @@ void Window::Impl::PSetApplicationMenu(const std::string&) {
     // noop por diseño: en GNOME/Linux no imponemos menubar (el IDE dibuja el suyo).
 }
 
+void Window::Impl::PSetColorScheme(int) {
+    // noop: WebKitGTK no expone forzar el color-scheme (el tema lo define). La
+    // app reacciona a `theme.changed` para su propio theming.
+}
+
 void Window::Impl::PApplyTitleBar() {
     if (!pdata || !pdata->window) return;
     switch (opts.titleBarStyle) {

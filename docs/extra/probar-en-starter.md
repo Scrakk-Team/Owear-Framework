@@ -383,6 +383,28 @@ tray.destroy()
 
 ---
 
+### 5.7 C7 — `theme` (nativeTheme)
+
+| | Estado |
+|---|---|
+| Linux | ✅ lectura + eventos (`get`/`isDark`/`setSource`/`watch`); **forzar** ⚠️ (WebKitGTK no lo expone) |
+| Windows | 🟡 compila; **forzar** ✅ vía WebView2 `PreferredColorScheme` |
+
+```ts
+import { theme, nativeTheme } from '@owear/core'  // alias
+await theme.get()                 // { dark, source, highContrast, reducedTransparency }
+await theme.setSource('dark')     // system | light | dark  (fuerza el contenido en Windows)
+await theme.watch()               // ow.on('theme.changed', info)
+```
+
+- En el renderer, `prefers-color-scheme` refleja el sistema; para forzar de forma
+  **portátil**, la app escucha `theme.changed` y aplica su propio tema (p. ej.
+  `document.documentElement.dataset.theme`).
+- **En el starter:** botones **Tema: sistema / Claro / Oscuro** (aplican el tema y
+  actualizan la consola). Cableado (WIP). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

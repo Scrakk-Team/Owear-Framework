@@ -415,6 +415,8 @@ void Window::CapturePage(std::function<void(bool ok, const std::string& png)> cb
 void Window::SetApplicationMenu(const std::string& itemsJson) {
     impl_->PSetApplicationMenu(itemsJson);
 }
+
+void Window::SetColorScheme(int mode) { impl_->PSetColorScheme(mode); }
 void* Window::NativeHandle() const {
     return impl_->webview ? impl_->webview->NativeWidget() : nullptr;
 }

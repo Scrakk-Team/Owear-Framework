@@ -665,9 +665,13 @@ export const theme = {
   isDark(): Promise<boolean> {
     return invokeNative<boolean>('theme', 'isDark')
   },
-  /** Fuerza la preferencia: 'system' | 'light' | 'dark'. */
-  setSource(source: 'system' | 'light' | 'dark'): Promise<ThemeInfo> {
-    return invokeNative<ThemeInfo>('theme', 'setSource', source)
+  /** Fuerza la preferencia: 'system' | 'light' | 'dark'. También aplica el
+   *  esquema al contenido (Windows: WebView2 `PreferredColorScheme`). */
+  async setSource(source: 'system' | 'light' | 'dark'): Promise<ThemeInfo> {
+    const info = await invokeNative<ThemeInfo>('theme', 'setSource', source)
+    const scheme = source === 'dark' ? 2 : source === 'light' ? 1 : 0
+    void channel.call('window.setColorScheme', { scheme }).catch(() => undefined)
+    return info
   },
   watch(): Promise<void> {
     return invokeNative<void>('theme', 'watch')
@@ -676,6 +680,9 @@ export const theme = {
     return invokeNative<void>('theme', 'unwatch')
   },
 }
+
+/** Alias estilo Electron de `theme`. */
+export const nativeTheme = theme
 
 // ── safeStorage ─────────────────────────────────────────────────────────────
 

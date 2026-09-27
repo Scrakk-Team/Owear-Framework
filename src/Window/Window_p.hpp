@@ -116,6 +116,9 @@ public:
 
     /// Aplica un menubar de aplicación (Windows: HMENU; Linux: noop).
     virtual void PSetApplicationMenu(const std::string& itemsJson);
+
+    /// Fuerza el esquema de color del contenido (0=auto, 1=light, 2=dark).
+    virtual void PSetColorScheme(int scheme);
     virtual void PBeginMoveDrag();
     virtual void PBeginResizeDrag(const std::string& edge);
 

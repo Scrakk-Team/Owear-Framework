@@ -115,6 +115,10 @@ public:
     /// (mismo formato que `menu.popup`). Windows: HMENU nativo; Linux: noop.
     void SetApplicationMenu(const std::string& itemsJson);
 
+    /// Fuerza el esquema de color del contenido: 0=auto (sistema), 1=light, 2=dark.
+    /// Windows: WebView2 `PreferredColorScheme`; Linux: noop (WebKitGTK no lo expone).
+    void SetColorScheme(int mode);
+
     // ── webview ────────────────────────────────────────────────────
     void LoadURL(const std::string& url);
     /// Evalúa JS en la página. callback recibe el resultado JSON o null.

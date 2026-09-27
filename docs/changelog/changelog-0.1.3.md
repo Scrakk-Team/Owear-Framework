@@ -96,9 +96,14 @@ PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray` y **C7** `nativeTheme`.
     **Linux: AES-256-GCM** con clave local 0600 en el data dir de la app. SDK:
     `ow.safeStorage`. Verificado en Linux (round-trip + persistencia de clave).
   - **`theme` (nativeTheme)** (módulo `api/theme`) — `get`/`isDark`/`setSource`
-    (system|light|dark)/`watch` + evento `theme.changed`. **Linux: GSettings
-    `color-scheme` + tema GTK**; **Windows: registro `AppsUseLightTheme`** (watch
-    por sondeo). SDK: `ow.theme`. Verificado en Linux.
+    (system|light|dark)/`watch`/`unwatch` + evento `theme.changed`. **Linux:
+    GSettings `color-scheme` + tema GTK**; **Windows: registro
+    `AppsUseLightTheme`** (watch por sondeo). **Forzar el contenido**:
+    `theme.setSource` → kernel `window.setColorScheme` → **Windows WebView2
+    `PreferredColorScheme`** (cambia el `prefers-color-scheme` real); en **Linux
+    WebKitGTK no expone forzarlo** (la app reacciona a `theme.changed`). SDK:
+    `ow.theme` (+ alias `ow.nativeTheme`). Verificado en Linux (lectura/eventos);
+    Windows compila.
   - **`session` — permisos del WebView** — `session.onPermissionRequest(handler)`
     (deniega si no hay handler). `PermissionBroker` en el kernel + comandos
     `session.setPermissionHandler`/`session.respondPermission`. **Linux: señal

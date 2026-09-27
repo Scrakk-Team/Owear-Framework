@@ -524,6 +524,17 @@ public:
         if (sink_) sink_(name, json);
     }
 
+    /// Fuerza el `prefers-color-scheme` del contenido (0=auto,1=light,2=dark).
+    void SetPreferredColorScheme(int scheme) override {
+        if (!webview_) return;
+        ComPtr<ICoreWebView2_13> wv13;
+        if (FAILED(webview_->QueryInterface(IID_PPV_ARGS(&wv13))) || !wv13) return;
+        ComPtr<ICoreWebView2Profile> profile;
+        if (FAILED(wv13->get_Profile(&profile)) || !profile) return;
+        profile->put_PreferredColorScheme(
+            static_cast<COREWEBVIEW2_PREFERRED_COLOR_SCHEME>(scheme));
+    }
+
     static std::string KeyName(UINT vk) {
         if (vk >= 'A' && vk <= 'Z') return std::string(1, static_cast<char>(vk));
         if (vk >= '0' && vk <= '9') return std::string(1, static_cast<char>(vk));

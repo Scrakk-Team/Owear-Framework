@@ -496,6 +496,15 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         resultJson = "null";
         return true;
     }
+    // ── theme: forzar el esquema de color del contenido ──────────────────
+    if (cmd == "window.setColorScheme") {
+        const V* s = params.Find("scheme");
+        const int mode = (s && s->IsNumber()) ? static_cast<int>(s->AsInt()) : 0;
+        for (auto& [wid, w] : LiveWindows()) w->SetColorScheme(mode);
+        resultJson = "null";
+        return true;
+    }
+
     // ── menu: menubar de aplicación ──────────────────────────────────────
     if (cmd == "menu.setApplicationMenu") {
         const V* items = params.Find("items");

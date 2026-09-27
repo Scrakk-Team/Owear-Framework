@@ -808,6 +808,10 @@ void Window::Impl::PSetApplicationMenu(const std::string& itemsJson) {
     DrawMenuBar(pdata->hwnd);
 }
 
+void Window::Impl::PSetColorScheme(int mode) {
+    if (webview) webview->SetPreferredColorScheme(mode);
+}
+
 void Window::Impl::PApplyTitleBar() {
     // Hidden/Custom ya son frameless desde PCreate; cambios en caliente (F3)
 }

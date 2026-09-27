@@ -44,6 +44,9 @@ public:
         if (cb) cb(false, {});
     }
 
+    /// Fuerza el esquema de color del contenido: 0=auto, 1=light, 2=dark.
+    virtual void SetPreferredColorScheme(int /*scheme*/) {}
+
     virtual void LoadURL(const std::string& url) = 0;
 
     virtual void EvalJS(const std::string& js, EvalCallback cb = nullptr) = 0;
