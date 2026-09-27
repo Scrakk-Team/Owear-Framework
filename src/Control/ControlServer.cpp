@@ -9,6 +9,7 @@
 #include "../Bridge/Dispatcher.hpp"
 #include "../Core/App.hpp"
 #include "../Protocol/ProtocolRegistry.hpp"
+#include "../Session/PermissionBroker.hpp"
 #include "../Window/Window_p.hpp"
 #include "../Core/Log.hpp"
 #include "../Runtime/NodeManager.hpp"
@@ -478,6 +479,23 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         const std::string body = (b && b->IsString()) ? b->AsString() : std::string();
         ProtocolRegistry::Get().ResolveFromMain(static_cast<uint64_t>(rid->AsInt()), status,
                                                 headers, body);
+        resultJson = "null";
+        return true;
+    }
+
+    // ── session: permisos del WebView (main ↔ kernel) ────────────────────
+    if (cmd == "session.setPermissionHandler") {
+        const V* on = params.Find("enabled");
+        PermissionBroker::Get().SetEnabled(on ? (on->IsBool() ? on->AsBool() : true) : true);
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "session.respondPermission") {
+        const V* rid = params.Find("id");
+        if (!rid || !rid->IsNumber()) { error = "id requerido"; return false; }
+        const V* allow = params.Find("allow");
+        PermissionBroker::Get().Resolve(static_cast<uint64_t>(rid->AsInt()),
+                                        allow && allow->IsBool() ? allow->AsBool() : false);
         resultJson = "null";
         return true;
     }

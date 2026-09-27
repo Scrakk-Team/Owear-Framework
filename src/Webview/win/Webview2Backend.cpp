@@ -15,6 +15,7 @@
 #include "../IWebviewBackend.hpp"
 #include "../../Core/Log.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
+#include "../../Session/PermissionBroker.hpp"
 #include "ow/detail/minjson.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -214,6 +215,45 @@ public:
 
         // protocol API: esquemas personalizados (dir o handler en el main)
         if (!pendingProtocols_.empty()) AttachProtocolHandlers();
+
+        // Permisos del WebView: delega en PermissionBroker (la app decide).
+        webview_->add_PermissionRequested(
+            Callback<ICoreWebView2PermissionRequestedEventHandler>(
+                [](ICoreWebView2*, ICoreWebView2PermissionRequestedEventArgs* args)
+                    -> HRESULT {
+                    if (!args) return S_OK;
+                    COREWEBVIEW2_PERMISSION_KIND kind =
+                        COREWEBVIEW2_PERMISSION_KIND_UNKNOWN_PERMISSION;
+                    args->get_PermissionKind(&kind);
+                    LPWSTR uriRaw = nullptr;
+                    args->get_Uri(&uriRaw);
+                    const std::string origin = uriRaw ? WideToUtf8(uriRaw) : "";
+                    if (uriRaw) CoTaskMemFree(uriRaw);
+
+                    const char* name = "unknown";
+                    switch (kind) {
+                    case COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION: name = "geolocation"; break;
+                    case COREWEBVIEW2_PERMISSION_KIND_NOTIFICATIONS: name = "notifications"; break;
+                    case COREWEBVIEW2_PERMISSION_KIND_MICROPHONE: name = "microphone"; break;
+                    case COREWEBVIEW2_PERMISSION_KIND_CAMERA: name = "camera"; break;
+                    case COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ: name = "clipboardRead"; break;
+                    default: break;
+                    }
+
+                    ComPtr<ICoreWebView2Deferral> deferral;
+                    args->GetDeferral(&deferral);
+                    ComPtr<ICoreWebView2PermissionRequestedEventArgs> hold = args;
+                    PermissionBroker::Get().Request(
+                        name, origin, [hold, deferral](bool allow) {
+                            hold->put_State(allow
+                                                ? COREWEBVIEW2_PERMISSION_STATE_ALLOW
+                                                : COREWEBVIEW2_PERMISSION_STATE_DENY);
+                            if (deferral) deferral->Complete();
+                        });
+                    return S_OK;
+                })
+                .Get(),
+            nullptr);
 
         if (!pendingUrl_.empty()) {
             std::string u = pendingUrl_;

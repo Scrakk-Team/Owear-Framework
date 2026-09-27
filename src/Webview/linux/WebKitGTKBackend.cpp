@@ -13,6 +13,7 @@
 #include "../../Bridge/Dispatcher.hpp"
 #include "../../Bridge/Shm.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
+#include "../../Session/PermissionBroker.hpp"
 #include "ow/Bridge/Codec.h"
 #include "../../Core/Log.hpp"
 #include "ow/Base64.h"
@@ -57,6 +58,22 @@ std::string ContentTypeFromHeaders(const std::string& headersJson) {
         }
     }
     return "text/html";
+}
+
+/// Permisos del WebView: delega en PermissionBroker (la app decide).
+gboolean OnPermissionRequest(WebKitWebView*, WebKitPermissionRequest* req, gpointer) {
+    const char* name = "unknown";
+    if (WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(req)) name = "geolocation";
+    else if (WEBKIT_IS_NOTIFICATION_PERMISSION_REQUEST(req)) name = "notifications";
+    else if (WEBKIT_IS_USER_MEDIA_PERMISSION_REQUEST(req)) name = "media";
+    else if (WEBKIT_IS_POINTER_LOCK_PERMISSION_REQUEST(req)) name = "pointerLock";
+    g_object_ref(req);
+    ow::PermissionBroker::Get().Request(name, "", [req](bool allow) {
+        if (allow) webkit_permission_request_allow(req);
+        else webkit_permission_request_deny(req);
+        g_object_unref(req);
+    });
+    return TRUE;
 }
 
 /// Respuesta binaria sin copia: GBytes estático sobre memoria existente.
@@ -152,6 +169,10 @@ public:
                                         nullptr));
 
         RegisterKernelSchemes();
+
+        // Permisos (geolocalización, notificaciones, media, pointer-lock).
+        g_signal_connect(view_, "permission-request",
+                         G_CALLBACK(OnPermissionRequest), nullptr);
 
         gtk_container_add(GTK_CONTAINER(parent), view_);
         gtk_widget_show(view_);

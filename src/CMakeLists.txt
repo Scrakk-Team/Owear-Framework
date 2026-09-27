@@ -46,6 +46,7 @@ set(OW_KERNEL_SOURCES
     Bridge/Shm.cpp
     Control/ControlServer.cpp
     Protocol/ProtocolRegistry.cpp
+    Session/PermissionBroker.cpp
     Window/Window_common.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp
