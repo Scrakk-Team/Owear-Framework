@@ -298,6 +298,30 @@ await wc.executeJavaScript('location.href')   // loadURL/reload/openDevTools/get
 
 ---
 
+### 5.4 C4 — `nativeImage`
+
+| | Estado |
+|---|---|
+| Linux | ✅ verificado (tests SDK) |
+| Windows | ✅ (Node puro; idéntico) |
+
+```ts
+const img = nativeImage.createFromPath('icono.png')
+img.getSize()                       // { width, height }
+img.isEmpty()
+const small = img.resize({ width: 16 })
+small.toPNG()                       // Buffer PNG
+img.toDataURL()                     // data:image/png;base64,…
+img.crop({ x: 0, y: 0, width: 16, height: 16 })
+nativeImage.createFromBuffer(buf) / createFromDataURL(url)
+```
+
+- Códec PNG en Node (`zlib`): colorType 0/2/3/4/6, bitDepth 1/2/4/8/16.
+- `webContents.capturePage()` devuelve un `NativeImage` (encadena con `resize`).
+- **En el starter:** ⏳ (se usará en tray/menú, C5/C6).
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

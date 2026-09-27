@@ -20,6 +20,10 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { forkWorker, type ForkWorkerOptions, type WorkerHandle } from './node/worker.js'
+import { NativeImage, nativeImage } from './nativeimage.js'
+
+export { NativeImage, nativeImage } from './nativeimage.js'
+export type { Size as NativeImageSize, Rectangle, ResizeOptions } from './nativeimage.js'
 
 // ── tipos de la API pública ─────────────────────────────────────────────────
 
@@ -930,11 +934,6 @@ export function nativeModuleInfo(name: string): Promise<NativeModuleInfo> {
 
 // ── webContents (C3) ────────────────────────────────────────────────────────
 
-export interface NativeImage {
-  toPNG(): Buffer
-  toDataURL(): string
-}
-
 export interface WindowOpenDetails {
   url: string
 }
@@ -1016,16 +1015,13 @@ export class WebContents extends EventEmitter {
     return channel.call<T>('window.eval', { windowId: this.id, js })
   }
 
-  /** Captura la página (PNG) y la devuelve como objeto con `toPNG()`/`toDataURL()`. */
+  /** Captura la página (PNG) como `NativeImage` (resizable, toPNG/toDataURL). */
   async capturePage(): Promise<NativeImage> {
-    const r = await channel.call<{ data: string; format: string }>('window.capturePage', {
+    const r = await channel.call<{ data: string }>('window.capturePage', {
       windowId: this.id,
       base64: true,
     })
-    return {
-      toPNG: () => Buffer.from(r.data, 'base64'),
-      toDataURL: () => `data:image/png;base64,${r.data}`,
-    }
+    return nativeImage.createFromBuffer(Buffer.from(r.data, 'base64'))
   }
 
   /**

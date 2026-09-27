@@ -154,6 +154,13 @@ muere con el kernel.
     de ventanas emergentes (`WindowOpenBroker`) + `capturePage` `{base64}`.
     Verificado en Linux (`did-finish-load`, `capturePage`, `getURL`); Windows
     compila.
+  - **`nativeImage` (C4)** — sin dependencias nativas: **códec PNG** en el SDK
+    (Node `zlib`) que soporta colorType 0/2/3/4/6 y bitDepth 1/2/4/8/16.
+    `nativeImage.createFromPath`/`createFromBuffer`/`createFromDataURL` (síncronos
+    como Electron) + `getSize`, `isEmpty`, `toPNG`, `toDataURL`, `resize`
+    (bilineal), `crop`. JPEG: `getSize` (SOF) y `toJPEG` (si la fuente ya es
+    JPEG). `webContents.capturePage()` ahora devuelve un `NativeImage`.
+    Verificado (tests SDK).
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,
