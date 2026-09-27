@@ -11,7 +11,10 @@ ejecución/IPC**: workers Node con canal, `windowId` en los handlers, envío
 dirigido `webContents.send` y `MessageChannel`/`MessagePort`. Se suma el
 **Bloque B**: `protocol` (esquemas personalizados), `safeStorage` (DPAPI /
 AES-GCM), `theme` (nativeTheme) y permisos de `session`; y el sidecar Node ya
-muere con el kernel.
+muere con el kernel. Y el **Bloque C (shell de app)**: **C1** `app` completo
+(rutas/identidad/`commandLine`/eventos), **C2** `dialog` completo, **C3**
+`webContents` (objetos + eventos + `capturePage`), **C4** `nativeImage` (códec
+PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray` y **C7** `nativeTheme`.
 
 ## Added
 
@@ -241,3 +244,25 @@ muere con el kernel.
   renderer **no tiene listener** de `closeRequested`, responde `allow` **al
   instante** → la ventana deja de aparecer de inmediato. Si hay listener, se
   mantiene el veto con su timeout.
+- **Windows: `dialog.dll` no cargaba** (`STATUS_ENTRYPOINT_NOT_FOUND` / err 182):
+  importaba `TaskDialogIndirect` (comctl32) estáticamente y sin manifiesto v6 el
+  DLL entero fallaba. Ahora se resuelve **dinámicamente** (`GetProcAddress`) y cae
+  a `MessageBox` si no está.
+- **Windows: módulos viejos / cargados dos veces** → `ModuleLoader` ahora prefiere
+  `<exe>/modules` (mismo build que el kernel) y **deduplica por nombre**, así un
+  runtime package antiguo en `OW_MODULES_DIR` ya no gana (adiós "función
+  desconocida").
+- **Dev en el monorepo: módulos desactualizados** → el CLI (`stockModulesPath`)
+  prefiere el **build local** al runtime package prebuilt (artefacto git-ignored
+  que puede estar viejo).
+- **Windows: `capturePage` crasheaba** (`ACCESS_VIOLATION`): el `capturePage`
+  síncrono hacía un *pump* de mensajes anidado que reentraba. Ahora la captura es
+  **asíncrona** por comando de control (`window.capturePage`), sin bucle anidado.
+- **Linux: `menu.popup`** daba `Gtk-CRITICAL: no trigger event` (el popup llega
+  desde un click async, sin evento GDK): ahora se coloca con
+  `gtk_menu_popup_at_rect` sobre el root window con un **evento de trigger
+  sintético**.
+- **Sidecar Node huérfano**: el proceso Node del main ahora **muere con el kernel**
+  (`PR_SET_PDEATHSIG` en Linux/macOS + `ShutdownSidecar`; Job Object
+  `KILL_ON_JOB_CLOSE` en Windows), con margen para entregar `before-quit`/
+  `will-quit` antes de terminarlo.
