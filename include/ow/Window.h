@@ -43,6 +43,10 @@ struct WindowOptions {
     /// URL inicial: http(s):// (dev server), app://<bundle>/... o file://
     std::string url = "app://index.html";
 
+    /// Partición de sesión (aislamiento de cookies/storage por perfil).
+    /// Vacío = perfil por defecto de la app. Ej: "persist:cuenta-2".
+    std::string session;
+
     /// Argumentos extra para el proceso del WebView (debug flags, etc).
     std::vector<std::string> webviewArgs;
 };

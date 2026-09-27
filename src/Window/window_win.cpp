@@ -568,7 +568,7 @@ bool Window::Impl::PCreate() {
     }
 
     log::Info("window", "PCreate: webview->Create");
-    if (!webview->Create(hwnd, opts.webviewArgs)) {
+    if (!webview->Create(hwnd, WebviewArgsWithSession(opts.webviewArgs, opts.session))) {
         log::Error("window", "backend webview rechazó la creación");
         return false;
     }

@@ -112,8 +112,8 @@ ow.on('ow:port', ({ port }) => {
 | `safeStorage` | cifrado por el SO | ✅ | 🟡 (compila) |
 | `theme` (nativeTheme) | claro/oscuro + forzar + evento | ✅ | 🟡 (compila) |
 | `session` permisos | geolocation/notifications/… | ✅ (geolocation) | 🟡 (compila) |
-| `session` particiones | `session.fromPartition` | ⏳ | ⏳ |
-| `session` webRequest | `onBeforeRequest`/`onHeadersReceived` | ⏳ | ⏳ |
+| `session` particiones | `session.fromPartition` (perfiles) | ✅ | 🟡 (compila) |
+| `session` webRequest | `onBeforeRequest`/`onHeadersReceived` | ⏳ (necesita web extensions) | ⏳ (WebResourceRequested) |
 
 ### 2.1 `protocol` con handler (contenido dinámico)
 
@@ -165,6 +165,18 @@ session.onPermissionRequest(({ permission, origin }) => permission === 'geolocat
 
 - Trigger en renderer: `navigator.geolocation.getCurrentPosition(...)`.
 - **En el starter:** botón que pide geolocalización y muestra allow/deny. ⏳
+
+### 2.6 `session` particiones (perfiles)
+
+```ts
+const s = session.fromPartition('persist:cuenta-2')
+new BrowserWindow({ session: s.partition, url })   // perfil aislado
+```
+
+- Verificado en Linux: `persist:a` y `persist:b` **no** comparten `localStorage`;
+  dos ventanas de `persist:a` sí.
+- **En el starter:** botón "abrir en perfil 2" que abre una ventana con otra
+  partición y compara `localStorage`. ⏳
 
 ---
 

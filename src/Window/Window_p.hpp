@@ -20,6 +20,14 @@
 
 namespace ow {
 
+/// Añade la partición de sesión a los args del WebView (la leen los backends).
+inline std::vector<std::string> WebviewArgsWithSession(
+    const std::vector<std::string>& args, const std::string& session) {
+    std::vector<std::string> out = args;
+    if (!session.empty()) out.push_back("ow-partition=" + session);
+    return out;
+}
+
 class Window::Impl {
 public:
     /// Estado opaco de plataforma, definido en window_<plat>.cpp.

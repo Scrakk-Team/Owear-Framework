@@ -318,6 +318,7 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
             opts.titleBarStyle == TitleBarStyle::Default)
             opts.titleBarStyle = TitleBarStyle::Custom;
         if (const V* v = params.Find("url"); v && v->IsString()) opts.url = v->AsString();
+        if (const V* v = params.Find("session"); v && v->IsString()) opts.session = v->AsString();
 
         auto* win = new Window(opts);
         WindowId wid = win->Id();

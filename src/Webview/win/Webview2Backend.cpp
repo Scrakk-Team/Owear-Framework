@@ -61,7 +61,8 @@ std::string WideToUtf8(const wchar_t* w) {
 
 // Perfil de usuario fuera del dir del exe (puede ser read-only en installs
 // de sistema) — patrón GetUserDataDir de ole/browser_host.
-std::wstring UserDataDir() {
+// `partition` aísla cookies/storage por perfil (session API).
+std::wstring UserDataDir(const std::string& partition) {
     PWSTR local = nullptr;
     std::wstring dir;
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr,
@@ -71,9 +72,27 @@ std::wstring UserDataDir() {
     } else {
         dir = L".\\owear-webview2";
     }
+    if (!partition.empty()) {
+        std::string safe = partition;
+        for (char& c : safe)
+            if (c == ':' || c == '/' || c == '\\' || c == '*' || c == '?' ||
+                c == '"' || c == '<' || c == '>' || c == '|')
+                c = '_';
+        dir += L"\\" + Utf8ToWide(safe);
+    }
     std::error_code ec;
     std::filesystem::create_directories(dir, ec); // no-lanzante
     return dir;
+}
+
+/// Extrae `ow-partition=<nombre>` de los args del WebView.
+std::string PartitionFromArgs(const std::vector<std::string>& args) {
+    static const std::string kPrefix = "ow-partition=";
+    for (const auto& a : args) {
+        if (a.rfind(kPrefix, 0) == 0 && a.size() > kPrefix.size())
+            return a.substr(kPrefix.size());
+    }
+    return {};
 }
 
 // Envoltorio SEH: CreateCoreWebView2EnvironmentWithOptions puede morir con
@@ -130,15 +149,18 @@ private:
         }
 
         auto envOptions = Make<CoreWebView2EnvironmentOptions>();
-        if (!args.empty()) {
+        partition_ = PartitionFromArgs(args);
+        {
             std::wstring joined;
             for (const auto& a : args) {
+                if (a.rfind("ow-partition=", 0) == 0) continue; // arg de Owear, no del navegador
                 joined += Utf8ToWide(a) + L" ";
             }
-            envOptions->put_AdditionalBrowserArguments(joined.c_str());
+            if (!joined.empty())
+                envOptions->put_AdditionalBrowserArguments(joined.c_str());
         }
         log::Info("webview2", "opciones listas, user data dir: " +
-                                  WideToUtf8(UserDataDir().c_str()));
+                                  WideToUtf8(UserDataDir(partition_).c_str()));
 
         // ¿hay runtime Evergreen instalado? (API de diagnóstico segura)
         LPWSTR ver = nullptr;
@@ -150,7 +172,7 @@ private:
                       (ver ? WideToUtf8(ver) : "(null)"));
         if (ver) CoTaskMemFree(ver);
 
-        std::wstring userDataDir = UserDataDir();
+        std::wstring userDataDir = UserDataDir(partition_);
         ICoreWebView2EnvironmentOptions* rawOpts =
             args.empty() ? nullptr : envOptions.Get();
         EnvCreateArgs a{rawOpts, userDataDir.c_str(), this};
@@ -481,6 +503,7 @@ private:
     std::vector<std::string> pendingInitScripts_;
     std::string pendingUrl_;
     std::filesystem::path assetRoot_;
+    std::string partition_;
     std::vector<std::string> pendingProtocols_;
     bool resourceHandlerAttached_ = false;
 };

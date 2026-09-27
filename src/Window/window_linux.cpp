@@ -768,7 +768,8 @@ bool Window::Impl::PCreate() {
 
     // Con overlay, el webview es el child principal del GtkOverlay.
     GtkWidget* contentParent = pdata->overlay ? pdata->overlay : win;
-    if (!webview->Create(contentParent, opts.webviewArgs)) return false;
+    if (!webview->Create(contentParent, WebviewArgsWithSession(opts.webviewArgs, opts.session)))
+        return false;
     pdata->webviewReady = true;
 
     // ── eventos de navegación (siempre activos) ────────────────────────

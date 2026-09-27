@@ -121,7 +121,8 @@ void FinishError(WebKitURISchemeRequest* request, int code, const char* msg) {
 // Directorio de datos del WebView AISLADO POR APP (data/cache). Antes se usaba
 // el WebsiteDataManager por defecto (compartido) → localStorage/IndexedDB/cache
 // se cruzaban entre apps Owear. Se elige por OW_APP_ID (o OW_APP_NAME).
-std::string WebviewDataDir(const char* sub) {
+// `partition` añade aislamiento por perfil (session API).
+std::string WebviewDataDir(const std::string& partition, const char* sub) {
     std::string base;
     if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg && *xdg)
         base = xdg;
@@ -134,7 +135,23 @@ std::string WebviewDataDir(const char* sub) {
         app = id;
     else if (const char* name = std::getenv("OW_APP_NAME"); name && *name)
         app = name;
-    return base + "/owear/" + app + "/webkit/" + sub;
+    // Sanea la partición para que sea un nombre de carpeta válido.
+    std::string part = partition.empty() ? "default" : partition;
+    for (char& c : part)
+        if (c == ':' || c == '/' || c == '\\' || c == '*' || c == '?' || c == '"' ||
+            c == '<' || c == '>' || c == '|')
+            c = '_';
+    return base + "/owear/" + app + "/webkit/" + part + "/" + sub;
+}
+
+/// Extrae `ow-partition=<nombre>` de los args del WebView.
+std::string PartitionFromArgs(const std::vector<std::string>& args) {
+    static const std::string kPrefix = "ow-partition=";
+    for (const auto& a : args) {
+        if (a.rfind(kPrefix, 0) == 0 && a.size() > kPrefix.size())
+            return a.substr(kPrefix.size());
+    }
+    return {};
 }
 
 class WebKitGTKBackend final : public IWebviewBackend {
@@ -142,17 +159,17 @@ public:
     ~WebKitGTKBackend() override = default;
 
     bool Create(void* parentNativeWindow, const std::vector<std::string>& args) override {
-        (void)args; // v1: sin flags extra
         // El parent puede ser la GtkWindow o un GtkOverlay (titleBarOverlay).
         GtkWidget* parent = GTK_WIDGET(parentNativeWindow);
         if (!parent) return false;
 
+        const std::string partition = PartitionFromArgs(args);
         manager_ = webkit_user_content_manager_new();
 
-        // Data manager POR APP: aísla localStorage/IndexedDB/cache por app-id.
-        // Sin esto WebKit usaba el WebsiteDataManager por defecto (compartido).
-        const std::string dataDir = WebviewDataDir("data");
-        const std::string cacheDir = WebviewDataDir("cache");
+        // Data manager POR APP (y por partición): aísla localStorage/IndexedDB/
+        // cache/cookies. Sin esto WebKit usaba el manager por defecto (compartido).
+        const std::string dataDir = WebviewDataDir(partition, "data");
+        const std::string cacheDir = WebviewDataDir(partition, "cache");
         std::error_code ec;
         std::filesystem::create_directories(dataDir, ec);
         std::filesystem::create_directories(cacheDir, ec);

@@ -34,6 +34,12 @@ export interface WindowOptions {
   titleBarStyle?: 'default' | 'hidden' | 'custom'
   titleBarOverlay?: boolean | { enabled?: boolean; color?: string; symbolColor?: string; buttonColor?: string; height?: number }
   url?: string
+  /**
+   * Partición de sesión: aísla cookies/localStorage/IndexedDB/cache por perfil.
+   * Vacío = perfil por defecto de la app. Ej: "persist:cuenta-2".
+   * Crea la partición con `session.fromPartition(name)`.
+   */
+  session?: string
 }
 
 export interface Bounds {
@@ -581,6 +587,16 @@ channel.on('session.permissionRequest', (params: any) => {
  *   session.onPermissionRequest(({ permission, origin }) => permission === 'notifications')
  */
 export const session = {
+  /**
+   * Referencia a una partición de sesión. Pásala al crear la ventana:
+   *   const s = session.fromPartition('persist:cuenta-2')
+   *   new BrowserWindow({ session: s.partition, url })
+   * Aísla cookies/storage/cache por perfil (WebKit: data dir; WebView2: perfil).
+   */
+  fromPartition(partition: string): { partition: string } {
+    return { partition }
+  },
+
   onPermissionRequest(handler: PermissionHandler): () => void {
     permissionHandlers.push(handler)
     // El handler se registra ya; avisar al kernel en cuanto haya canal.

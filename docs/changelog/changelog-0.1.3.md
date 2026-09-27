@@ -101,8 +101,16 @@ muere con el kernel.
     `session.setPermissionHandler`/`session.respondPermission`. **Linux: señal
     `permission-request` de WebKitGTK**; **Windows: `add_PermissionRequested`
     con deferral**. Verificado en Linux (geolocation).
-  - Pendiente de la sesión (roadmap): **particiones** (`session.fromPartition`)
-    y **`webRequest`** (`onBeforeRequest`/`onHeadersReceived`).
+  - **`session` — particiones (perfiles)** — `session.fromPartition(name)` +
+    `BrowserWindow({ session })` aíslan cookies/localStorage/IndexedDB/cache por
+    perfil. Linux: data dir por partición (`…/webkit/<partición>/{data,cache}`);
+    Windows: perfil por partición (`…\owear\WebView2\<partición>`). Verificado en
+    Linux: `persist:a` y `persist:b` no comparten `localStorage`; dos ventanas de
+    la misma partición sí.
+  - Pendiente de la sesión (roadmap): **`webRequest`**
+    (`onBeforeRequest`/`onHeadersReceived`). En Linux requiere **web extensions**
+    de WebKitGTK (mecanismo aparte); en Windows se haría con
+    `WebResourceRequested` (ya montado para `protocol`).
 - **Ciclo de vida del sidecar** — el proceso Node **muere con el kernel**:
   Linux/macOS `PR_SET_PDEATHSIG(SIGTERM)` + `NodeManager::ShutdownSidecar()`
   (SIGTERM y, si no sale, SIGKILL); Windows Job Object `KILL_ON_JOB_CLOSE` +
