@@ -171,6 +171,15 @@ muere con el kernel.
     (`ow/Menu.hpp`) con tipos/estados; Linux GTK (`GtkCheck/RadioMenuItem`) y
     Windows `HMENU` (popup `TrackPopupMenu` + **menubar** vía
     `window.setApplicationMenu` + `WM_COMMAND`). Tests SDK; Windows compila.
+  - **`Tray` (C6)** — icono de bandeja completo (API intermedia Tauri/Electron):
+    `new Tray(image?)`, `setImage`, `setPressedImage`, `setToolTip`, `setTitle`,
+    `setContextMenu(Menu)`, `popupContextMenu`, `destroy`, y eventos
+    `click`/`right-click`/`double-click`. Icono = `NativeImage` o ruta → PNG
+    base64 al kernel. **Linux: `GtkStatusIcon`** (sin deps, compila siempre; en
+    GNOME no aparece → `docs/extra/GNOME.md`). **Windows: `Shell_NotifyIcon`** con
+    menú contextual (`TrackPopupMenu`), eventos y **PNG→HICON** vía GDI+. El menú
+    reutiliza el template de C5. Verificado en Linux (registro + ciclo);
+    Windows compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

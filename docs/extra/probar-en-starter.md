@@ -351,6 +351,38 @@ menu.popup({ window: win })            // contextual
 
 ---
 
+### 5.6 C6 — `Tray`
+
+| | Estado |
+|---|---|
+| Linux | ✅ `GtkStatusIcon` (X11/XFCE/KDE); **GNOME** → ver `docs/extra/GNOME.md` |
+| Windows | 🟡 compila (`Shell_NotifyIcon` + menú + eventos + PNG→HICON) |
+
+```ts
+const tray = new Tray(nativeImage.createFromPath('icon.png'))
+tray.setToolTip('Mi app')
+tray.setTitle('Mi app')
+tray.setContextMenu(Menu.buildFromTemplate([
+  { label: 'Mostrar', click: () => win.show() },
+  { type: 'separator' },
+  { role: 'quit' },
+]))
+tray.on('click', () => win.show())
+tray.on('right-click', () => {})
+tray.on('double-click', () => {})
+tray.popupContextMenu()
+tray.destroy()
+```
+
+- Icono: `NativeImage` (C4) o ruta → se manda **PNG base64** al kernel.
+- El menú contextual **reutiliza `Menu`** (C5): roles, checkbox/radio, clicks al main.
+- **GNOME moderno no muestra la bandeja** (necesita AppIndicator + extensión) →
+  documentado en `docs/extra/GNOME.md`.
+- **En el starter:** botón **Tray** (icono = captura 16×16, menú con roles); los
+  eventos salen en la consola (`tray → …`). Cableado (WIP). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).
