@@ -143,8 +143,8 @@ void PositionCaptionBar(Window::Impl::PlatformData* pd) {
     RECT cr;
     GetClientRect(pd->hwnd, &cr);
     UINT dpi = GetDpiForWindow(pd->hwnd);
-    int bw = MulDiv(46, static_cast<int>(dpi), 96);
-    if (bw <= 0) bw = 46;
+    int bw = MulDiv(45, static_cast<int>(dpi), 96); // kWindowsCaptionButtonWidth
+    if (bw <= 0) bw = 45;
     pd->capW = bw * 3;
     pd->capH = pd->captionH > 0 ? pd->captionH : 32;
     POINT pt{cr.right - pd->capW, 0};
@@ -211,8 +211,8 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
     if (dpi < 96) dpi = 96;
     const bool maximized = IsZoomed(pd->hwnd);
     const int bw = w / 3;
-    int icon = MulDiv(12, static_cast<int>(dpi), 96);
-    if (icon < 8) icon = 12;
+    int icon = MulDiv(10, static_cast<int>(dpi), 96); // PaintSymbol: 10px
+    if (icon < 6) icon = 10;
     float stroke = static_cast<float>(MulDiv(1, static_cast<int>(dpi), 96));
     if (stroke < 1.0f) stroke = 1.0f;
     {
@@ -238,20 +238,34 @@ void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd) {
                 g.FillRectangle(&b, Gdiplus::Rect(x0, 0, x1 - x0, h));
             }
             Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), stroke);
-            const int cx0 = x0 + (x1 - x0 - icon) / 2, cy0 = (h - icon) / 2;
-            const int cx1 = cx0 + icon, cy1 = cy0 + icon;
-            if (i == 0) {
-                int y = (cy0 + cy1) / 2;
-                g.DrawLine(&pen, cx0, y, cx1, y);
-            } else if (i == 1 && !maximized) {
-                g.DrawRectangle(&pen, cx0, cy0, icon - 1, icon - 1);
-            } else if (i == 1) {
-                int sep = icon / 5;
-                g.DrawRectangle(&pen, cx0, cy0 + sep, icon - sep - 1, icon - sep - 1);
-                g.DrawRectangle(&pen, cx0 + sep, cy0, icon - sep - 1, icon - sep - 1);
-            } else {
-                g.DrawLine(&pen, cx0, cy0, cx1, cy1);
-                g.DrawLine(&pen, cx1, cy0, cx0, cy1);
+            const float S = static_cast<float>(icon);
+            const float sx = x0 + (x1 - x0 - icon) / 2.0f;
+            const float sy = (h - icon) / 2.0f;
+            auto strokeRect = [&](const Gdiplus::RectF& r) {
+                Gdiplus::RectF rr(r);
+                rr.Inflate(-stroke * 0.5f, -stroke * 0.5f); // inset 0.5 (Electron)
+                g.DrawRectangle(&pen, rr);
+            };
+            if (i == 0) { // minimizar: línea (sin AA)
+                g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+                g.DrawLine(&pen, sx, sy + S / 2.0f, sx + S, sy + S / 2.0f);
+            } else if (i == 1 && !maximized) { // maximizar: cuadrado (sin AA)
+                g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+                strokeRect(Gdiplus::RectF(sx, sy, S, S));
+            } else if (i == 1) { // restaurar: dos cuadrados (Electron)
+                g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+                int sepI = static_cast<int>(2.0 * static_cast<double>(dpi) / 96.0);
+                if (sepI < 1) sepI = 2;
+                const float sep = static_cast<float>(sepI);
+                Gdiplus::RectF front(sx, sy + sep, S - sep, S - sep);
+                strokeRect(front);
+                g.SetClip(front, Gdiplus::CombineModeExclude);
+                strokeRect(Gdiplus::RectF(sx + sep, sy, S - sep, S - sep));
+                g.ResetClip();
+            } else { // cerrar: X (con AA)
+                g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+                g.DrawLine(&pen, sx, sy, sx + S, sy + S);
+                g.DrawLine(&pen, sx + S, sy, sx, sy + S);
             }
         }
     }
