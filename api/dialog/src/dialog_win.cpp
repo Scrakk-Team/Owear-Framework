@@ -17,8 +17,6 @@
 #include <memory>
 #include <vector>
 
-#pragma comment(lib, "comctl32.lib")
-
 namespace dlg {
 
 using ow::json::Array;
@@ -333,6 +331,22 @@ void showSaveDialog(const ow_request_t* req, ow_response_t* res) {
 
 // args: [ { type?, title?, message, detail?, buttons?, defaultId?, cancelId?,
 //           checkboxLabel? } ] → { response, checkboxChecked }
+//
+// TaskDialogIndirect se resuelve DINÁMICAMENTE: importarlo estáticamente hace
+// que dialog.dll falle al cargar (STATUS_ENTRYPOINT_NOT_FOUND) si el proceso no
+// activa comctl32 v6 por manifiesto.
+typedef HRESULT(WINAPI* TaskDialogIndirectFn)(const TASKDIALOGCONFIG*, int*, int*,
+                                              BOOL*);
+static TaskDialogIndirectFn ResolveTaskDialog() {
+    static TaskDialogIndirectFn fn = []() -> TaskDialogIndirectFn {
+        HMODULE h = LoadLibraryA("comctl32.dll");
+        if (!h) return nullptr;
+        return reinterpret_cast<TaskDialogIndirectFn>(
+            reinterpret_cast<void*>(GetProcAddress(h, "TaskDialogIndirect")));
+    }();
+    return fn;
+}
+
 void showMessageBox(const ow_request_t* req, ow_response_t* res) {
     std::unique_ptr<ow::json::Value> holder;
     const Value* opts = FirstOpt(req, holder);
@@ -384,7 +398,8 @@ void showMessageBox(const ow_request_t* req, ow_response_t* res) {
     if (!wcheck.empty()) cfg.pszVerificationText = wcheck.c_str();
 
     int btn = 0;
-    HRESULT hr = TaskDialogIndirect(&cfg, &btn, nullptr, &checked);
+    TaskDialogIndirectFn taskDialog = ResolveTaskDialog();
+    HRESULT hr = taskDialog ? taskDialog(&cfg, &btn, nullptr, &checked) : E_FAIL;
     if (FAILED(hr)) {
         // Fallback sin botones personalizados.
         int r = MessageBoxA(nullptr, message.c_str(), title.c_str(),

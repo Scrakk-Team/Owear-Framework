@@ -12,6 +12,8 @@
 #include "ow/Window.h"
 #include "ow/detail/minjson.hpp"
 
+#include <set>
+
 #include <map>
 
 #if defined(_WIN32)
@@ -132,12 +134,15 @@ std::filesystem::path CurrentExePath() {
 } // namespace
 
 std::vector<std::filesystem::path> ModuleLoader::SearchPaths() {
-    std::vector<std::filesystem::path> paths = SplitPathList(std::getenv("OW_MODULES_DIR"));
+    // El build del kernel (<exe>/modules) va PRIMERO: sus módulos son del mismo
+    // build. OW_MODULES_DIR (p. ej. el runtime package de la app) va después;
+    // si trae un módulo con el mismo nombre, LoadAll lo salta (el del kernel gana).
+    std::vector<std::filesystem::path> paths;
     auto exe = CurrentExePath();
     if (!exe.empty()) paths.emplace_back(exe.parent_path() / "modules");
+    for (auto& p : SplitPathList(std::getenv("OW_MODULES_DIR"))) paths.push_back(p);
 
-    // Dedup: OW_MODULES_DIR suele apuntar a <exe>/modules, que ya está en la
-    // lista → sin esto los módulos se registran dos veces.
+    // Dedup por ruta canónica: OW_MODULES_DIR suele apuntar a <exe>/modules.
     std::vector<std::filesystem::path> unique;
     std::error_code ec;
     for (auto& p : paths) {
@@ -217,6 +222,7 @@ size_t ModuleLoader::LoadFile(const std::filesystem::path& file) {
 
 size_t ModuleLoader::LoadAll() {
     size_t total = 0;
+    std::set<std::string> seen; // dedup por nombre: el 1er dir (<exe>/modules) gana
     for (const auto& dir : SearchPaths()) {
         std::error_code ec;
         if (!std::filesystem::is_directory(dir, ec)) continue;
@@ -230,6 +236,7 @@ size_t ModuleLoader::LoadAll() {
 #else
             if (ext != ".so" && ext != ".owm") continue;
 #endif
+            if (!seen.insert(e.path().filename().string()).second) continue;
             total += LoadFile(e.path());
         }
     }
