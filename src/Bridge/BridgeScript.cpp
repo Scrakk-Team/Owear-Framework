@@ -47,9 +47,21 @@ std::string BuildBridgeScript() {
       try { payload = (payloadLiteral == null) ? null : JSON.parse(payloadLiteral); }
       catch (e) {}
       var set = listeners.get(name);
-      if (set) set.forEach(function(cb) {
-        try { cb(payload); } catch (e) { console.error('[ow] listener', e); }
-      });
+      if (set && set.size) {
+        set.forEach(function(cb) {
+          try { cb(payload); } catch (e) { console.error('[ow] listener', e); }
+        });
+        return;
+      }
+      // Sin listener del renderer para closeRequested → no vetamos: respondemos
+      // allow AL INSTANTE para que la ventana se cierre ya (sin esperar el
+      // timeout de veto OW_CLOSE_TIMEOUT_MS, que hacía que tardase en cerrar).
+      if (name === 'closeRequested' && payload && payload.requestId) {
+        try {
+          window.__ow.invoke('ow-window', 'respondCloseRequest',
+                             window.__owWindowId, payload.requestId, true);
+        } catch (e) {}
+      }
     },
     _batch: function(ops) {
       for (var i = 0; i < ops.length; i++) {

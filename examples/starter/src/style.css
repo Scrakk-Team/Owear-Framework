@@ -451,7 +451,8 @@ code {
 
 /* El placeholder define la zona donde se coloca la webview nativa encima. */
 .browser__slot {
-  height: 320px;
+  height: min(64vh, 600px);
+  min-height: 380px;
   border-radius: 8px;
   background: var(--bg-deep);
 }

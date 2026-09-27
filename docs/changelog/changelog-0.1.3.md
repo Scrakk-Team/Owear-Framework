@@ -34,6 +34,13 @@ exponer Node a la UI sin IPC por defecto.
     leído del tema** (`decoration { border-radius: N }`).
   - **Resize en Wayland**: zonas `GtkEventBox` en bordes/esquinas (el filtro GDK
     es solo X11, en Wayland no dispara).
+  - **Windows (WebView2): YA FUNCIONA.** Los botones min/max/close se **dibujan a
+    mano con GDI+**, idénticos a Electron (`windows_icon_painter.cc`): icono
+    **10px**, min/max/restore **sin anti-alias** y rect insetado 0.5, restaurar =
+    **dos cuadrados de 8px desplazados 2**, cerrar = **X con AA**. Se dibujan en
+    un popup **top-level layered** (`UpdateLayeredWindow`) con fondo **alpha=1**
+    (imperceptible) para que el **hit-test** cubra todo el rect → hover/press
+    exactos. Fondo transparente real (se ve la titlebar).
 - **Puente Node (`node`)** — el renderer puede **usar Node sin IPC por defecto**:
   - `ow.invoke('node', 'call', { fn, args })` ejecuta un handler del proceso
     principal registrado con `app.handle(fn, handler)`; el main responde y puede
@@ -100,3 +107,8 @@ exponer Node a la UI sin IPC por defecto.
   `localStorage`/`IndexedDB`/cache podían cruzarse. Ahora usa un data manager con
   base dir **por app** (`$XDG_DATA_HOME/owear/<app-id>/webkit/{data,cache}`) y
   registra `app://` como **esquema seguro + CORS** (origin estable).
+- **Cierre lento en Linux y Windows**: el flujo de veto (`closeRequested`) esperaba
+  siempre `OW_CLOSE_TIMEOUT_MS` (~1s) aunque la app no escuchara. Ahora, si el
+  renderer **no tiene listener** de `closeRequested`, responde `allow` **al
+  instante** → la ventana deja de aparecer de inmediato. Si hay listener, se
+  mantiene el veto con su timeout.

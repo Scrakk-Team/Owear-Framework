@@ -18,7 +18,7 @@ app.whenReady().then(() => {
     // En Linux son los del TEMA (la distro define forma/tamaño/hover).
     // Opcional: color = fondo de la banda · symbolColor = glifo ·
     // buttonColor = fondo interno del círculo (si no, los del tema).
-    titleBarOverlay: { height: 40 },
+    titleBarOverlay: { height: 40, color: '#21252b' },
     url: process.env.OW_DEV_SERVER_URL ?? 'app://index.html',
   })
 
