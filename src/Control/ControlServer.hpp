@@ -75,6 +75,27 @@ private:
     void WireWindowEvents(WindowId id, Window* w);
 
     // ── comandos por area (src/Control/Commands/*.cpp) ──────────────────
+    bool CmdWindow(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
+    bool CmdMenu(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
+    bool CmdProtocol(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
+    bool CmdSession(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
+    bool CmdWebContents(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
+    bool CmdWebRequest(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
+    bool CmdNodeBridge(const std::string& cmd, const json::Value& params,
+               uint64_t clientId, uint64_t id, std::string& resultJson,
+               std::string& error);
     bool CmdApp(const std::string& cmd, const json::Value& params,
                 std::string& resultJson, std::string& error);
     bool CmdNode(const std::string& cmd, const json::Value& params,

@@ -13,6 +13,8 @@ namespace ow {
 
 using V = json::Value;
 
+WindowId g_focusedWindow = 0;
+
 uint32_t CtCurrentPid() {
 #ifdef _WIN32
     return static_cast<uint32_t>(GetCurrentProcessId());

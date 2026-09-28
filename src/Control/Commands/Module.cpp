@@ -7,6 +7,7 @@
 #include "Util.hpp"
 #include "../../Bridge/Dispatcher.hpp"
 #include "ow/Module.h"
+#include "ow/Window.h"
 
 namespace ow {
 

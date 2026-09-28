@@ -5,11 +5,15 @@
 #pragma once
 
 #include "../../Bridge/Dispatcher.hpp"
+#include "ow/Common.h"
 #include "ow/detail/minjson.hpp"
 
 #include <cstdint>
 
 namespace ow {
+
+/// Ventana con foco (window.getFocused). La actualiza WireWindowEvents.
+extern WindowId g_focusedWindow;
 
 /// PID del proceso del kernel.
 uint32_t CtCurrentPid();

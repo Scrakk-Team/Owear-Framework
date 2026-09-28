@@ -49,6 +49,13 @@ set(OW_KERNEL_SOURCES
     Control/Commands/App.cpp
     Control/Commands/Node.cpp
     Control/Commands/Module.cpp
+    Control/Commands/Window.cpp
+    Control/Commands/Menu.cpp
+    Control/Commands/Protocol.cpp
+    Control/Commands/Session.cpp
+    Control/Commands/WebContents.cpp
+    Control/Commands/WebRequest.cpp
+    Control/Commands/NodeBridge.cpp
     Protocol/ProtocolRegistry.cpp
     Session/PermissionBroker.cpp
     Session/WebRequestBroker.cpp
