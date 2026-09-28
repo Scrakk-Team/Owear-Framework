@@ -660,6 +660,11 @@ private:
                 auto pos = uri.find("://");
                 std::string rel =
                     pos == std::string::npos ? "" : uri.substr(pos + 3);
+                // `app://host/path` → servir `path` (el host se ignora);
+                // `app://name` → servir `name`. Así los recursos RELATIVOS de
+                // `app://index.html` resuelven bien (`app://index.html/x` → `x`).
+                if (auto slash = rel.find('/'); slash != std::string::npos)
+                    rel = rel.substr(slash + 1);
 
                 std::error_code ec;
                 std::filesystem::path full = (root / rel).lexically_normal();
