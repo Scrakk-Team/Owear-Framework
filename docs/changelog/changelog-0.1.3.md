@@ -300,3 +300,12 @@ geometría/eventos).
   (`PR_SET_PDEATHSIG` en Linux/macOS + `ShutdownSidecar`; Job Object
   `KILL_ON_JOB_CLOSE` en Windows), con margen para entregar `before-quit`/
   `will-quit` antes de terminarlo.
+- **Windows: cuelgue/crash al cambiar de tema repetidamente** → **data race** en
+  el módulo `theme` (`g_source`, un `std::string`, lo escribía el main y lo leía el
+  hilo de `watch`) → ahora con **mutex**. Y `window.setColorScheme` estaba **tras**
+  el bloque que exige `windowId` (que el SDK no pasa) → **nunca aplicaba** el
+  `PreferredColorScheme`; movido → ahora sí cambia el `prefers-color-scheme` real.
+- **`BrowserWindow.getAllWindows`/`getFocusedWindow` locales en el SDK** →
+  **síncronos** y resueltos desde el registro del SDK (foco por eventos
+  `focus`/`blur`), como Electron. Antes usaban comandos nuevos del kernel que en
+  **Windows colgaban la ventana** (el botón "Ventanas" del starter).
