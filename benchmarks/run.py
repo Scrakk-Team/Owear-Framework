@@ -74,6 +74,9 @@ def app_cmd(name):
                    OW_ASSETS_DIR=os.path.join(ROOT, "owear/assets"),
                    OW_MODULES_DIR=mods,
                    OW_APP_NAME="owearbench", OW_APP_ID="owearbench")
+        # Headless/CI: sin renderer GPU (~-300 ms, -30 MB). En desktop real,
+        # OW_GPU=auto/on mantiene la aceleración.
+        env.setdefault("OW_GPU", "off")
         if name == "owear-nom":
             url = ("http://127.0.0.1:8200/index.html?out=" +
                    out_path("owear-nom").replace("/", "%2F"))

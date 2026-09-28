@@ -297,6 +297,18 @@ std::string WebviewDataDir(const std::string& partition, const char* sub) {
     return base + "/owear/" + app + "/webkit/" + part + "/" + sub;
 }
 
+/// Política de aceleración de hardware (OW_GPU=auto|on|off).
+/// `auto` (default) = ON_DEMAND (comportamiento histórico). `off` = NEVER:
+/// el renderer DMABUF cuesta ~550 ms + ~30 MB al arrancar en entornos sin GPU
+/// (headless/Xvfb); las apps sin GPU o de CI deberían usar `off`.
+WebKitHardwareAccelerationPolicy GpuPolicy() {
+    const char* v = std::getenv("OW_GPU");
+    const std::string g = v ? v : "auto";
+    if (g == "off") return WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER;
+    if (g == "on") return WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS;
+    return WEBKIT_HARDWARE_ACCELERATION_POLICY_ON_DEMAND;
+}
+
 /// Extrae `ow-partition=<nombre>` de los args del WebView.
 std::string PartitionFromArgs(const std::vector<std::string>& args) {
     static const std::string kPrefix = "ow-partition=";
@@ -326,10 +338,15 @@ public:
         std::error_code ec;
         std::filesystem::create_directories(dataDir, ec);
         std::filesystem::create_directories(cacheDir, ec);
-        WebKitWebsiteDataManager* dm = webkit_website_data_manager_new(
-            "base-data-directory", dataDir.c_str(), "base-cache-directory",
-            cacheDir.c_str(), nullptr);
-        context_ = webkit_web_context_new_with_website_data_manager(dm);
+        if (std::getenv("OW_SHARED_DATA")) {
+            // Prueba/diagnóstico: data manager por defecto (compartido entre apps).
+            context_ = webkit_web_context_new();
+        } else {
+            WebKitWebsiteDataManager* dm = webkit_website_data_manager_new(
+                "base-data-directory", dataDir.c_str(), "base-cache-directory",
+                cacheDir.c_str(), nullptr);
+            context_ = webkit_web_context_new_with_website_data_manager(dm);
+        }
 
         // Construct properties: contexto propio + NUESTRO content manager
         // (si no, WebKit crea el suyo y los scripts nunca llegan).
@@ -338,7 +355,20 @@ public:
                                         "user-content-manager", manager_,
                                         nullptr));
 
+        // Política de aceleración de hardware (OW_GPU=auto|on|off).
+        if (WebKitSettings* st = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(view_))) {
+            const auto pol = GpuPolicy();
+            webkit_settings_set_hardware_acceleration_policy(st, pol);
+            log::Debug("webview", std::string("aceleración GPU: ") +
+                                     (pol == WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER
+                                          ? "off"
+                                          : pol == WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS
+                                                ? "on"
+                                                : "on-demand"));
+        }
+
         RegisterKernelSchemes();
+        log::StartupMark("web-context+esquemas");
 
         // Permisos (geolocalización, notificaciones, media, pointer-lock).
         g_signal_connect(view_, "permission-request",

@@ -20,6 +20,14 @@ int main(int argc, char** argv) {
     // stderr sin buffer: redirigido a fichero en CI, el CRT de MSVC puede
     // bufferizarlo y perder todo si el proceso muere o se cuelga.
     std::setvbuf(stderr, nullptr, _IONBF, 0);
+    ow::log::StartupBegin();
+    ow::log::StartupMark("kernel main");
+
+    // OW_GPU=off → además de la política de WebKit (NEVER), desactiva el
+    // renderer DMABUF: en entornos sin GPU ahorra ~250-550 ms y ~30 MB.
+    if (const char* gpu = std::getenv("OW_GPU"); gpu && std::string(gpu) == "off") {
+        setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 1);
+    }
 
     // Marcador de build: permite confirmar qué kernel está corriendo (los
     // logs van a stderr, y `ow dev` los hereda en la terminal).

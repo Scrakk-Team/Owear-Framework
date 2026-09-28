@@ -863,6 +863,7 @@ bool Window::Impl::PCreate() {
                 if (ev == WEBKIT_LOAD_STARTED) {
                     const gchar* u = webkit_web_view_get_uri(v);
                     log::Debug("nav", std::string("STARTED: ") + (u ? u : "?"));
+                    log::StartupMark("nav iniciada");
                 }
                 Window::Impl::EmitPlatformEvent(impl, name);
             }), this);

@@ -16,4 +16,8 @@ inline void Info(std::string_view scope, std::string_view msg)  { Write(Level::I
 inline void Warn(std::string_view scope, std::string_view msg)  { Write(Level::Warn, scope, msg); }
 inline void Error(std::string_view scope, std::string_view msg) { Write(Level::Error, scope, msg); }
 
+/// Marcas de arranque (T+ms desde StartupBegin) para perfilar el startup.
+void StartupBegin();
+void StartupMark(std::string_view label);
+
 } // namespace ow::log

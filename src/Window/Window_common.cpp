@@ -88,17 +88,22 @@ void Window::Impl::InitCommon() {
         log::Error("window", "PCreate falló");
         return;
     }
+    log::StartupMark("ventana+webview creados");
 
     // Scripts de inicio: corren en orden, ANTES de cualquier script de página.
     webview->InjectInitScript(BuildBridgeScript());
     webview->InjectInitScript("window.__owWindowId=" + std::to_string(id) + ";");
+    log::StartupMark("scripts inyectados");
 
     webview->SetMessageHandler([this](std::string_view text) {
         HandleWebViewMessage(text);
     });
+    log::StartupMark("handler listo");
 
     if (!opts.url.empty()) webview->LoadURL(opts.url);
+    log::StartupMark("loadURL lanzado");
     if (opts.show) PShow();
+    log::StartupMark("ventana mostrada");
 }
 
 // ── mensajes del WebView ─────────────────────────────────────────────────────

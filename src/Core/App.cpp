@@ -69,12 +69,14 @@ bool Bootstrap(int argc, char** argv, const AppOptions& options) {
 
     size_t loaded = ModuleLoader::LoadAll();
     log::Info("app", "funciones de módulos dinámicos cargadas: " + std::to_string(loaded));
+    log::StartupMark("modulos cargados");
 
     // Servidor de control: siempre activo (el SDK JS conecta por aquí).
     if (!ControlServer::Get().Start()) {
         log::Warn("app", "control server no disponible; modo nativo-only");
     } else {
         log::Info("app", "control socket: " + ControlServer::Get().SocketPath());
+        log::StartupMark("control socket");
     }
 
     // Modo JS-driven: spawn del sidecar con el entry de la app.
