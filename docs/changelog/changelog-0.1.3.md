@@ -374,3 +374,20 @@ Medido con el harness propio (`benchmarks/`). Cambios de rendimiento:
 - **fix SHM**: `unlink` inmediato tras `mmap` (Linux) + barrido de regiones
   huérfanas. Un crash dejaba `owear-shm-*` en `XDG_RUNTIME_DIR`; 543 ficheros
   llenaban `tmpfs` → **SIGBUS** al leer SHM de 5 MB.
+
+## Distribución — D1 (single binary) — en curso
+
+- **Un solo binario**: `tools/owear-pack.mjs` empaqueta un bundle (`app/`,
+  `modules/`, `manifest.json`) **dentro** del kernel → un único fichero
+  (`MiApp`; `.exe` en Windows). Formato: `[kernel][payload.tar.gz][footer OWPK1]`.
+- **`src/Pack`**: el kernel lee **su propia imagen**, extrae el payload a caché
+  (idempotente) y expone `OW_MODULES_DIR`/`OW_ASSETS_DIR`/`OW_APP_MAIN` al
+  contenido → el resto del kernel **no cambia**. **Node NO se embebe**: se
+  resuelve/instala aparte (detección de sistema o descarga).
+- **fix(tar)**: el extractor metía el **padding** de 512 B dentro del fichero
+  (rompía `.js`; Node “funcionaba” por ser un ELF con ceros al final).
+- **fix(app://)**: `app://index.html` trataba el nombre como host y los recursos
+  **relativos** daban 404; ahora `app://host/path` sirve `path`.
+- **Pendiente D1**: módulo `installer` + SDK, UI custom (`owear.installer`),
+  `ow package` (instalables Linux/Windows, mismo binario = instalador + app),
+  `owear.pack.order/protect` (orden/seguridad de las APIs dentro del binario).
