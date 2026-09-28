@@ -1,3 +1,6 @@
+# Copyright 2026 Owear Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
 **¿QUÉ ES OWEAR?**
 
 Owear es un framework de escritorio, tipo Tauri | Electron | Neutralino, el cual claramente se especializa en cargar una ventana con un navegador, pero trae varias diferencias significativas para mejorar drásticamente el rendimiento.
