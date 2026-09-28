@@ -4,6 +4,13 @@
 // src/Window/Platform/linux/Internal.hpp — helpers internos de Window (Linux).
 #pragma once
 
+#include "../../Window_p.hpp"
+#include "ow/detail/minjson.hpp"
+
+#include <gtk/gtk.h>
+#include <webkit2/webkit2.h>
+
+#include <cstdint>
 #include <filesystem>
 #include <string>
 
@@ -20,5 +27,14 @@ std::string TrimWs(const std::string& s);
 int ParseDecorationRadius(const std::filesystem::path& p);
 /// Radio de esquina de la ventana segun el tema (fallback 10).
 int ThemeWindowRadius();
+
+std::string ViewDataDir(const char* sub);
+uint32_t ViewIdOf(GtkWidget* view);
+void EmitViewEvent(Window::Impl* impl, const char* name, std::string json);
+void OnViewLoadChanged(WebKitWebView* view, WebKitLoadEvent ev, gpointer ud);
+void OnViewUriChanged(GObject* obj, GParamSpec* ps, gpointer ud);
+void OnViewTitleChanged(GObject* obj, GParamSpec* ps, gpointer ud);
+gboolean OnViewLoadFailed(WebKitWebView* v, WebKitLoadEvent e, gchar* uri, GError* err, gpointer ud);
+gboolean OnViewButtonPress(GtkWidget* w, GdkEventButton* e, gpointer ud);
 
 } // namespace ow
