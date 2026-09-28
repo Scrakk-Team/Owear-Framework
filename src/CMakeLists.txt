@@ -78,6 +78,7 @@ if(OW_PLATFORM STREQUAL "linux")
         Window/window_linux.cpp
     Window/Platform/linux/Theme.cpp
     Window/Platform/linux/ViewEvents.cpp
+    Window/Platform/linux/Titlebar.cpp
         Webview/linux/WebKitGTKBackend.cpp
         Webview/linux/BuiltinUtil_linux.cpp
         Control/ControlServer_linux.cpp

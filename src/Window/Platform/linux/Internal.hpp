@@ -3,8 +3,9 @@
 //
 // src/Window/Platform/linux/Internal.hpp — helpers internos de Window (Linux).
 #pragma once
-
+#include "ow/Window.h"
 #include "../../Window_p.hpp"
+#include "PlatformData.hpp"
 #include "ow/detail/minjson.hpp"
 
 #include <gtk/gtk.h>
@@ -16,17 +17,19 @@
 
 namespace ow {
 
-/// "#RGB"/"#RRGGBB"/"#RRGGBBAA" -> "#rrggbb" ("" si transparente/invalido).
 std::string CssHex(const std::string& in);
-/// "#rrggbb" -> "#000000"/"#ffffff" por luminancia.
 std::string ContrastHex(const std::string& hex);
-/// Aclara (amt>0) u oscurece (amt<0) un "#rrggbb".
 std::string ShadeHex(const std::string& hex, double amt);
 std::string TrimWs(const std::string& s);
-/// Radio del `decoration { border-radius }` del tema (-1 si no).
 int ParseDecorationRadius(const std::filesystem::path& p);
-/// Radio de esquina de la ventana segun el tema (fallback 10).
 int ThemeWindowRadius();
+
+bool EdgeFromPoint(double x, double y, int w, int h, GdkWindowEdge& edge);
+const char* CursorForEdge(GdkWindowEdge e);
+void UpdateOverlayMaxIcon(Window::Impl* impl, bool maximized);
+void BuildOverlayBar(Window::Impl* impl);
+void DestroyOverlayBar(Window::Impl* impl);
+void BuildResizeEdges(Window::Impl* impl);
 
 std::string ViewDataDir(const char* sub);
 uint32_t ViewIdOf(GtkWidget* view);
