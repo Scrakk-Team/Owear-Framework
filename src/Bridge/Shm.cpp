@@ -23,6 +23,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <mutex>
 #include <random>
 #include <string>
@@ -66,10 +67,31 @@ std::string GenId() {
     return buf;
 }
 
+/// Limpia regiones huérfanas de procesos anteriores (crash ⇒ Shutdown no corrió
+/// y el fichero quedaba en disco; llenaba tmpfs ⇒ SIGBUS en mmap). Es seguro:
+/// cada proceso sirve sus regiones por el mmap (shm::Data), no por el nombre.
+void SweepStaleRegions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    std::error_code ec;
+    const std::string dir = RuntimeDir();
+    for (std::filesystem::directory_iterator it(dir, ec), end; it != end;
+         it.increment(ec)) {
+        if (ec) break;
+        const std::string name = it->path().filename().string();
+        if (name.rfind("owear-shm-", 0) == 0) {
+            std::error_code e2;
+            std::filesystem::remove(it->path(), e2);
+        }
+    }
+}
+
 } // namespace
 
 const char* Put(const uint8_t* data, size_t len) {
     if (!data || len == 0) return "";
+    SweepStaleRegions();
 
     Region r;
     r.id = GenId();
@@ -110,6 +132,9 @@ const char* Put(const uint8_t* data, size_t len) {
     memcpy(m, data, len);
     r.fd = fd;
     r.data = static_cast<uint8_t*>(m);
+    // Sin nombre en disco: el fd + mmap mantienen la región viva (se sirve por
+    // mmap). Evita ficheros huérfanos que llenaban tmpfs al morir el proceso.
+    ::unlink(r.path.c_str());
 #endif
 
     std::lock_guard lock(g_mu);
