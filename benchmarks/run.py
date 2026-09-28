@@ -77,7 +77,7 @@ def app_cmd(name):
         if name == "owear-nom":
             url = ("http://127.0.0.1:8200/index.html?out=" +
                    out_path("owear-nom").replace("/", "%2F"))
-            env.update(OW_DEMO="1", OW_DEV_SERVER_URL=url)
+            env.update(OW_START_URL=url)
         else:
             env.update(OW_BENCH_URL="http://127.0.0.1:8200/index.html",
                        OW_APP_MAIN=os.path.join(ROOT, "owear/main.mjs"))
