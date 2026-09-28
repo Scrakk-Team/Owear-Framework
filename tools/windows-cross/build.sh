@@ -44,13 +44,13 @@ mkdir -p "$OUT/bin/modules"
 cp "$BIN" "$OUT/bin/"
 
 # módulos (.dll) — Ninja: api/<x>/<x>.dll ; MSVC multi-config: api/<x>/Release/<x>.dll
-find "$BUILD/api" -type f -name '*.dll' -exec cp {} "$OUT/bin/modules/" \;
+find "$BUILD/src/api" -type f -name '*.dll' -exec cp {} "$OUT/bin/modules/" \;
 
 # headers públicos (para owear-build-native)
 cp -r "$ROOT/include" "$OUT/include"
 
 # DLLs de soporte junto al exe (si zlib/OpenSSL no son estáticos)
-find "$BUILD" -type f -name '*.dll' ! -path '*/api/*' -exec cp -n {} "$OUT/bin/" \; 2>/dev/null || true
+find "$BUILD" -type f -name '*.dll' ! -path '*/src/api/*' -exec cp -n {} "$OUT/bin/" \; 2>/dev/null || true
 
 echo "→ $OUT  (bin/owear.exe + bin/modules/*.dll + include/)"
 echo "   copia a Windows y usa:  OW_KERNEL_BIN=<...>\\bin\\owear.exe"

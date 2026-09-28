@@ -28,6 +28,10 @@ const char* Tag(Level l) {
 }
 } // namespace
 
+namespace {
+std::chrono::steady_clock::time_point g_startupT0{};
+}
+
 void Write(Level level, std::string_view scope, std::string_view msg) {
     std::lock_guard lock(g_mutex);
     char buf[16];
@@ -45,17 +49,23 @@ void Write(Level level, std::string_view scope, std::string_view msg) {
                   static_cast<int>((ts.tv_sec / 60) % 60),
                   static_cast<int>(ts.tv_sec % 60));
 #endif
-    std::fprintf(stderr, "[ow %s %s] %.*s: %.*s\n",
+    // Con OW_STARTUP_TRACE, toda línea lleva el T+ms del arranque (perfilado).
+    std::string prefix;
+    if (g_startupT0 != std::chrono::steady_clock::time_point{} &&
+        std::getenv("OW_STARTUP_TRACE")) {
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - g_startupT0)
+                            .count();
+        prefix = "T+" + std::to_string(ms) + "ms ";
+    }
+    std::fprintf(stderr, "[ow %s %s] %.*s: %s%.*s\n",
                  buf, Tag(level),
                  static_cast<int>(scope.size()), scope.data(),
+                 prefix.c_str(),
                  static_cast<int>(msg.size()), msg.data());
 }
 
 // ── marcas de arranque (perfilado del startup) ──────────────────────────────
-namespace {
-std::chrono::steady_clock::time_point g_startupT0{};
-}
-
 void StartupBegin() { g_startupT0 = std::chrono::steady_clock::now(); }
 
 void StartupMark(std::string_view label) {

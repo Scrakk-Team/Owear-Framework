@@ -43,6 +43,7 @@ void burst(const ow_request_t* req, ow_response_t* res) {
 void ready(const ow_request_t*, ow_response_t* res) {
     std::fprintf(stdout, "BENCH_READY\n");
     std::fflush(stdout);
+    if (g_host && g_host->log) g_host->log(g_host->ctx, 1, "BENCH_READY");
     RespondOk(res, "null");
 }
 

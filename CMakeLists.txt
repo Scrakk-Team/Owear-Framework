@@ -49,7 +49,7 @@ endif()
 add_subdirectory(src)
 
 # ── Todas las APIs (cada folder api/<nombre> = una API modular .owm) ─────────
-add_subdirectory(api)
+add_subdirectory(src/api)
 
 if(OW_BUILD_TESTS)
     enable_testing()

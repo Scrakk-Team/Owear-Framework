@@ -22,7 +22,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const API_DIR = path.join(ROOT, 'api')
+const API_DIR = path.join(ROOT, 'src', 'api')
 const PLATFORMS = ['linux', 'win', 'mac']
 const GUARD = { linux: 'defined(OW_BUILTINS_GTK)', win: 'defined(OW_PLATFORM_WIN)', mac: 'defined(__APPLE__)' }
 const CHECK = process.argv.includes('--check')
@@ -82,7 +82,7 @@ function builtinSourcesByPlatform(manifests) {
   for (const m of manifests.filter((m) => m.kind === 'builtin')) {
     for (const [plat, srcs] of Object.entries(m.sources ?? {})) {
       if (!byPlat[plat]) fail(`${m.name}: sources de plataforma desconocida "${plat}"`)
-      for (const src of srcs) byPlat[plat].push(`api/${m.name}/${src}`)
+      for (const src of srcs) byPlat[plat].push(`src/api/${m.name}/${src}`)
     }
   }
   return byPlat

@@ -63,7 +63,7 @@ def rss_kb(pids):
 
 
 def stock_modules():
-    base = os.path.join(REPO, "build/linux-release/api")
+    base = os.path.join(REPO, "build/linux-release/src/api")
     return ":".join(os.path.join(base, d) for d in os.listdir(base) if d != "CMakeFiles")
 
 

@@ -1,0 +1,57 @@
+**¿QUÉ ES OWEAR?**
+
+Owear es un framework de escritorio, tipo Tauri | Electron | Neutralino, el cual claramente se especializa en cargar una ventana con un navegador, pero trae varias diferencias significativas para mejorar drásticamente el rendimiento.
+
+──────────────────────────────
+**PREGUNTAS FRECUENTES**
+──────────────────────────────
+
+- **¿Owear embebe un navegador entero como Electron?**
+NO, Owear no embebe ningún navegador, en cambio usa el propio navegador del sistema operativo (al igual que Tauri).
+
+- **¿En qué lenguaje está escrito?**
+Owear está escrito totalmente en C++ para asegurar el rendimiento más eficiente posible.
+
+- **¿Es un fork de algún otro proyecto?**
+NO, está totalmente escrito de 0.
+
+- **¿Las API's internas son family-friendly con el programador promedio?**
+SÍ, de hecho son un intermedio entre las de Electron y Tauri.
+
+- **¿Será open-source?**
+SÍ, y con licencia Apache 2.0.
+
+- **¿El framework se puede usar sin programar un solo módulo nativo?**
+SÍ, es muy amigable en ese aspecto, ya que solo importas la librería desde el main y usas todo lo que te otorga, igual que Electron; no tienes que programar código nativo.
+
+──────────────────────────────
+**¿QUÉ VENTAJAS TIENE OWEAR A DIFERENCIA DE OTROS FRAMEWORKS?**
+──────────────────────────────
+
+Owear cuenta con unas ventajas muy eficientes, en las que están:
+
+**MÓDULOS NATIVOS**
+- Puedes importar módulos nativos — código nativo en formato .owm de forma fácil (dentro de ese módulo puede ir código C++, C o Rust).
+
+**RENDIMIENTO**
+- Como ya mencioné arriba, no embebe un navegador completo, así que el consumo de RAM del proceso baja drásticamente: solo llamas la instancia que quieres del navegador de tu sistema, no todo un navegador web.
+- El renderer llama a lo nativo DIRECTO, sin pasar por el main (no hay ipcRenderer/ipcMain ni preload/contextBridge). Menos saltos que Electron y que el RPC de Tauri.
+- El binario final de tu app pesa MUY poco gracias a que no embebemos nada (a menos que tu código diga y haga lo contrario).
+- El kernel pesa ~1 MB (owear.exe ≈ 1.1 MB) + módulos. El navegador es el del SO → cero MB de Chromium embebido.
+
+**IPC / PUENTE CON LO NATIVO**
+- Generalmente el IPC de cada framework es distinto: el de Electron es mediante preload + pipe + V8 serialize, lo cual no siempre es tan rápido para conectar código nativo con web; en Tauri es mediante JSON-RPC, lo cual tampoco es la forma más eficiente. Con Owear se usa host object directo + binario crudo, lo cual nos da un puente MUY directo con lo nativo.
+
+**NODE**
+- No embebemos Node dentro del framework, llamamos al que tienes instalado en el sistema; cuando un usuario no lo tiene instalado, le pide autorización para instalar la última versión (esto sí requiere internet).
+- Node es OPCIONAL (opt-in): si tu app no tiene main, corre con cero Node. Electron siempre lleva Node. Y el sidecar Node muere con el kernel (sin huérfanos).
+- No te ata a una versión de Node: el main se compila a JS (esbuild) y corre en cualquier Node ≥ mínimo.
+
+**PLATAFORMAS**
+- Disponible para Linux y Windows.
+
+**EXTRAS**
+- Webviews embebidas: puedes meter un navegador nativo hijo dentro de tu app (proceso propio).
+- Todo lo que ya trae de fábrica (sin programar nada nativo): ventanas (multi-ventana, pantalla completa, always-on-top, titlebar propia con botones nativos, barra de progreso), webContents (eventos, captura de página, DevTools), imprimir y exportar a PDF, tema claro/oscuro del sistema, e IPC (ow.invoke / ow.on, MessageChannel).
+- Módulos nativos listos para usar: fs (con watch), process (PTY real), path, dialog, clipboard, screen (multi-monitor + eventos), power (powerMonitor), net (HTTP nativo sin CORS), shell, notification, tray, menu, globalShortcut, updater, session (permisos / cookies / proxy), protocol (esquemas propios), safeStorage (cifrado del SO), nativeImage y capturer.
+- Nivel de apps que se pueden portear: apps complejas tipo Electron — chats, editores / IDEs, paneles y herramientas de productividad, launchers, etc. (justo el tipo de apps que estamos portando).

@@ -4,7 +4,7 @@
 // api/window/src/window_extra_mac.mm — builtin "window-extras" (macOS).
 // Funciones avanzadas de ventana acopladas a WKWebView.
 //
-#include "../../../src/Core/BuiltinUtil.hpp"
+#include "../../../Core/BuiltinUtil.hpp"
 #include "ow/Base64.h"
 #include "ow/Json.h"
 #include "ow/Module.h"

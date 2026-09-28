@@ -7,6 +7,8 @@ use tauri::Emitter;
 
 const OUT: &str = "/tmp/opencode/bench/out/tauri.json";
 
+static T0: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
 #[tauri::command]
 fn echo(payload: Value) -> Value {
     payload
@@ -22,7 +24,8 @@ fn burst(window: tauri::Window, n: usize) -> Result<(), String> {
 
 #[tauri::command]
 fn ready() {
-    println!("BENCH_READY");
+    let ms = T0.get().map(|t| t.elapsed().as_millis()).unwrap_or(0);
+    println!("BENCH_READY internal={}ms", ms);
     use std::io::Write;
     let _ = std::io::stdout().flush();
 }
@@ -49,6 +52,7 @@ fn done(app: tauri::AppHandle) {
 }
 
 fn main() {
+    T0.set(std::time::Instant::now()).ok();
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![echo, burst, ready, report, readfile, big, done])
         .run(tauri::generate_context!())

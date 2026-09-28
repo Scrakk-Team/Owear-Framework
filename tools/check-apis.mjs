@@ -19,7 +19,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const API = path.join(ROOT, 'api')
+const API = path.join(ROOT, 'src', 'api')
 
 function walk(dir, acc = []) {
   if (!fs.existsSync(dir)) return acc

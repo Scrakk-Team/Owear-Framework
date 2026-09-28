@@ -7,8 +7,8 @@
 // Corre en el main thread GTK. Puentes async→sync con GMainLoop anidado
 // (mismo patrón que los diálogos modales).
 //
-#include "../../../src/Core/BuiltinUtil.hpp"
-#include "../../../src/Control/ControlServer.hpp"
+#include "../../../Core/BuiltinUtil.hpp"
+#include "../../../Control/ControlServer.hpp"
 #include "ow/Json.h"
 #include "ow/Module.h"
 #include "ow_api.h"

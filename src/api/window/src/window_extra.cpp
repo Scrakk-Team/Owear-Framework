@@ -9,7 +9,7 @@
 // printToPDF/progressBar/ignoreMouseEvents/contentProtection → no soportado
 // en WebKitGTK v1 (error claro, no silencio).
 //
-#include "../../../src/Core/BuiltinUtil.hpp"
+#include "../../../Core/BuiltinUtil.hpp"
 #include "ow/Base64.h"
 #include "ow/Json.h"
 #include "ow/Module.h"

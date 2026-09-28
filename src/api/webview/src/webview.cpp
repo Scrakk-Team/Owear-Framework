@@ -13,7 +13,7 @@
 // Los eventos van al renderer: webview.loadChanged {id,state,url},
 // webview.urlChanged {id,url}, webview.titleChanged {id,title},
 // webview.loadFailed {id,url,message}.
-#include "../../../src/Control/ControlServer.hpp"
+#include "../../../Control/ControlServer.hpp"
 #include "ow/Json.h"
 #include "ow/Module.h"
 #include "ow/Window.h"

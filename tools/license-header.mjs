@@ -45,7 +45,7 @@ function skip(file) {
   if (file.startsWith('deps/')) return true // WebView2 SDK vendido (Microsoft)
   if (file === 'include/ow/detail/minjson.hpp') return true // tercero
   if (file.includes('.generated.')) return true
-  if (file === 'api/generated.cmake' || file === 'src/Core/builtins.generated.cmake') return true
+  if (file === 'src/api/generated.cmake' || file === 'src/Core/builtins.generated.cmake') return true
   const ext = base.includes('.') ? base.slice(base.lastIndexOf('.') + 1).toLowerCase() : ''
   if (SKIP_EXT.has(ext)) return true
   return false

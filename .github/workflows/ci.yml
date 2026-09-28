@@ -70,7 +70,7 @@ jobs:
             pgrep -x dunst >/dev/null && break
           done
           MODS=""
-          for d in build/linux-release/api/*/; do
+          for d in build/linux-release/src/api/*/; do
             if [ "$d" != "build/linux-release/api/CMakeFiles/" ]; then
               MODS="$MODS$d:"
             fi

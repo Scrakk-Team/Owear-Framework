@@ -74,7 +74,7 @@ function stockModulesPath() {
   }
   // Dev en el monorepo: preferir el BUILD LOCAL (mismo build que el kernel)
   // ANTES del runtime package, que puede ser un artefacto prebuilt antiguo.
-  const api = path.resolve(__dirname, '../../../build', platformPreset(), 'api')
+  const api = path.resolve(__dirname, '../../../build', platformPreset(), 'src', 'api')
   if (fs.existsSync(api)) {
     const dirs = fs
       .readdirSync(api, { withFileTypes: true })
@@ -237,7 +237,7 @@ function cmdApi(args) {
 }
 
 function readApiManifests(root) {
-  const apiDir = path.join(root, 'api')
+  const apiDir = path.join(root, 'src', 'api')
   const out = []
   for (const d of fs.readdirSync(apiDir, { withFileTypes: true })) {
     if (!d.isDirectory()) continue
@@ -269,7 +269,7 @@ function cmdApiList(root) {
 function cmdApiNew(root, name) {
   if (!name) die('uso: ow api new <nombre>')
   if (!/^[a-z][a-z0-9-]*$/.test(name)) die('nombre inválido (minúsculas, dígitos y guiones; debe empezar por letra)')
-  const dir = path.join(root, 'api', name)
+  const dir = path.join(root, 'src', 'api', name)
   if (fs.existsSync(dir) && fs.readdirSync(dir).length) die(`api/${name}/ ya existe y no está vacío`)
 
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true })

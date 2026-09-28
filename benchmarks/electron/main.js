@@ -4,6 +4,8 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('fs')
 const path = require('path')
 
+const T0 = Date.now()
+
 const OUT = '/tmp/opencode/bench/out/electron.json'
 
 app.commandLine.appendSwitch('no-sandbox')
@@ -16,7 +18,7 @@ ipcMain.handle('bench:burst', (e, n) => {
   return null
 })
 ipcMain.handle('bench:ready', () => {
-  process.stdout.write('BENCH_READY\n')
+  process.stdout.write(`BENCH_READY internal=${Date.now() - T0}ms\n`)
   return null
 })
 ipcMain.handle('bench:report', (_e, json) => {

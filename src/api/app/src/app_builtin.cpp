@@ -5,7 +5,7 @@
 // setBadgeCount · requestSingleInstanceLock (socket probe + argv handoff) ·
 // relaunch.
 //
-#include "../../../src/Core/BuiltinUtil.hpp"
+#include "../../../Core/BuiltinUtil.hpp"
 #include "ow/Json.h"
 #include "ow/Module.h"
 #include "ow_api.h"

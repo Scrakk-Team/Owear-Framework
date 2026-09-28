@@ -1,85 +1,85 @@
 [
   {
-    "framework": "owear-nom",
+    "framework": "electron",
     "runs": [
       {
-        "framework": "owear-nom",
-        "startupMs": 1714.7,
-        "idleRssMB": 366.0,
-        "peakRssMB": 590.8,
-        "processes": 4,
+        "framework": "electron",
+        "startupMs": 2531.9,
+        "idleRssMB": 635.6,
+        "peakRssMB": 800.1,
+        "processes": 8,
         "results": {
-          "framework": "owear",
-          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "framework": "electron",
+          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
           "idle": {
             "idleMs": 3000
           },
           "latency": {
             "n": 2000,
-            "totalMs": 2590,
-            "min": 0,
-            "median": 1,
-            "p95": 3.0000000000009095,
-            "p99": 5,
-            "max": 8,
-            "opsPerSec": 772.2007722007722
+            "totalMs": 2599.4000000953674,
+            "min": 0.19999992847442627,
+            "median": 0.8999999761581421,
+            "p95": 4,
+            "p99": 7.700000047683716,
+            "max": 16.899999976158142,
+            "opsPerSec": 769.4083249698482
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 749.0000000000009,
-            "opsPerSec": 2670.226969292387
+            "totalMs": 473.10000014305115,
+            "opsPerSec": 4227.436058751343
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 1
+              "medianMs": 0.30000007152557373
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 4
+              "medianMs": 2.299999952316284
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 38
+              "medianMs": 20.199999928474426
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 186
+              "medianMs": 93.20000004768372
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 72,
-            "mbPerSec": 69.44444444444444
+            "medianMs": 59.89999997615814,
+            "mbPerSec": 83.47245412337459
           },
           "download": [
             {
               "size": 1048576,
               "got": 1048576,
-              "medianMs": 23,
-              "mbPerSec": 43.47826086956522
+              "medianMs": 13,
+              "mbPerSec": 76.92307692307692
             },
             {
               "size": 5242880,
               "got": 5242880,
-              "medianMs": 109,
-              "mbPerSec": 45.87155963302752
+              "medianMs": 48.60000002384186,
+              "mbPerSec": 102.8806583857435
             }
           ],
           "events": {
             "n": 5000,
-            "ms": 25,
-            "eventsPerSec": 200000
+            "ms": 353.90000009536743,
+            "eventsPerSec": 14128.284822414867
           },
           "js": {
-            "loopMs": 36.99999999999818,
-            "sortMs": 1199,
+            "loopMs": 52.89999997615814,
+            "sortMs": 4202.800000071526,
             "checksum": 199999990000000
           }
         }

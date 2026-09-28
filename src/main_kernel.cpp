@@ -26,7 +26,11 @@ int main(int argc, char** argv) {
     // OW_GPU=off → además de la política de WebKit (NEVER), desactiva el
     // renderer DMABUF: en entornos sin GPU ahorra ~250-550 ms y ~30 MB.
     if (const char* gpu = std::getenv("OW_GPU"); gpu && std::string(gpu) == "off") {
+#ifdef _WIN32
+        _putenv_s("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+#else
         setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 1);
+#endif
     }
 
     // Marcador de build: permite confirmar qué kernel está corriendo (los

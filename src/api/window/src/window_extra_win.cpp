@@ -4,7 +4,7 @@
 // api/window/src/window_extra_win.cpp — builtin "window-extras" (Windows).
 // Funciones avanzadas de ventana acopladas a WebView2.
 //
-#include "../../../src/Core/BuiltinUtil.hpp"
+#include "../../../Core/BuiltinUtil.hpp"
 #include "ow/Base64.h"
 #include "ow/Json.h"
 #include "ow/Module.h"

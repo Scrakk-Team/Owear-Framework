@@ -7,8 +7,8 @@
 // (reemplazo atómico del binario + execv). El IDE puede traer su propio
 // updater si prefiere — esto es el backend estándar del framework.
 //
-#include "../../../src/Runtime/Http.hpp"
-#include "../../../src/Runtime/Sha256.hpp"
+#include "../../../Runtime/Http.hpp"
+#include "../../../Runtime/Sha256.hpp"
 #include "ow/Base64.h"
 #include "ow/Json.h"
 #include "ow/Module.h"
