@@ -119,6 +119,9 @@ public:
     /// Windows: WebView2 `PreferredColorScheme`; Linux: noop (WebKitGTK no lo expone).
     void SetColorScheme(int mode);
 
+    /// Exporta la página a PDF de forma asíncrona (`ok` + bytes PDF).
+    void PrintToPDF(std::function<void(bool ok, const std::string& pdf)> cb);
+
     // ── webview ────────────────────────────────────────────────────
     void LoadURL(const std::string& url);
     /// Evalúa JS en la página. callback recibe el resultado JSON o null.

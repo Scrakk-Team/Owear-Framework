@@ -405,6 +405,23 @@ await theme.watch()               // ow.on('theme.changed', info)
 
 ---
 
+### 5.8 C8 — `print` / `printToPDF`
+
+| | Estado |
+|---|---|
+| Linux | ✅ `print` (diálogo WebKitPrintOperation); `printToPDF` ⚠️ no soportado (WebKitGTK) |
+| Windows | 🟡 compila; `print` + `printToPDF` reales (PrintToPdf / ShowPrintUI) |
+
+```ts
+await win.webContents.printToPDF()   // → Buffer (PDF)   [Windows; en Linux error claro]
+win.webContents.print()              // diálogo de impresión del sistema
+```
+
+- **En el starter:** botones **Exportar PDF** (PDF → temp, lo revela en carpeta)
+  e **Imprimir** (diálogo). Cableado (WIP). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

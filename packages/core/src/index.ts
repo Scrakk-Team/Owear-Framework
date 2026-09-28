@@ -1031,6 +1031,19 @@ export class WebContents extends EventEmitter {
     return nativeImage.createFromBuffer(Buffer.from(r.data, 'base64'))
   }
 
+  /** Exporta la página a PDF (Buffer). */
+  async printToPDF(_options: Record<string, unknown> = {}): Promise<Buffer> {
+    const r = await channel.call<{ data: string }>('window.printToPDF', {
+      windowId: this.id,
+    })
+    return Buffer.from(r.data, 'base64')
+  }
+
+  /** Abre el diálogo de impresión del sistema. */
+  print(_options: Record<string, unknown> = {}): void {
+    void invokeNative('window', 'print', this.id).catch(() => undefined)
+  }
+
   /**
    * Controla `window.open`/`target=_blank`. Devuelve `{action:'deny'}` para
    * bloquear o `{action:'allow'}` para permitir (por defecto).

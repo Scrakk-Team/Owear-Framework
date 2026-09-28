@@ -21,6 +21,8 @@ using EvalCallback = std::function<void(std::string_view resultJson, bool ok)>;
 using WebviewEventSink = std::function<void(const std::string& name, std::string_view json)>;
 /// Callback de captura de página: `ok` + bytes PNG.
 using CaptureCallback = std::function<void(bool ok, const std::string& png)>;
+/// Callback de exportación a PDF: `ok` + bytes PDF.
+using PrintCallback = std::function<void(bool ok, const std::string& pdf)>;
 
 class IWebviewBackend {
 public:
@@ -46,6 +48,11 @@ public:
 
     /// Fuerza el esquema de color del contenido: 0=auto, 1=light, 2=dark.
     virtual void SetPreferredColorScheme(int /*scheme*/) {}
+
+    /// Exporta la página a PDF de forma ASÍNCRONA (`ok` + bytes PDF).
+    virtual void PrintToPDF(PrintCallback cb) {
+        if (cb) cb(false, {});
+    }
 
     virtual void LoadURL(const std::string& url) = 0;
 

@@ -902,6 +902,11 @@ void Window::Impl::PSetColorScheme(int) {
     // app reacciona a `theme.changed` para su propio theming.
 }
 
+void Window::Impl::PPrintToPDF(std::function<void(bool, const std::string&)> cb) {
+    if (webview) webview->PrintToPDF(std::move(cb));
+    else if (cb) cb(false, {});
+}
+
 void Window::Impl::PApplyTitleBar() {
     if (!pdata || !pdata->window) return;
     switch (opts.titleBarStyle) {

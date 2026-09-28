@@ -707,6 +707,21 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         return true; // respuesta pendiente — evita doble send
     }
 
+    if (cmd == "window.printToPDF") {
+        // Respuesta asíncrona: el backend exporta y responde al terminar.
+        w->PrintToPDF([this, clientId, id](bool ok, const std::string& pdf) {
+            if (!ok) {
+                SendResponse(clientId, id, false, "null", "printToPDF falló");
+                return;
+            }
+            json::Object o;
+            o.emplace_back("data", V(ow::b64::Encode(pdf)));
+            o.emplace_back("format", V("pdf"));
+            SendResponse(clientId, id, true, V(std::move(o)).Serialize(), "");
+        });
+        return true;
+    }
+
     error = "comando desconocido: " + cmd;
     return false;
 }
@@ -743,7 +758,9 @@ void ControlServer::HandleLine(uint64_t clientId, std::string_view line) {
     bool ok = HandleCommand(clientId, reqId, cmd, paramsJson, resultJson, error);
 
     // window.eval responde async (evita duplicar)
-    if (ok && (cmd == "window.eval" || cmd == "window.capturePage")) return;
+    if (ok && (cmd == "window.eval" || cmd == "window.capturePage" ||
+               cmd == "window.printToPDF"))
+        return;
 
     SendResponse(clientId, reqId, ok, resultJson, error);
 }

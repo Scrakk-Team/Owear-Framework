@@ -37,6 +37,8 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -475,6 +477,45 @@ public:
 
     void* NativeWidget() const override { return hwnd_; }
 
+    void PrintToPDF(PrintCallback cb) override {
+        if (!webview_ || !cb) {
+            if (cb) cb(false, {});
+            return;
+        }
+        ComPtr<ICoreWebView2_7> wv7;
+        if (FAILED(webview_->QueryInterface(IID_PPV_ARGS(&wv7))) || !wv7) {
+            cb(false, {});
+            return;
+        }
+        wchar_t tmp[MAX_PATH] = {};
+        GetTempPathW(MAX_PATH, tmp);
+        std::wstring path =
+            std::wstring(tmp) + L"owear-print-" + std::to_wstring(GetTickCount64()) + L".pdf";
+        struct Ctx {
+            std::wstring path;
+            PrintCallback* cb;
+        };
+        auto* ctx = new Ctx{path, new PrintCallback(std::move(cb))};
+        printHandler_ = Callback<ICoreWebView2PrintToPdfCompletedHandler>(
+            [ctx](HRESULT error, BOOL success) -> HRESULT {
+                std::string pdf;
+                if (SUCCEEDED(error) && success) {
+                    std::ifstream in(ctx->path, std::ios::binary);
+                    if (in) {
+                        std::ostringstream ss;
+                        ss << in.rdbuf();
+                        pdf = ss.str();
+                    }
+                }
+                DeleteFileW(ctx->path.c_str());
+                (*ctx->cb)(!pdf.empty(), pdf);
+                delete ctx->cb;
+                delete ctx;
+                return S_OK;
+            });
+        wv7->PrintToPdf(path.c_str(), nullptr, printHandler_.Get());
+    }
+
     void CapturePage(CaptureCallback cb) override {
         if (!webview_ || !cb) {
             if (cb) cb(false, {});
@@ -687,6 +728,7 @@ private:
     WebMessageHandler messageHandler_;
     WebviewEventSink sink_;
     ComPtr<ICoreWebView2CapturePreviewCompletedHandler> captureHandler_;
+    ComPtr<ICoreWebView2PrintToPdfCompletedHandler> printHandler_;
     std::vector<std::string> pendingInitScripts_;
     std::string pendingUrl_;
     std::filesystem::path assetRoot_;

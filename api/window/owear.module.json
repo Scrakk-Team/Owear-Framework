@@ -20,7 +20,7 @@
         "openDevTools", "capturePage", "setAlwaysOnTop", "isAlwaysOnTop", "setOpacity",
         "flashFrame", "setIcon", "setUserAgent", "zoom",
         "reload", "stop", "goBack", "goForward", "canGoBack", "canGoForward",
-        "getURL", "getTitle", "findInPage", "findStop"
+        "getURL", "getTitle", "findInPage", "findStop", "print"
       ]
     },
     {
@@ -31,7 +31,7 @@
         "openDevTools", "capturePage", "setAlwaysOnTop", "isAlwaysOnTop", "setOpacity",
         "flashFrame", "setIcon", "setUserAgent", "zoom",
         "reload", "stop", "goBack", "goForward", "canGoBack", "canGoForward",
-        "getURL", "getTitle"
+        "getURL", "getTitle", "print"
       ]
     },
     {

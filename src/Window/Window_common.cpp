@@ -417,6 +417,10 @@ void Window::SetApplicationMenu(const std::string& itemsJson) {
 }
 
 void Window::SetColorScheme(int mode) { impl_->PSetColorScheme(mode); }
+
+void Window::PrintToPDF(std::function<void(bool ok, const std::string& pdf)> cb) {
+    impl_->PPrintToPDF(std::move(cb));
+}
 void* Window::NativeHandle() const {
     return impl_->webview ? impl_->webview->NativeWidget() : nullptr;
 }

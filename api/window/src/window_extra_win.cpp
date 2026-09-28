@@ -354,6 +354,21 @@ void getTitle(const ow_request_t* req, ow_response_t* res) {
     RespondOk(res, Value(t).Serialize().c_str());
 }
 
+// ── C8: print (diálogo de impresión del sistema) ─────────────────────────────
+void print(const ow_request_t* req, ow_response_t* res) {
+    auto parsed = ow::json::Parse(std::string_view(req->json, req->json_len));
+    Value args = parsed.value ? std::move(*parsed.value) : Value(nullptr);
+    uint32_t id = WinId(args);
+    NEED_WIN(id)
+    ComPtr<ICoreWebView2_16> wv16;
+    if (SUCCEEDED(wv->QueryInterface(IID_PPV_ARGS(&wv16))) && wv16) {
+        wv16->ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_BROWSER);
+        RespondOk(res, "null");
+        return;
+    }
+    RespondError(res, "ShowPrintUI no disponible en este runtime");
+}
+
 } // namespace winx
 
 namespace ow::internal {
@@ -375,6 +390,7 @@ const ow_module_desc_t* WindowExtrasDescriptorWin(void) {
         {"canGoForward", &winx::canGoForward},
         {"getURL", &winx::getURL},
         {"getTitle", &winx::getTitle},
+        {"print", &winx::print},
     };
     static const ow_module_desc_t d{
         "window", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};

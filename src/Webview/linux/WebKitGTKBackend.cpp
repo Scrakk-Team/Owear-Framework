@@ -28,8 +28,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
@@ -447,6 +449,13 @@ public:
                 delete cb;
             },
             holder);
+    }
+
+    void PrintToPDF(PrintCallback cb) override {
+        // WebKitGTK 2.52 no expone exportar a PDF (no hay API); el truco del
+        // backend "Print to File" de GTK no es fiable (locale/depende del SO).
+        // La app puede ofrecer impresión (diálogo) o generar el PDF en JS.
+        if (cb) cb(false, {});
     }
 
     void Resize(int x, int y, int w, int h) override {

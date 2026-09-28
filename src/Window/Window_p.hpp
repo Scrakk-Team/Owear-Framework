@@ -119,6 +119,9 @@ public:
 
     /// Fuerza el esquema de color del contenido (0=auto, 1=light, 2=dark).
     virtual void PSetColorScheme(int scheme);
+
+    /// Exporta la página a PDF (asíncrono).
+    virtual void PPrintToPDF(std::function<void(bool ok, const std::string& pdf)> cb);
     virtual void PBeginMoveDrag();
     virtual void PBeginResizeDrag(const std::string& edge);
 

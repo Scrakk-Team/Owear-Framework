@@ -14,7 +14,8 @@ AES-GCM), `theme` (nativeTheme) y permisos de `session`; y el sidecar Node ya
 muere con el kernel. Y el **Bloque C (shell de app)**: **C1** `app` completo
 (rutas/identidad/`commandLine`/eventos), **C2** `dialog` completo, **C3**
 `webContents` (objetos + eventos + `capturePage`), **C4** `nativeImage` (códec
-PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray` y **C7** `nativeTheme`.
+PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme` y
+**C8** `print`/`printToPDF`.
 
 ## Added
 
@@ -191,6 +192,13 @@ PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray` y **C7** `nativeTheme`.
     menú contextual (`TrackPopupMenu`), eventos y **PNG→HICON** vía GDI+. El menú
     reutiliza el template de C5. Verificado en Linux (registro + ciclo);
     Windows compila.
+  - **`print` / `printToPDF` (C8)** — `win.webContents.print()` (diálogo del
+    sistema) y `win.webContents.printToPDF()` (→ `Buffer` PDF vía comando
+    asíncrono `window.printToPDF`). **Windows: WebView2 `PrintToPdf` +
+    `ShowPrintUI`** (ambos reales). **Linux: `print`** con
+    `WebKitPrintOperation` (diálogo); **`printToPDF` no soportado** (WebKitGTK
+    2.52 no expone API de PDF; se devuelve un error claro). Verificado en Linux
+    (registro + ciclo de `print`); Windows compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

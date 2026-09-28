@@ -364,6 +364,28 @@ void findStop(const ow_request_t* req, ow_response_t* res) {
             static_cast<WebKitWebView*>(ow::builtin::WebviewById(id))));
     RespondOk(res, "null");
 }
+// ── C8: print (diálogo de impresión del sistema) ─────────────────────────────
+void print(const ow_request_t* req, ow_response_t* res) {
+    auto parsed = ow::json::Parse(std::string_view(req->json, req->json_len));
+    Value args = parsed.value ? std::move(*parsed.value) : Value(nullptr);
+    uint32_t id = WinId(args);
+    GtkWidget* view = GTK_WIDGET(ow::builtin::WebviewById(id));
+    if (!view || !WEBKIT_IS_WEB_VIEW(view))
+        return RespondError(res, "ventana no encontrada");
+    GtkWindow* win = GTK_WINDOW(ow::builtin::WindowById(id));
+    WebKitPrintOperation* op = webkit_print_operation_new(WEBKIT_WEB_VIEW(view));
+    g_signal_connect(op, "finished",
+                     G_CALLBACK(+[](WebKitPrintOperation* o, gpointer) { g_object_unref(o); }),
+                     nullptr);
+    g_signal_connect(op, "failed",
+                     G_CALLBACK(+[](WebKitPrintOperation* o, GError*, gpointer) {
+                         g_object_unref(o);
+                     }),
+                     nullptr);
+    webkit_print_operation_run_dialog(op, win);
+    RespondOk(res, "null");
+}
+
 } // namespace winx
 
 namespace ow::internal {
@@ -388,6 +410,7 @@ const ow_module_desc_t* WindowExtrasDescriptor(void) {
         {"getTitle", &winx::getTitle},
         {"findInPage", &winx::findInPage},
         {"findStop", &winx::findStop},
+        {"print", &winx::print},
     };
     static const ow_module_desc_t d{
         "window", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};
