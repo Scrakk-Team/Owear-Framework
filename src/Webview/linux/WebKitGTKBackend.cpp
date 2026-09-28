@@ -24,6 +24,7 @@
 
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
+#include <cairo-pdf.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -68,6 +69,14 @@ std::string ContentTypeFromHeaders(const std::string& headersJson) {
 /// Escribe un PNG de cairo a un std::string.
 cairo_status_t WritePngToStdString(void* closure, const unsigned char* data,
                                    unsigned int length) {
+    static_cast<std::string*>(closure)->append(reinterpret_cast<const char*>(data),
+                                               length);
+    return CAIRO_STATUS_SUCCESS;
+}
+
+/// Escribe cualquier salida de cairo (p. ej. PDF) a un std::string.
+cairo_status_t WriteToStdString(void* closure, const unsigned char* data,
+                                unsigned int length) {
     static_cast<std::string*>(closure)->append(reinterpret_cast<const char*>(data),
                                                length);
     return CAIRO_STATUS_SUCCESS;
@@ -452,10 +461,43 @@ public:
     }
 
     void PrintToPDF(PrintCallback cb) override {
-        // WebKitGTK 2.52 no expone exportar a PDF (no hay API); el truco del
-        // backend "Print to File" de GTK no es fiable (locale/depende del SO).
-        // La app puede ofrecer impresión (diálogo) o generar el PDF en JS.
-        if (cb) cb(false, {});
+        if (!view_ || !cb) {
+            if (cb) cb(false, {});
+            return;
+        }
+        // WebKitGTK no tiene API de PDF y el backend "Print to File" de GTK
+        // bloquea/sin-completar (probado). Enfoque determinista: snapshot de la
+        // PÁGINA COMPLETA → PDF con Cairo (imagen; funciona en cualquier sistema).
+        auto* holder = new PrintCallback(std::move(cb));
+        webkit_web_view_get_snapshot(
+            WEBKIT_WEB_VIEW(view_), WEBKIT_SNAPSHOT_REGION_FULL_DOCUMENT,
+            WEBKIT_SNAPSHOT_OPTIONS_NONE, nullptr,
+            +[](GObject* obj, GAsyncResult* res, gpointer ud) {
+                auto* cb = static_cast<PrintCallback*>(ud);
+                GError* err = nullptr;
+                cairo_surface_t* surface = webkit_web_view_get_snapshot_finish(
+                    WEBKIT_WEB_VIEW(obj), res, &err);
+                if (!surface || err) {
+                    if (err) g_error_free(err);
+                    (*cb)(false, {});
+                    delete cb;
+                    return;
+                }
+                const double w = cairo_image_surface_get_width(surface);
+                const double h = cairo_image_surface_get_height(surface);
+                std::string pdf;
+                cairo_surface_t* pdfs =
+                    cairo_pdf_surface_create_for_stream(&WriteToStdString, &pdf, w, h);
+                cairo_t* cr = cairo_create(pdfs);
+                cairo_set_source_surface(cr, surface, 0, 0);
+                cairo_paint(cr);
+                cairo_destroy(cr);
+                cairo_surface_destroy(pdfs);
+                cairo_surface_destroy(surface);
+                (*cb)(!pdf.empty(), pdf);
+                delete cb;
+            },
+            holder);
     }
 
     void Resize(int x, int y, int w, int h) override {

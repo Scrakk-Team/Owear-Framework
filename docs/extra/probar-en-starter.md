@@ -409,11 +409,11 @@ await theme.watch()               // ow.on('theme.changed', info)
 
 | | Estado |
 |---|---|
-| Linux | ✅ `print` (diálogo WebKitPrintOperation); `printToPDF` ⚠️ no soportado (WebKitGTK) |
+| Linux | ✅ `print` (diálogo) + `printToPDF` (snapshot→Cairo, **rasterizado**) |
 | Windows | 🟡 compila; `print` + `printToPDF` reales (PrintToPdf / ShowPrintUI) |
 
 ```ts
-await win.webContents.printToPDF()   // → Buffer (PDF)   [Windows; en Linux error claro]
+await win.webContents.printToPDF()   // → Buffer (PDF)  [Windows vectorial; Linux rasterizado (Cairo)]
 win.webContents.print()              // diálogo de impresión del sistema
 ```
 

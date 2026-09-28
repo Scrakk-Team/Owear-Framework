@@ -195,10 +195,10 @@ PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme` y
   - **`print` / `printToPDF` (C8)** — `win.webContents.print()` (diálogo del
     sistema) y `win.webContents.printToPDF()` (→ `Buffer` PDF vía comando
     asíncrono `window.printToPDF`). **Windows: WebView2 `PrintToPdf` +
-    `ShowPrintUI`** (ambos reales). **Linux: `print`** con
-    `WebKitPrintOperation` (diálogo); **`printToPDF` no soportado** (WebKitGTK
-    2.52 no expone API de PDF; se devuelve un error claro). Verificado en Linux
-    (registro + ciclo de `print`); Windows compila.
+    `ShowPrintUI`** (vectorial). **Linux: `print`** con `WebKitPrintOperation`
+    (diálogo) y **`printToPDF`** vía **snapshot de página completa → Cairo PDF**
+    (rasterizado; WebKitGTK no expone API de PDF, y el backend "Print to File" de
+    GTK bloquea). Verificado en Linux (`%PDF`, ~2.4 KB); Windows compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,
