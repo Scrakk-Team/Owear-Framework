@@ -115,7 +115,20 @@ await t('__setup.tmp', async () => TMP);
   }
   await t('screen.displays', async () => {
     const d = await ow.invoke('screen','getAllDisplays');
-    const prim = d.find(x=>x.primary) || d[0]; return d.length + ' display(s), primary=' + prim.bounds.width + 'px';
+    const prim = d.find(x=>x.primary) || d[0];
+    return d.length + ' display(s), primary=#' + prim.id + ' ' +
+           prim.bounds.width + 'x' + prim.bounds.height +
+           ' work=' + prim.workArea.width + 'x' + prim.workArea.height +
+           ' scale=' + prim.scaleFactor + ' label=' + (prim.label || '-');
+  });
+  await t('screen.cursor', async () => {
+    const p = await ow.invoke('screen','getCursorScreenPoint');
+    return 'cursor ' + p.x + ',' + p.y;
+  });
+  await t('screen.watch', async () => {
+    await ow.invoke('screen','watch');
+    await ow.invoke('screen','unwatch');
+    return 'watch+unwatch ok';
   });
   await t('clipboard', async () => {
     await ow.invoke('clipboard','writeText','OWEAR_CLIP_123');
@@ -129,9 +142,13 @@ await t('__setup.tmp', async () => TMP);
   await t('notification', async () => ow.invoke('notification','show','Owear E2E','Si ves esto, las notificaciones del sistema funcionan'));
   await t('power', async () => {
     await ow.invoke('power','monitorStart');
+    const idle = await ow.invoke('power','idleTime');
+    const state = await ow.invoke('power','idleState', 5);
+    const bat = await ow.invoke('power','isOnBattery');
     const id = await ow.invoke('power','inhibitStart','prevent-display-sleep');
-    await ow.invoke('power','inhibitStop',id);
-    return 'monitor+inhibit ok';
+    const stopped = await ow.invoke('power','inhibitStop',id);
+    await ow.invoke('power','monitorStop');
+    return 'idle=' + idle + 's state=' + state + ' onBattery=' + bat + ' blockerStop=' + stopped;
   });
   await t('shell.errpath', async () => {
     try { await ow.invoke('shell','openExternal','ftp://no'); return 'sin validación ✗'; }

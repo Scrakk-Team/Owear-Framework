@@ -17,7 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test test/worker.test.mjs test/port.test.mjs test/app.test.mjs test/nativeimage.test.mjs test/menu.test.mjs"
+    "test": "node --test test/worker.test.mjs test/port.test.mjs test/app.test.mjs test/nativeimage.test.mjs test/menu.test.mjs test/c10.test.mjs"
   },
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",

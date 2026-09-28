@@ -446,6 +446,48 @@ win.on('enter-full-screen', () => …); win.on('always-on-top-changed', (v) => �
   **Progreso**, **Ignorar ratón** (3 s) y **Ventanas** (getAllWindows/getFocused).
   Cableado (WIP). 🟡
 
+### 5.10 C10 — `screen`/`Display` y `powerMonitor`
+
+| | Estado |
+|---|---|
+| Linux | ✅ verificado (displays/cursor/nearest/matching, idle/state/battery, `watch`, bloqueador; eventos por X11/GDK) |
+| Windows | 🟡 compila (hash de `szDevice`, `WM_DISPLAYCHANGE`, `WM_POWERBROADCAST`/`WM_ENDSESSION`, WTS lock/unlock, `GetLastInputInfo`) |
+
+```ts
+// Main: screen (auto-watch al primer .on)
+const displays = await screen.getAllDisplays()
+const primary  = await screen.getPrimaryDisplay()
+const cursor   = await screen.getCursorScreenPoint()
+const near     = await screen.getDisplayNearestPoint(cursor)
+const match    = await screen.getDisplayMatching({ x: 0, y: 0, width: 640, height: 480 })
+screen.on('added', (d) => …)        // también 'removed' y 'changed' (d, metrics)
+app.__channel.on('screen.changed', (p) => …)  // eventos por nombre
+
+// Main: energía
+await powerMonitor.watch()
+await powerMonitor.getIdleTime()        // segundos
+await powerMonitor.getIdleState(30)     // active | idle | locked | unknown
+await powerMonitor.isOnBatteryPower(); powerMonitor.onBatteryPower
+powerMonitor.on('suspend' | 'resume' | 'shutdown' | 'lock' | 'unlock' | 'ac' | 'battery', …)
+const id = powerSaveBlocker.start('prevent-display-sleep')
+powerSaveBlocker.isStarted(id); powerSaveBlocker.stop(id)
+```
+
+```ts
+// Renderer: el kernel también emite el evento crudo (sin pasar por el main)
+ow.on('screen.changed', ({ display, metrics }) => …)
+ow.on('power.suspend', () => …)
+```
+
+- **En el starter:** botones **Pantallas** (mapa de monitores + cursor, lista de
+  displays), **Monitor del cursor** (nearest), **Escuchar energía** (idle +
+  onBattery), **Bloqueador ON/OFF** y **Idle**. El panel repinta el mapa al recibir
+  `screen.added/removed/changed` y registra los eventos de energía. Cableado (WIP).
+- **Verificación manual (eventos):** conecta/desconecta un monitor o cambia su
+  resolución ⇒ debe aparecer una línea `screen.added/removed/changed`. Suspende el
+  equipo o cambia AC/batería ⇒ `power.*`. En Windows, bloquear la sesión ⇒
+  `power.lock`/`power.unlock`.
+
 ---
 
 ## 4. Pendiente de documentar aquí

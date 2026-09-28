@@ -2,8 +2,14 @@
   "$schema": "../owear.module.schema.json",
   "name": "screen",
   "kind": "module",
-  "version": "0.1.0",
-  "description": "Monitores (geometría, work area, escala), display primario y posición GLOBAL del cursor.",
+  "version": "0.2.0",
+  "description": "Monitores (geometría, work area, escala, rotación, etiqueta), display primario, posición GLOBAL del cursor y eventos de cambios de pantalla (added/removed/changed).",
   "platforms": ["linux", "win", "mac"],
-  "functions": ["getAllDisplays", "getPrimaryDisplay", "getCursorScreenPoint"]
+  "functions": [
+    "getAllDisplays",
+    "getPrimaryDisplay",
+    "getCursorScreenPoint",
+    "watch",
+    "unwatch"
+  ]
 }

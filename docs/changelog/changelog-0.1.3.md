@@ -15,8 +15,9 @@ muere con el kernel. Y el **Bloque C (shell de app)**: **C1** `app` completo
 (rutas/identidad/`commandLine`/eventos), **C2** `dialog` completo, **C3**
 `webContents` (objetos + eventos + `capturePage`), **C4** `nativeImage` (códec
 PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme`,
-**C8** `print`/`printToPDF` y **C9** `BrowserWindow` completo (opciones/estado/
-geometría/eventos).
+**C8** `print`/`printToPDF`, **C9** `BrowserWindow` completo (opciones/estado/
+geometría/eventos) y **C10** `screen`/`Display` (multi-monitor + eventos) y
+`powerMonitor` (energía).
 
 ## Added
 
@@ -235,6 +236,35 @@ geometría/eventos).
   - **Foco automático**: las hijas **no roban el foco al cargar** (arrancan con
     `can_focus=FALSE`); el click sobre una hija se lo da y el click fuera de las
     hijas vuelve a la principal.
+- `examples/starter`: **rediseño en curso** (WIP) — fuentes, layout con
+  containers y uso de las APIs nuevas (`titleBarOverlay`, navegador embebido).
+- **Bloque C — C10 `screen`/`Display` + `powerMonitor` (multi-monitor y energía)**:
+  - **`screen` (módulo, Linux + Windows)**: `getAllDisplays`, `getPrimaryDisplay`,
+    `getCursorScreenPoint` con **Display completo** (`id`, `bounds`, `size`,
+    `workArea`, `workAreaSize`, `scaleFactor`, `rotation`, `internal`, `label`,
+    `displayFrequency`, `colorDepth`, `depthPerComponent`, `colorSpace`,
+    `monochrome`, `touchSupport`, `accelerometerSupport`, `detected`,
+    `nativeOrigin`), **id estable** (Windows: hash del `szDevice`; Linux: por
+    `GdkMonitor*`) y **eventos** `screen.added` / `screen.removed` /
+    `screen.changed` con `watch`/`unwatch`. Windows: ventana oculta top-level en
+    un hilo propio para `WM_DISPLAYCHANGE`; Linux: señales de `GdkDisplay` y
+    `notify::geometry|workarea|scale-factor`.
+  - **`power` (módulo, Linux + Windows)**: `monitorStart`/`monitorStop` y eventos
+    `power.suspend`/`resume`/`shutdown`/`lock`/`unlock`/`ac`/`battery`; `idleTime`,
+    `idleState` y `isOnBattery`; inhibidores `inhibitStart`/`inhibitStop`.
+    Linux: logind (`PrepareForSleep`/`PrepareForShutdown`/`Session Lock/Unlock`) +
+    UPower (con fallback `/sys`) + X11 Xss (`dlopen`, Wayland → `unknown`).
+    Windows: ventana oculta con `WM_POWERBROADCAST`/`WM_ENDSESSION` +
+    `WTSRegisterSessionNotification` (lock/unlock) + `GetLastInputInfo` +
+    `GetSystemPowerStatus`.
+  - **SDK**: `screen` (EventEmitter: `added`/`removed`/`changed`, `getAllDisplays`,
+    `getPrimaryDisplay`, `getCursorScreenPoint`, `getDisplayNearestPoint`,
+    `getDisplayMatching`, `screenToDipPoint`/`dipToScreenPoint` + alias),
+    `powerMonitor` (EventEmitter: `suspend`/`resume`/`shutdown`/`lock`/`unlock`/
+    `ac`/`battery`, `getIdleTime`, `getIdleState`, `isOnBatteryPower`,
+    `onBatteryPower`) y `powerSaveBlocker` (`start`/`stop`/`isStarted`). Watch
+    perezoso al primer uso. Los eventos de módulo se re-emiten por nombre en el
+    canal (`app.__channel.on('screen.added', …)`).
 - `examples/starter`: **rediseño en curso** (WIP) — fuentes, layout con
   containers y uso de las APIs nuevas (`titleBarOverlay`, navegador embebido).
 - Dev: `OW_TITLEBAR_OVERLAY[=_HEIGHT]` para probar el overlay con `OW_DEMO=1`.

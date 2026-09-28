@@ -703,6 +703,273 @@ export const theme = {
 /** Alias estilo Electron de `theme`. */
 export const nativeTheme = theme
 
+// ── screen (C10) ────────────────────────────────────────────────────────────
+// Nombres intermedios Owear: métodos descriptivos + eventos cortos
+// (`added`/`removed`/`changed`). Los alias estilo Electron se ofrecen para
+// portar apps existentes.
+export interface DisplayBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+export interface DisplaySize {
+  width: number
+  height: number
+}
+export interface Display {
+  id: number
+  primary: boolean
+  /** Etiqueta legible (modelo/monitor); puede venir vacía. */
+  label: string
+  /** En píxeles NATIVOS de pantalla (coincide con las coords del kernel). */
+  bounds: DisplayBounds
+  size: DisplaySize
+  workArea: DisplayBounds
+  workAreaSize: DisplaySize
+  scaleFactor: number
+  rotation: number
+  internal: boolean
+  detected: boolean
+  displayFrequency: number
+  colorDepth: number
+  depthPerComponent: number
+  colorSpace: string
+  monochrome: boolean
+  touchSupport: 'available' | 'unavailable' | 'unknown'
+  accelerometerSupport: 'available' | 'unavailable' | 'unknown'
+  nativeOrigin: { x: number; y: number }
+}
+export type DisplayMetric = 'bounds' | 'workArea' | 'scaleFactor' | 'rotation'
+
+function distanceToRect(p: { x: number; y: number }, r: DisplayBounds): number {
+  const dx = Math.max(r.x - p.x, 0, p.x - (r.x + r.width))
+  const dy = Math.max(r.y - p.y, 0, p.y - (r.y + r.height))
+  return dx * dx + dy * dy
+}
+function intersectionArea(a: DisplayBounds, b: DisplayBounds): number {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+  return w > 0 && h > 0 ? w * h : 0
+}
+
+class Screen extends EventEmitter {
+  private _watching = false
+
+  private async _ensure(): Promise<void> {
+    if (this._watching) return
+    this._watching = true
+    try {
+      await app.whenReady()
+      await invokeNative<void>('screen', 'watch')
+    } catch {
+      /* sin kernel: módulo no disponible */
+    }
+  }
+
+  /** Conecta el watcher nativo (se llama solo al usar el módulo o un evento). */
+  watch(): Promise<void> {
+    return this._ensure()
+  }
+
+  on(event: string, listener: (...args: any[]) => void): this {
+    void this._ensure()
+    return super.on(event, listener)
+  }
+  once(event: string, listener: (...args: any[]) => void): this {
+    void this._ensure()
+    return super.once(event, listener)
+  }
+
+  async getAllDisplays(): Promise<Display[]> {
+    await this._ensure()
+    return invokeNative<Display[]>('screen', 'getAllDisplays')
+  }
+  async getPrimaryDisplay(): Promise<Display | null> {
+    await this._ensure()
+    return invokeNative<Display | null>('screen', 'getPrimaryDisplay')
+  }
+  async getCursorScreenPoint(): Promise<{ x: number; y: number }> {
+    return invokeNative<{ x: number; y: number }>('screen', 'getCursorScreenPoint')
+  }
+
+  /** Display más cercano a un punto (calculado en el SDK sobre los bounds). */
+  async getDisplayNearestPoint(point: { x: number; y: number }): Promise<Display | null> {
+    const all = await this.getAllDisplays()
+    let best: Display | null = null
+    let bestD = Infinity
+    for (const d of all) {
+      const dist = distanceToRect(point, d.bounds)
+      if (dist < bestD) {
+        bestD = dist
+        best = d
+      }
+    }
+    return best
+  }
+
+  /** Display que más se solapa con un rect (o el más cercano a su centro). */
+  async getDisplayMatching(rect: DisplayBounds): Promise<Display | null> {
+    const all = await this.getAllDisplays()
+    let best: Display | null = null
+    let bestA = 0
+    for (const d of all) {
+      const area = intersectionArea(rect, d.bounds)
+      if (area > bestA) {
+        bestA = area
+        best = d
+      }
+    }
+    if (best) return best
+    const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+    return this.getDisplayNearestPoint(center)
+  }
+
+  private async _displayAt(point: { x: number; y: number }): Promise<Display | null> {
+    return this.getDisplayNearestPoint(point)
+  }
+
+  /**
+   * Punto físico de pantalla → DIP, relativo al display que lo contiene
+   * (aproximación por escala del display; coincide exactamente con escala 1).
+   */
+  async screenToDipPoint(point: { x: number; y: number }): Promise<{ x: number; y: number }> {
+    const d = await this._displayAt(point)
+    const s = d?.scaleFactor ?? 1
+    if (!d || s <= 1) return point
+    return {
+      x: d.bounds.x + Math.round((point.x - d.bounds.x) / s),
+      y: d.bounds.y + Math.round((point.y - d.bounds.y) / s),
+    }
+  }
+  async dipToScreenPoint(point: { x: number; y: number }): Promise<{ x: number; y: number }> {
+    const d = await this._displayAt(point)
+    const s = d?.scaleFactor ?? 1
+    if (!d || s <= 1) return point
+    return {
+      x: d.bounds.x + Math.round((point.x - d.bounds.x) * s),
+      y: d.bounds.y + Math.round((point.y - d.bounds.y) * s),
+    }
+  }
+
+  // ── alias estilo Electron (portabilidad) ─────────────────────────────────
+  getDisplays = this.getAllDisplays.bind(this)
+  getPrimary = this.getPrimaryDisplay.bind(this)
+  getCursor = this.getCursorScreenPoint.bind(this)
+  nearestDisplay = this.getDisplayNearestPoint.bind(this)
+  displayMatching = this.getDisplayMatching.bind(this)
+}
+
+/** Pantallas del sistema + eventos de cambio (multi-monitor). */
+export const screen = new Screen()
+
+// ── powerMonitor (C10) ──────────────────────────────────────────────────────
+export type IdleState = 'active' | 'idle' | 'locked' | 'unknown'
+
+class PowerMonitor extends EventEmitter {
+  private _watching = false
+  private _onBattery = false
+
+  private async _ensure(): Promise<void> {
+    if (this._watching) return
+    this._watching = true
+    try {
+      await app.whenReady()
+      await invokeNative<void>('power', 'monitorStart')
+      this._onBattery = await invokeNative<boolean>('power', 'isOnBattery')
+    } catch {
+      /* sin kernel: módulo no disponible */
+    }
+  }
+
+  /** Empieza a escuchar eventos de energía (auto al usar el módulo o un evento). */
+  watch(): Promise<void> {
+    return this._ensure()
+  }
+
+  on(event: string, listener: (...args: any[]) => void): this {
+    void this._ensure()
+    return super.on(event, listener)
+  }
+  once(event: string, listener: (...args: any[]) => void): this {
+    void this._ensure()
+    return super.once(event, listener)
+  }
+
+  getIdleTime(): Promise<number> {
+    return invokeNative<number>('power', 'idleTime')
+  }
+  getIdleState(threshold: number): Promise<IdleState> {
+    return invokeNative<IdleState>('power', 'idleState', threshold)
+  }
+  isOnBatteryPower(): Promise<boolean> {
+    return invokeNative<boolean>('power', 'isOnBattery').then((v) => {
+      this._onBattery = v
+      return v
+    })
+  }
+  /** Último valor conocido (se actualiza con los eventos ac/battery). */
+  get onBatteryPower(): boolean {
+    return this._onBattery
+  }
+
+  /** @internal */
+  _setOnBattery(v: boolean): void {
+    this._onBattery = v
+  }
+
+  getSystemIdleTime = this.getIdleTime.bind(this)
+  getSystemIdleState = this.getIdleState.bind(this)
+}
+
+/** Eventos de energía: `suspend`, `resume`, `ac`, `battery`, `shutdown`, `lock`, `unlock`. */
+export const powerMonitor = new PowerMonitor()
+
+// ── powerSaveBlocker (C10) ──────────────────────────────────────────────────
+export type PowerSaveBlockerType = 'prevent-app-suspension' | 'prevent-display-sleep'
+
+interface BlockerRecord {
+  type: PowerSaveBlockerType
+  native: number | null
+}
+const activeBlockers = new Map<number, BlockerRecord>()
+let nextBlockerId = 1
+
+/**
+ * Evita que el sistema entre en suspensión. `prevent-display-sleep` tiene
+ * precedencia sobre `prevent-app-suspension`.
+ */
+export const powerSaveBlocker = {
+  start(type: PowerSaveBlockerType = 'prevent-display-sleep'): number {
+    const id = nextBlockerId++
+    activeBlockers.set(id, { type, native: null })
+    void (async () => {
+      try {
+        await app.whenReady()
+        const native = await invokeNative<number>('power', 'inhibitStart', type)
+        const b = activeBlockers.get(id)
+        if (b) b.native = native
+        else await invokeNative('power', 'inhibitStop', native)
+      } catch {
+        /* sin kernel: el bloqueador queda solo en el registro JS */
+      }
+    })()
+    return id
+  },
+  stop(id: number): boolean {
+    const b = activeBlockers.get(id)
+    if (!b) return false
+    activeBlockers.delete(id)
+    if (b.native != null)
+      void invokeNative('power', 'inhibitStop', b.native).catch(() => undefined)
+    return true
+  },
+  isStarted(id: number): boolean {
+    return activeBlockers.has(id)
+  },
+}
+
+
 // ── safeStorage ─────────────────────────────────────────────────────────────
 
 export interface SafeStorageResult {
@@ -1500,9 +1767,30 @@ channel.on('menu.click', (params: any) => dispatchMenuClick(params))
 let currentTray: Tray | null = null
 
 channel.on('module.event', (params: any) => {
-  if (params?.name === 'menu.click') dispatchMenuClick(params.payload)
-  else if (params?.name === 'tray.event' && currentTray)
+  const name = params?.name
+  // Re-emisión genérica: `app.__channel.on('screen.added', …)`.
+  if (typeof name === 'string') channel.emit(name, params?.payload)
+  if (name === 'menu.click') dispatchMenuClick(params.payload)
+  else if (name === 'tray.event' && currentTray)
     currentTray.emit(params.payload?.button ?? 'click', params.payload)
+  // C10 — pantallas
+  else if (name === 'screen.added') screen.emit('added', params.payload?.display)
+  else if (name === 'screen.removed') screen.emit('removed', params.payload?.display)
+  else if (name === 'screen.changed')
+    screen.emit('changed', params.payload?.display, params.payload?.metrics ?? [])
+  // C10 — energía
+  else if (name === 'power.suspend') powerMonitor.emit('suspend')
+  else if (name === 'power.resume') powerMonitor.emit('resume')
+  else if (name === 'power.shutdown') powerMonitor.emit('shutdown')
+  else if (name === 'power.lock') powerMonitor.emit('lock')
+  else if (name === 'power.unlock') powerMonitor.emit('unlock')
+  else if (name === 'power.ac') {
+    powerMonitor._setOnBattery(false)
+    powerMonitor.emit('ac')
+  } else if (name === 'power.battery') {
+    powerMonitor._setOnBattery(true)
+    powerMonitor.emit('battery')
+  }
 })
 
 // ── Tray (C6) ───────────────────────────────────────────────────────────────

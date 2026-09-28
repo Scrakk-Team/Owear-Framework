@@ -42,7 +42,7 @@ api/<nombre>/
   "description": "Monitores, display primario y posición global del cursor.",
   "platforms": ["linux", "win", "mac"],
   "optional": false,
-  "functions": ["getAllDisplays", "getPrimaryDisplay", "getCursorScreenPoint"]
+  "functions": ["getAllDisplays", "getPrimaryDisplay", "getCursorScreenPoint", "watch", "unwatch"]
 }
 ```
 
