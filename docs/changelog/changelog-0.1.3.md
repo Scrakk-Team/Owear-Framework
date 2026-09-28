@@ -309,3 +309,15 @@ geometría/eventos).
   **síncronos** y resueltos desde el registro del SDK (foco por eventos
   `focus`/`blur`), como Electron. Antes usaban comandos nuevos del kernel que en
   **Windows colgaban la ventana** (el botón "Ventanas" del starter).
+- **Windows: cuelgue con clicks rápidos (carga alta)** — dos causas:
+  1. El pipe de control llamaba `CancelIoEx(pipe, nullptr)` al encolar cada
+     respuesta, lo que cancela **toda** la I/O del handle, **incluidas las
+     escrituras en vuelo** del hilo lector → respuestas truncadas que
+     **desincronizan el protocolo** del SDK (un `invoke` que nunca resuelve =
+     ventana colgada). Además, si el lector no estaba aún bloqueado en
+     `ReadFile`, la respuesta quedaba varada. Ahora el lector **sondea** con
+     `PeekNamedPipe` (drena el outbox en ~1 ms) y solo escribe cuando no hay
+     lectura pendiente.
+  2. El bucle principal encolaba **un `kWmOwPump` por callback** → una ráfaga de
+     N callbacks generaba N pasadas de `GetMessage` (N-1 vacías). Ahora hay **un
+     único pump en vuelo** (`atomic` + rearme tras drenar).
