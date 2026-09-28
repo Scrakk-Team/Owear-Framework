@@ -15,6 +15,7 @@
 #include "../Control/ControlServer.hpp"
 #include "../Core/Log.hpp"
 #include "ow/detail/minjson.hpp"
+#include "ow/Shm.h"
 
 #include <algorithm>
 #include <atomic>
@@ -48,6 +49,24 @@ bool IsValidResizeEdge(const std::string& e) {
     for (const char* k : kEdges)
         if (e == k) return true;
     return false;
+}
+
+/// Script de resolución de un `invoke`. Si el payload es grande, va por
+/// memoria compartida (`_applyShm` + ow-shm://) en vez de embeberse como
+/// código JS: evita que el motor compile MB de JavaScript por respuesta.
+std::string BuildApplyScript(uint64_t id, bool ok, const std::string& resultJson) {
+    static constexpr size_t kInline = 64 * 1024;
+    if (resultJson.size() >= kInline) {
+        const char* shmId = ow_shm_put(
+            reinterpret_cast<const uint8_t*>(resultJson.data()), resultJson.size());
+        if (shmId && *shmId) {
+            return "window.__ow && window.__ow._applyShm(" + std::to_string(id) + ',' +
+                   (ok ? "true" : "false") + ",\"" + shmId + "\"," +
+                   std::to_string(resultJson.size()) + ")";
+        }
+    }
+    return "window.__ow && window.__ow._apply(" + std::to_string(id) + ',' +
+           (ok ? "true" : "false") + ',' + json::JsLiteral(resultJson) + ")";
 }
 
 } // namespace
@@ -161,9 +180,7 @@ void Window::Impl::HandleWebViewMessage(std::string_view text) {
         // Apply DIRECTO (no batched): los awaits de promesas en el renderer
         // dependen de esta resolución inmediata; batchearla puede deadlockear
         // cuando el propio evaluate espera la promesa.
-        std::string js = "window.__ow && window.__ow._apply(" +
-                         std::to_string(msg.id) + ',' + (ok ? "true" : "false") + ',' +
-                         json::JsLiteral(resultJson) + ")";
+        std::string js = BuildApplyScript(msg.id, ok, resultJson);
         if (webview) webview->EvalJS(js);
         return;
     }
@@ -186,9 +203,7 @@ void Window::Impl::ResolveInvoke(WindowId windowId, uint64_t invokeId, bool ok,
     auto it = LiveWindows().find(windowId);
     if (it == LiveWindows().end()) return;
     Window* w = it->second;
-    std::string js = "window.__ow && window.__ow._apply(" +
-                     std::to_string(invokeId) + ',' + (ok ? "true" : "false") + ',' +
-                     json::JsLiteral(std::string(json)) + ")";
+    std::string js = BuildApplyScript(invokeId, ok, std::string(json));
     if (w->impl_ && w->impl_->webview) w->impl_->webview->EvalJS(js);
 }
 

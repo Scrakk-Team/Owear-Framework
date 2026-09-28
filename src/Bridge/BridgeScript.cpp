@@ -42,6 +42,20 @@ std::string BuildBridgeScript() {
         p.reject(new Error(msg));
       }
     },
+    // Respuesta cuyo payload vive en memoria compartida (ow-shm://): evita
+    // embeber MB de JSON como código JS y que el motor lo compile.
+    _applyShm: function(id, ok, shmId, size) {
+      try {
+        window.ow.readShared({ id: shmId, size: size }).then(function(buf) {
+          var text = new TextDecoder().decode(new Uint8Array(buf));
+          window.__ow._apply(id, ok, text);
+        }).catch(function(e) {
+          window.__ow._apply(id, false, JSON.stringify({ message: String(e) }));
+        });
+      } catch (e) {
+        window.__ow._apply(id, false, JSON.stringify({ message: String(e) }));
+      }
+    },
     _event: function(w, name, payloadLiteral) {
       if (w && window.__owWindowId && w !== window.__owWindowId && w !== 0) return;
       var payload = null;
