@@ -36,6 +36,24 @@ struct WindowOptions {
     bool center = true;
     bool show = true;
     bool frameless = false;
+    bool movable = true;
+    bool minimizable = true;
+    bool maximizable = true;
+    bool closable = true;
+    bool fullscreenable = true;
+    bool skipTaskbar = false;
+    bool alwaysOnTop = false;
+    bool hasShadow = true;
+    bool transparent = false;
+    std::string backgroundColor;  // "#RRGGBB" o vacío = por defecto
+
+    /// Ventana padre (owner/transient) y si es modal respecto a ella.
+    WindowId parent = 0;
+    bool modal = false;
+
+    /// Relación de aspecto fija (0 = libre). `aspectExtraW/H` = margen extra.
+    double aspectRatio = 0.0;
+    int aspectExtraW = 0, aspectExtraH = 0;
 
     TitleBarStyle titleBarStyle = TitleBarStyle::Default;
     TitleBarOverlay titleBarOverlay;
@@ -57,6 +75,13 @@ using ListenerId = uint64_t;
 
 class Window : NonCopyable {
 public:
+    struct Bounds {
+        int x = 0, y = 0, w = 0, h = 0;
+    };
+    struct Size {
+        int width = 0, height = 0;
+    };
+
     explicit Window(const WindowOptions& options);
     ~Window();
 
@@ -79,8 +104,44 @@ public:
     bool IsMinimized() const;
     bool IsFullScreen() const;
 
+    // ── estado extendido (paridad Electron) ────────────────────────
+    bool IsVisible() const;
+    bool IsFocused() const;
+    bool IsResizable() const;
+    bool IsMovable() const;
+    bool IsMinimizable() const;
+    bool IsMaximizable() const;
+    bool IsClosable() const;
+    bool IsAlwaysOnTop() const;
+    bool IsKiosk() const;
+    bool IsDestroyed() const;
+
+    void SetResizable(bool on);
+    void SetMovable(bool on);
+    void SetMinimizable(bool on);
+    void SetMaximizable(bool on);
+    void SetClosable(bool on);
+    void SetAlwaysOnTop(bool on, int level = 0);
+    void SetSkipTaskbar(bool on);
+    void SetHasShadow(bool on);
+    void SetKiosk(bool on);
+    void SetIgnoreMouseEvents(bool ignore, bool forward);
+    /// value ∈ [-1,1] (-1 = indeterminado). mode: none|normal|indeterminate|paused|error
+    void SetProgressBar(double value, const std::string& mode = "normal");
+    void SetBackgroundColor(const std::string& color);
+    void MoveTop();
+    void SetAspectRatio(double ratio, int extraW = 0, int extraH = 0);
+
+    // ── geometría extendida ────────────────────────────────────────
+    Bounds GetContentBounds() const;
+    void SetContentSize(int w, int h);
+    Size GetContentSize() const;
+    Size GetMinimumSize() const;
+    Size GetMaximumSize() const;
+    void SetMinimumSize(int w, int h);
+    void SetMaximumSize(int w, int h);
+
     // ── geometría ──────────────────────────────────────────────────
-    struct Bounds { int x = 0, y = 0, w = 0, h = 0; };
     Bounds GetBounds() const;
     void SetBounds(const Bounds&);
     void Center();

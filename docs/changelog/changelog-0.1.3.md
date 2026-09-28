@@ -14,8 +14,9 @@ AES-GCM), `theme` (nativeTheme) y permisos de `session`; y el sidecar Node ya
 muere con el kernel. Y el **Bloque C (shell de app)**: **C1** `app` completo
 (rutas/identidad/`commandLine`/eventos), **C2** `dialog` completo, **C3**
 `webContents` (objetos + eventos + `capturePage`), **C4** `nativeImage` (códec
-PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme` y
-**C8** `print`/`printToPDF`.
+PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme`,
+**C8** `print`/`printToPDF` y **C9** `BrowserWindow` completo (opciones/estado/
+geometría/eventos).
 
 ## Added
 
@@ -199,6 +200,23 @@ PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme` y
     (diálogo) y **`printToPDF`** vía **snapshot de página completa → Cairo PDF**
     (rasterizado; WebKitGTK no expone API de PDF, y el backend "Print to File" de
     GTK bloquea). Verificado en Linux (`%PDF`, ~2.4 KB); Windows compila.
+  - **`BrowserWindow` completo (C9)** — opciones: `parent`, `modal`,
+    `transparent`, `backgroundColor`, `movable`, `minimizable`, `maximizable`,
+    `closable`, `fullscreenable`, `skipTaskbar`, `alwaysOnTop`, `hasShadow`,
+    `min/maxWidth/Height`, `aspectRatio`, `show`. Métodos: getters (`isVisible`,
+    `isFocused`, `isResizable`, `isMovable`, `isMinimizable`, `isMaximizable`,
+    `isClosable`, `isAlwaysOnTop`, `isKiosk`, `isDestroyed`, `isFullScreen`),
+    setters (`setResizable/Movable/Minimizable/Maximizable/Closable`,
+    `setAlwaysOnTop(flag,level)`, `setSkipTaskbar`, `setHasShadow`, `setKiosk`,
+    `setIgnoreMouseEvents`, `setProgressBar`, `setBackgroundColor`, `moveTop`,
+    `setAspectRatio`), geometría (`getContentBounds/Size`, `setContentSize`,
+    `get/setMinimumSize`, `get/setMaximumSize`) y **estáticos** `getAllWindows`,
+    `getFocusedWindow`, `fromId`. **Eventos** con nombres Electron (dash):
+    `enter-full-screen`, `leave-full-screen`, `always-on-top-changed`,
+    `page-title-updated`, `show`, `hide`, `restore`, `minimize`, `resized`,
+    `moved` (+ los camelCase previos). Linux (GTK) y Windows (Win32: estilos,
+    `SetWindowPos`, `ITaskbarList3`, `WS_EX_TRANSPARENT`, `WM_SIZING`/`WM_GETMINMAXINFO`).
+    Verificado en Linux; Windows compila.
 - **Webviews embebidas (`webview`, Linux)** — cada ventana puede tener N WebViews
   hijas, **cada una con su propio proceso**, embebidas y controlables por API:
   - Builtin `webview` (`api/webview/owear.module.json`, Linux + Windows): `create, destroy,

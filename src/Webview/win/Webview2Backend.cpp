@@ -477,6 +477,15 @@ public:
 
     void* NativeWidget() const override { return hwnd_; }
 
+    void SetBackgroundColor(int r, int g, int b, int a) override {
+        if (!controller_) return;
+        ComPtr<ICoreWebView2Controller2> c2;
+        if (FAILED(controller_->QueryInterface(IID_PPV_ARGS(&c2))) || !c2) return;
+        COREWEBVIEW2_COLOR col{static_cast<BYTE>(a), static_cast<BYTE>(r),
+                               static_cast<BYTE>(g), static_cast<BYTE>(b)};
+        c2->put_DefaultBackgroundColor(col);
+    }
+
     void PrintToPDF(PrintCallback cb) override {
         if (!webview_ || !cb) {
             if (cb) cb(false, {});

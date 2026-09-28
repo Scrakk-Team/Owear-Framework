@@ -422,6 +422,32 @@ win.webContents.print()              // diálogo de impresión del sistema
 
 ---
 
+### 5.9 C9 — `BrowserWindow` completo
+
+| | Estado |
+|---|---|
+| Linux | ✅ verificado (estado, onTop, progress, min/max, getAllWindows, getFocused, fromId) |
+| Windows | 🟡 compila (estilos Win32, `ITaskbarList3`, `WS_EX_TRANSPARENT`, `WM_SIZING`/`WM_GETMINMAXINFO`) |
+
+```ts
+const win = new BrowserWindow({
+  width: 900, height: 600, parent: mainWin.id, modal: false,
+  backgroundColor: '#101418', alwaysOnTop: true, skipTaskbar: false,
+  minWidth: 400, minHeight: 300, aspectRatio: 16 / 9,
+})
+await win.setProgressBar(0.5)         // barra de tareas (Windows; D-Bus en Linux)
+await win.setIgnoreMouseEvents(true, { forward: true })
+await win.setBackgroundColor('#101418')
+await BrowserWindow.getAllWindows(); await BrowserWindow.getFocusedWindow()
+win.on('enter-full-screen', () => …); win.on('always-on-top-changed', (v) => …)
+```
+
+- **En el starter:** botones **Ventana 2** (parent + backgroundColor), **AlwaysOnTop**,
+  **Progreso**, **Ignorar ratón** (3 s) y **Ventanas** (getAllWindows/getFocused).
+  Cableado (WIP). 🟡
+
+---
+
 ## 4. Pendiente de documentar aquí
 
 - Botones/paneles concretos del starter para cada sistema (lo iremos añadiendo).

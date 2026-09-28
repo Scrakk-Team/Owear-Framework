@@ -382,6 +382,45 @@ void Window::SetFullScreen(bool e) { impl_->PSetFullScreen(e); }
 bool Window::IsMaximized() const { return impl_->PIsMaximized(); }
 bool Window::IsMinimized() const { return impl_->PIsMinimized(); }
 bool Window::IsFullScreen() const { return impl_->PIsFullScreen(); }
+bool Window::IsVisible() const { return impl_->PIsVisible(); }
+bool Window::IsFocused() const { return impl_->PIsFocused(); }
+bool Window::IsResizable() const { return impl_->PIsResizable(); }
+bool Window::IsMovable() const { return impl_->PIsMovable(); }
+bool Window::IsMinimizable() const { return impl_->PIsMinimizable(); }
+bool Window::IsMaximizable() const { return impl_->PIsMaximizable(); }
+bool Window::IsClosable() const { return impl_->PIsClosable(); }
+bool Window::IsAlwaysOnTop() const { return impl_->PIsAlwaysOnTop(); }
+bool Window::IsKiosk() const { return impl_->PIsKiosk(); }
+bool Window::IsDestroyed() const { return impl_->PIsDestroyed(); }
+void Window::SetResizable(bool on) { impl_->PSetResizable(on); }
+void Window::SetMovable(bool on) { impl_->PSetMovable(on); }
+void Window::SetMinimizable(bool on) { impl_->PSetMinimizable(on); }
+void Window::SetMaximizable(bool on) { impl_->PSetMaximizable(on); }
+void Window::SetClosable(bool on) { impl_->PSetClosable(on); }
+void Window::SetAlwaysOnTop(bool on, int level) { impl_->PSetAlwaysOnTop(on, level); }
+void Window::SetSkipTaskbar(bool on) { impl_->PSetSkipTaskbar(on); }
+void Window::SetHasShadow(bool on) { impl_->PSetHasShadow(on); }
+void Window::SetKiosk(bool on) { impl_->PSetKiosk(on); }
+void Window::SetIgnoreMouseEvents(bool ignore, bool forward) {
+    impl_->PSetIgnoreMouseEvents(ignore, forward);
+}
+void Window::SetProgressBar(double value, const std::string& mode) {
+    impl_->PSetProgressBar(value, mode);
+}
+void Window::SetBackgroundColor(const std::string& color) {
+    impl_->PSetBackgroundColor(color);
+}
+void Window::MoveTop() { impl_->PMoveTop(); }
+void Window::SetAspectRatio(double ratio, int extraW, int extraH) {
+    impl_->PSetAspectRatio(ratio, extraW, extraH);
+}
+Window::Bounds Window::GetContentBounds() const { return impl_->PGetContentBounds(); }
+void Window::SetContentSize(int w, int h) { impl_->PSetContentSize(w, h); }
+Window::Size Window::GetContentSize() const { return impl_->PGetContentSize(); }
+Window::Size Window::GetMinimumSize() const { return impl_->PGetMinimumSize(); }
+Window::Size Window::GetMaximumSize() const { return impl_->PGetMaximumSize(); }
+void Window::SetMinimumSize(int w, int h) { impl_->PSetMinimumSize(w, h); }
+void Window::SetMaximumSize(int w, int h) { impl_->PSetMaximumSize(w, h); }
 Window::Bounds Window::GetBounds() const { return impl_->PGetBounds(); }
 void Window::SetBounds(const Bounds& b) { impl_->PSetBounds(b); }
 void Window::Center() { impl_->PCenter(); }

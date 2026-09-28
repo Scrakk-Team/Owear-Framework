@@ -435,8 +435,7 @@ public:
         if (!view_ || !cb) {
             if (cb) cb(false, {});
             return;
-        }
-        auto* holder = new CaptureCallback(std::move(cb));
+        }        auto* holder = new CaptureCallback(std::move(cb));
         webkit_web_view_get_snapshot(
             WEBKIT_WEB_VIEW(view_), WEBKIT_SNAPSHOT_REGION_VISIBLE,
             WEBKIT_SNAPSHOT_OPTIONS_NONE, nullptr,
@@ -498,6 +497,16 @@ public:
                 delete cb;
             },
             holder);
+    }
+
+    void SetBackgroundColor(int r, int g, int b, int a) override {
+        if (!view_) return;
+        GdkRGBA c;
+        c.red = r / 255.0;
+        c.green = g / 255.0;
+        c.blue = b / 255.0;
+        c.alpha = a / 255.0;
+        webkit_web_view_set_background_color(WEBKIT_WEB_VIEW(view_), &c);
     }
 
     void Resize(int x, int y, int w, int h) override {

@@ -33,8 +33,27 @@ export interface WindowOptions {
   height?: number
   x?: number
   y?: number
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
   resizable?: boolean
+  movable?: boolean
+  minimizable?: boolean
+  maximizable?: boolean
+  closable?: boolean
+  fullscreenable?: boolean
   frameless?: boolean
+  transparent?: boolean
+  backgroundColor?: string
+  show?: boolean
+  skipTaskbar?: boolean
+  alwaysOnTop?: boolean
+  hasShadow?: boolean
+  aspectRatio?: number
+  /** Ventana padre (id de otra ventana) y si es modal respecto a ella. */
+  parent?: number
+  modal?: boolean
   titleBarStyle?: 'default' | 'hidden' | 'custom'
   titleBarOverlay?: boolean | { enabled?: boolean; color?: string; symbolColor?: string; buttonColor?: string; height?: number }
   url?: string
@@ -960,6 +979,14 @@ const WC_EVENT_NAMES: Record<string, string> = {
   beforeInput: 'before-input-event',
 }
 
+/** Eventos de ventana → nombres estilo Electron (dash) que emite BrowserWindow. */
+const WIN_EVENT_NAMES: Record<string, string> = {
+  pageTitleUpdated: 'page-title-updated',
+  enterFullScreen: 'enter-full-screen',
+  leaveFullScreen: 'leave-full-screen',
+  alwaysOnTopChanged: 'always-on-top-changed',
+}
+
 let windowOpenHandler: WindowOpenHandler | null = null
 
 channel.on('webContents.windowOpen', (params: any) => {
@@ -1077,6 +1104,8 @@ export class BrowserWindow extends EventEmitter {
     this._onWindowEvent = (params: any) => {
       if (params.windowId !== this._id) return
       this.emit(params.name, params.payload)
+      const dashWin = WIN_EVENT_NAMES[params.name]
+      if (dashWin) this.emit(dashWin, params.payload)
       this._wc.emit(WC_EVENT_NAMES[params.name] ?? params.name, params.payload)
       if (params.name === 'closed') {
         if (this._id != null) windowsById.delete(this._id)
@@ -1198,6 +1227,80 @@ export class BrowserWindow extends EventEmitter {
       windowId: this.requireId(),
       titleBarOverlay: overlay,
     })
+  }
+
+  // ── estado extendido (C9) ──────────────────────────────────────────────
+  isVisible(): Promise<boolean> { return channel.call('window.isVisible', { windowId: this.requireId() }) }
+  isFocused(): Promise<boolean> { return channel.call('window.isFocused', { windowId: this.requireId() }) }
+  isResizable(): Promise<boolean> { return channel.call('window.isResizable', { windowId: this.requireId() }) }
+  isMovable(): Promise<boolean> { return channel.call('window.isMovable', { windowId: this.requireId() }) }
+  isMinimizable(): Promise<boolean> { return channel.call('window.isMinimizable', { windowId: this.requireId() }) }
+  isMaximizable(): Promise<boolean> { return channel.call('window.isMaximizable', { windowId: this.requireId() }) }
+  isClosable(): Promise<boolean> { return channel.call('window.isClosable', { windowId: this.requireId() }) }
+  isAlwaysOnTop(): Promise<boolean> { return channel.call('window.isAlwaysOnTop', { windowId: this.requireId() }) }
+  isKiosk(): Promise<boolean> { return channel.call('window.isKiosk', { windowId: this.requireId() }) }
+  isDestroyed(): Promise<boolean> { return channel.call('window.isDestroyed', { windowId: this.requireId() }) }
+  isFullScreen(): Promise<boolean> { return channel.call('window.isFullScreen', { windowId: this.requireId() }) }
+
+  setResizable(on = true): Promise<void> { return channel.call('window.setResizable', { windowId: this.requireId(), on }) }
+  setMovable(on = true): Promise<void> { return channel.call('window.setMovable', { windowId: this.requireId(), on }) }
+  setMinimizable(on = true): Promise<void> { return channel.call('window.setMinimizable', { windowId: this.requireId(), on }) }
+  setMaximizable(on = true): Promise<void> { return channel.call('window.setMaximizable', { windowId: this.requireId(), on }) }
+  setClosable(on = true): Promise<void> { return channel.call('window.setClosable', { windowId: this.requireId(), on }) }
+  setAlwaysOnTop(on = true, level = 0): Promise<void> { return channel.call('window.setAlwaysOnTop', { windowId: this.requireId(), on, level }) }
+  setSkipTaskbar(on = true): Promise<void> { return channel.call('window.setSkipTaskbar', { windowId: this.requireId(), on }) }
+  setHasShadow(on = true): Promise<void> { return channel.call('window.setHasShadow', { windowId: this.requireId(), on }) }
+  setKiosk(on = true): Promise<void> { return channel.call('window.setKiosk', { windowId: this.requireId(), on }) }
+  setIgnoreMouseEvents(ignore = true, options: { forward?: boolean } = {}): Promise<void> {
+    return channel.call('window.setIgnoreMouseEvents', { windowId: this.requireId(), ignore, forward: !!options.forward })
+  }
+  setProgressBar(value: number, options: { mode?: 'none' | 'normal' | 'indeterminate' | 'paused' | 'error' } = {}): Promise<void> {
+    return channel.call('window.setProgressBar', { windowId: this.requireId(), value, mode: options.mode ?? 'normal' })
+  }
+  setBackgroundColor(color: string): Promise<void> {
+    return channel.call('window.setBackgroundColor', { windowId: this.requireId(), color })
+  }
+  moveTop(): Promise<void> { return channel.call('window.moveTop', { windowId: this.requireId() }) }
+  setAspectRatio(ratio: number, extraSize?: { width: number; height: number }): Promise<void> {
+    return channel.call('window.setAspectRatio', {
+      windowId: this.requireId(),
+      ratio,
+      extraW: extraSize?.width ?? 0,
+      extraH: extraSize?.height ?? 0,
+    })
+  }
+
+  getContentBounds(): Promise<Bounds> { return channel.call('window.getContentBounds', { windowId: this.requireId() }) }
+  setContentSize(width: number, height: number): Promise<void> {
+    return channel.call('window.setContentSize', { windowId: this.requireId(), width, height })
+  }
+  getContentSize(): Promise<{ width: number; height: number }> {
+    return channel.call('window.getContentSize', { windowId: this.requireId() })
+  }
+  getMinimumSize(): Promise<{ width: number; height: number }> {
+    return channel.call('window.getMinimumSize', { windowId: this.requireId() })
+  }
+  getMaximumSize(): Promise<{ width: number; height: number }> {
+    return channel.call('window.getMaximumSize', { windowId: this.requireId() })
+  }
+  setMinimumSize(width: number, height: number): Promise<void> {
+    return channel.call('window.setMinimumSize', { windowId: this.requireId(), width, height })
+  }
+  setMaximumSize(width: number, height: number): Promise<void> {
+    return channel.call('window.setMaximumSize', { windowId: this.requireId(), width, height })
+  }
+
+  // ── estáticos (C9) ─────────────────────────────────────────────────────
+  static async getAllWindows(): Promise<BrowserWindow[]> {
+    const ids = await channel.call<number[]>('window.list').catch(() => [] as number[])
+    return ids.map((id) => windowsById.get(id)).filter((w): w is BrowserWindow => !!w)
+  }
+  static async getFocusedWindow(): Promise<BrowserWindow | null> {
+    const id = await channel.call<number>('window.getFocused').catch(() => 0)
+    return id ? windowsById.get(id) ?? null : null
+  }
+  static fromId(id: number): BrowserWindow | null {
+    return windowsById.get(id) ?? null
   }
 
   /**

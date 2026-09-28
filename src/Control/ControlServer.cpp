@@ -32,6 +32,10 @@
 
 namespace ow {
 
+/// Ventana con foco (para `window.getFocused`). La actualizan los eventos
+/// focus/blur de cada ventana (WireWindowEvents).
+static WindowId g_focusedWindow = 0;
+
 using V = json::Value;
 
 uint32_t CurrentPid() {
@@ -117,12 +121,26 @@ void ControlServer::WireWindowEvents(WindowId id, Window* w) {
 
     w->On("resize", forward("resize"));
     w->On("move", forward("move"));
-    w->On("focus", forward("focus"));
-    w->On("blur", forward("blur"));
+    w->On("focus", [this, id, fwd = forward("focus")](std::string_view p) {
+        g_focusedWindow = id;
+        fwd(p);
+    });
+    w->On("blur", [this, id, fwd = forward("blur")](std::string_view p) {
+        if (g_focusedWindow == id) g_focusedWindow = 0;
+        fwd(p);
+    });
     w->On("maximize", forward("maximize"));
     w->On("unmaximize", forward("unmaximize"));
     w->On("enterFullScreen", forward("enterFullScreen"));
     w->On("leaveFullScreen", forward("leaveFullScreen"));
+    // C9: eventos extra
+    w->On("show", forward("show"));
+    w->On("hide", forward("hide"));
+    w->On("restore", forward("restore"));
+    w->On("minimize", forward("minimize"));
+    w->On("resized", forward("resized"));
+    w->On("moved", forward("moved"));
+    w->On("alwaysOnTopChanged", forward("alwaysOnTopChanged"));
     // F3.4: el SDK también recibe closeRequested (con requestId) para poder
     // vetar desde el proceso principal: win.on('closeRequested') + closeRespond.
     // El comentario de abajo lo daba por hecho, pero nunca se conectaba: el
@@ -374,6 +392,39 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
             opts.titleBarStyle = TitleBarStyle::Custom;
         if (const V* v = params.Find("url"); v && v->IsString()) opts.url = v->AsString();
         if (const V* v = params.Find("session"); v && v->IsString()) opts.session = v->AsString();
+        // C9: opciones de ventana
+        if (const V* v = params.Find("show"); v && v->IsBool()) opts.show = v->AsBool();
+        if (const V* v = params.Find("parent"); v && v->IsNumber())
+            opts.parent = static_cast<WindowId>(v->AsInt());
+        if (const V* v = params.Find("modal"); v && v->IsBool()) opts.modal = v->AsBool();
+        if (const V* v = params.Find("transparent"); v && v->IsBool())
+            opts.transparent = v->AsBool();
+        if (const V* v = params.Find("backgroundColor"); v && v->IsString())
+            opts.backgroundColor = v->AsString();
+        if (const V* v = params.Find("movable"); v && v->IsBool()) opts.movable = v->AsBool();
+        if (const V* v = params.Find("minimizable"); v && v->IsBool())
+            opts.minimizable = v->AsBool();
+        if (const V* v = params.Find("maximizable"); v && v->IsBool())
+            opts.maximizable = v->AsBool();
+        if (const V* v = params.Find("closable"); v && v->IsBool()) opts.closable = v->AsBool();
+        if (const V* v = params.Find("fullscreenable"); v && v->IsBool())
+            opts.fullscreenable = v->AsBool();
+        if (const V* v = params.Find("skipTaskbar"); v && v->IsBool())
+            opts.skipTaskbar = v->AsBool();
+        if (const V* v = params.Find("alwaysOnTop"); v && v->IsBool())
+            opts.alwaysOnTop = v->AsBool();
+        if (const V* v = params.Find("hasShadow"); v && v->IsBool())
+            opts.hasShadow = v->AsBool();
+        if (const V* v = params.Find("minWidth"); v && v->IsNumber())
+            opts.minWidth = static_cast<int>(v->AsInt());
+        if (const V* v = params.Find("minHeight"); v && v->IsNumber())
+            opts.minHeight = static_cast<int>(v->AsInt());
+        if (const V* v = params.Find("maxWidth"); v && v->IsNumber())
+            opts.maxWidth = static_cast<int>(v->AsInt());
+        if (const V* v = params.Find("maxHeight"); v && v->IsNumber())
+            opts.maxHeight = static_cast<int>(v->AsInt());
+        if (const V* v = params.Find("aspectRatio"); v && v->IsNumber())
+            opts.aspectRatio = v->AsDouble();
 
         auto* win = new Window(opts);
         WindowId wid = win->Id();
@@ -383,6 +434,18 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         json::Object o;
         o.emplace_back("windowId", V(static_cast<int64_t>(wid)));
         resultJson = V(std::move(o)).Serialize();
+        return true;
+    }
+
+    // ── C9: estáticos de ventana ─────────────────────────────────────────
+    if (cmd == "window.list") {
+        json::Array arr;
+        for (auto& [wid, wp] : LiveWindows()) arr.emplace_back(V(static_cast<int64_t>(wid)));
+        resultJson = V(std::move(arr)).Serialize();
+        return true;
+    }
+    if (cmd == "window.getFocused") {
+        resultJson = V(static_cast<int64_t>(g_focusedWindow)).Serialize();
         return true;
     }
 
@@ -401,6 +464,114 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
     if (cmd == "window.show") { w->Show(); resultJson = "null"; return true; }
     if (cmd == "window.hide") { w->Hide(); resultJson = "null"; return true; }
     if (cmd == "window.focus") { w->Focus(); resultJson = "null"; return true; }
+
+    // ── C9: estado/estilo de ventana ─────────────────────────────────────
+    auto boolResult = [&](bool b) { resultJson = b ? "true" : "false"; };
+    auto sizeResult = [&](int width, int height) {
+        json::Object o;
+        o.emplace_back("width", V(static_cast<int64_t>(width)));
+        o.emplace_back("height", V(static_cast<int64_t>(height)));
+        resultJson = V(std::move(o)).Serialize();
+    };
+    auto rectResult = [&](const Window::Bounds& b) {
+        json::Object o;
+        o.emplace_back("x", V(static_cast<int64_t>(b.x)));
+        o.emplace_back("y", V(static_cast<int64_t>(b.y)));
+        o.emplace_back("width", V(static_cast<int64_t>(b.w)));
+        o.emplace_back("height", V(static_cast<int64_t>(b.h)));
+        resultJson = V(std::move(o)).Serialize();
+    };
+    auto boolArg = [&](const char* k, bool dflt) {
+        const V* v = params.Find(k);
+        return (v && v->IsBool()) ? v->AsBool() : dflt;
+    };
+    auto numArg = [&](const char* k, int dflt) {
+        const V* v = params.Find(k);
+        return (v && v->IsNumber()) ? static_cast<int>(v->AsInt()) : dflt;
+    };
+
+    if (cmd == "window.isVisible") { boolResult(w->IsVisible()); return true; }
+    if (cmd == "window.isFocused") { boolResult(w->IsFocused()); return true; }
+    if (cmd == "window.isResizable") { boolResult(w->IsResizable()); return true; }
+    if (cmd == "window.isMovable") { boolResult(w->IsMovable()); return true; }
+    if (cmd == "window.isMinimizable") { boolResult(w->IsMinimizable()); return true; }
+    if (cmd == "window.isMaximizable") { boolResult(w->IsMaximizable()); return true; }
+    if (cmd == "window.isClosable") { boolResult(w->IsClosable()); return true; }
+    if (cmd == "window.isAlwaysOnTop") { boolResult(w->IsAlwaysOnTop()); return true; }
+    if (cmd == "window.isKiosk") { boolResult(w->IsKiosk()); return true; }
+    if (cmd == "window.isDestroyed") { boolResult(w->IsDestroyed()); return true; }
+    if (cmd == "window.isFullScreen") { boolResult(w->IsFullScreen()); return true; }
+    if (cmd == "window.setResizable") { w->SetResizable(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setMovable") { w->SetMovable(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setMinimizable") { w->SetMinimizable(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setMaximizable") { w->SetMaximizable(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setClosable") { w->SetClosable(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setAlwaysOnTop") {
+        w->SetAlwaysOnTop(boolArg("on", true), numArg("level", 0));
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.setSkipTaskbar") { w->SetSkipTaskbar(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setHasShadow") { w->SetHasShadow(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setKiosk") { w->SetKiosk(boolArg("on", true)); resultJson = "null"; return true; }
+    if (cmd == "window.setIgnoreMouseEvents") {
+        w->SetIgnoreMouseEvents(boolArg("ignore", true), boolArg("forward", false));
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.setProgressBar") {
+        const V* v = params.Find("value");
+        std::string mode = "normal";
+        if (const V* m = params.Find("mode"); m && m->IsString()) mode = m->AsString();
+        w->SetProgressBar(v && v->IsNumber() ? v->AsDouble() : 0.0, mode);
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.setBackgroundColor") {
+        const V* c = params.Find("color");
+        w->SetBackgroundColor(c && c->IsString() ? c->AsString() : std::string());
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.moveTop") { w->MoveTop(); resultJson = "null"; return true; }
+    if (cmd == "window.setAspectRatio") {
+        const V* r = params.Find("ratio");
+        w->SetAspectRatio(r && r->IsNumber() ? r->AsDouble() : 0.0, numArg("extraW", 0),
+                          numArg("extraH", 0));
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.getContentBounds") { rectResult(w->GetContentBounds()); return true; }
+    if (cmd == "window.setContentSize") {
+        w->SetContentSize(numArg("width", 0), numArg("height", 0));
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.getContentSize") {
+        auto s = w->GetContentSize();
+        sizeResult(s.width, s.height);
+        return true;
+    }
+    if (cmd == "window.getMinimumSize") {
+        auto s = w->GetMinimumSize();
+        sizeResult(s.width, s.height);
+        return true;
+    }
+    if (cmd == "window.getMaximumSize") {
+        auto s = w->GetMaximumSize();
+        sizeResult(s.width, s.height);
+        return true;
+    }
+    if (cmd == "window.setMinimumSize") {
+        w->SetMinimumSize(numArg("width", 0), numArg("height", 0));
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "window.setMaximumSize") {
+        w->SetMaximumSize(numArg("width", 0), numArg("height", 0));
+        resultJson = "null";
+        return true;
+    }
     if (cmd == "window.minimize") { w->Minimize(); resultJson = "null"; return true; }
     if (cmd == "window.maximize") {
         bool target = true;

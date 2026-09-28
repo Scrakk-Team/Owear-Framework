@@ -54,6 +54,9 @@ public:
         if (cb) cb(false, {});
     }
 
+    /// Color de fondo del contenido (RGBA 0-255).
+    virtual void SetBackgroundColor(int /*r*/, int /*g*/, int /*b*/, int /*a*/) {}
+
     virtual void LoadURL(const std::string& url) = 0;
 
     virtual void EvalJS(const std::string& js, EvalCallback cb = nullptr) = 0;

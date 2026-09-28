@@ -25,6 +25,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
 
@@ -54,6 +55,8 @@ struct Window::Impl::PlatformData {
     HWND hwnd = nullptr;
     WNDPROC origProc = nullptr;
     bool fullscreen = false;
+    bool kiosk = false;
+    double aspect = 0.0;
     bool customTitlebar = false; // F3.5: overlay DWM sobre contenido full-size
     WINDOWPLACEMENT preFullscreen{};
 
@@ -450,6 +453,25 @@ LRESULT CALLBACK OwWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             Window::Impl::EmitPlatformEvent(impl, "closed");
         return 0;
     }
+    case WM_GETMINMAXINFO: {
+        if (auto* impl = ImplFromHwnd(hwnd)) {
+            auto* mi = reinterpret_cast<MINMAXINFO*>(lp);
+            if (impl->opts.minWidth > 0 || impl->opts.minHeight > 0)
+                mi->ptMinTrackSize = {static_cast<LONG>(impl->opts.minWidth),
+                                      static_cast<LONG>(impl->opts.minHeight)};
+            if (impl->opts.maxWidth > 0) mi->ptMaxTrackSize.x = impl->opts.maxWidth;
+            if (impl->opts.maxHeight > 0) mi->ptMaxTrackSize.y = impl->opts.maxHeight;
+        }
+        break;
+    }
+    case WM_SIZING: {
+        if (pdata && pdata->aspect > 0.0) {
+            RECT* r = reinterpret_cast<RECT*>(lp);
+            const int w = r->right - r->left;
+            r->bottom = r->top + static_cast<int>(w / pdata->aspect);
+        }
+        break;
+    }
     case WM_SIZE: {
         if (auto* impl = ImplFromHwnd(hwnd)) {
             // CRÍTICO en Windows: el controller de WebView2 NO se redimensiona
@@ -629,9 +651,32 @@ bool Window::Impl::PCreate() {
                      SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
     }
 
-    if (!opts.resizable) {
-        DWORD s = GetWindowLongW(hwnd, GWL_STYLE);
-        SetWindowLongW(hwnd, GWL_STYLE, s & ~(WS_THICKFRAME | WS_MAXIMIZEBOX));
+    // C9: opciones de estilo/estado
+    {
+        LONG_PTR st = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        st = opts.resizable ? (st | WS_THICKFRAME) : (st & ~WS_THICKFRAME);
+        st = opts.maximizable ? (st | WS_MAXIMIZEBOX) : (st & ~WS_MAXIMIZEBOX);
+        st = opts.minimizable ? (st | WS_MINIMIZEBOX) : (st & ~WS_MINIMIZEBOX);
+        if (!opts.closable) st &= ~WS_SYSMENU;
+        SetWindowLongPtrW(hwnd, GWL_STYLE, st);
+        if (opts.skipTaskbar) {
+            LONG_PTR ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW;
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex);
+        }
+        if (opts.alwaysOnTop)
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        pdata->aspect = opts.aspectRatio;
+        if (opts.parent) {
+            auto it = LiveWindows().find(opts.parent);
+            if (it != LiveWindows().end()) {
+                HWND owner = static_cast<HWND>(it->second->NativeHandle());
+                if (owner) {
+                    SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT,
+                                      reinterpret_cast<LONG_PTR>(owner));
+                    if (opts.modal) EnableWindow(owner, FALSE);
+                }
+            }
+        }
     }
 
     log::Info("window", "PCreate: webview->Create");
@@ -644,6 +689,7 @@ bool Window::Impl::PCreate() {
     webview->SetEventSink([this](const std::string& name, std::string_view json) {
         Window::Impl::EmitPlatformEvent(this, name, json);
     });
+    if (!opts.backgroundColor.empty()) PSetBackgroundColor(opts.backgroundColor);
 
     const char* assetsDir = std::getenv("OW_ASSETS_DIR");
     if (assetsDir && *assetsDir)
@@ -767,6 +813,180 @@ void Window::Impl::PCenter() {
     int sw = GetSystemMetrics(SM_CXSCREEN), sh = GetSystemMetrics(SM_CYSCREEN);
     SetWindowPos(pdata->hwnd, nullptr, (sw - w) / 2, (sh - h) / 2, 0, 0,
                  SWP_NOSIZE | SWP_NOZORDER);
+}
+
+// ── plataforma: estado extendido (C9) ────────────────────────────────────────
+namespace {
+void ToggleWinStyle(HWND hwnd, LONG_PTR add, LONG_PTR remove) {
+    LONG_PTR s = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    s = (s | add) & ~remove;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, s);
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+}
+void ToggleWinExStyle(HWND hwnd, LONG_PTR add, LONG_PTR remove) {
+    LONG_PTR s = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    s = (s | add) & ~remove;
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, s);
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+}
+} // namespace
+
+bool Window::Impl::PIsVisible() const { return pdata && IsWindowVisible(pdata->hwnd); }
+bool Window::Impl::PIsFocused() const {
+    return pdata && pdata->hwnd && GetForegroundWindow() == pdata->hwnd;
+}
+bool Window::Impl::PIsResizable() const { return opts.resizable; }
+bool Window::Impl::PIsMovable() const { return opts.movable; }
+bool Window::Impl::PIsMinimizable() const { return opts.minimizable; }
+bool Window::Impl::PIsMaximizable() const { return opts.maximizable; }
+bool Window::Impl::PIsClosable() const { return opts.closable; }
+bool Window::Impl::PIsAlwaysOnTop() const { return opts.alwaysOnTop; }
+bool Window::Impl::PIsKiosk() const { return pdata && pdata->kiosk; }
+bool Window::Impl::PIsDestroyed() const { return !pdata || !pdata->hwnd; }
+
+void Window::Impl::PSetResizable(bool on) {
+    opts.resizable = on;
+    if (pdata && pdata->hwnd)
+        ToggleWinStyle(pdata->hwnd, on ? WS_THICKFRAME : 0, on ? 0 : WS_THICKFRAME);
+}
+void Window::Impl::PSetMovable(bool on) { opts.movable = on; }
+void Window::Impl::PSetMinimizable(bool on) {
+    opts.minimizable = on;
+    if (pdata && pdata->hwnd)
+        ToggleWinStyle(pdata->hwnd, on ? WS_MINIMIZEBOX : 0, on ? 0 : WS_MINIMIZEBOX);
+}
+void Window::Impl::PSetMaximizable(bool on) {
+    opts.maximizable = on;
+    if (pdata && pdata->hwnd)
+        ToggleWinStyle(pdata->hwnd, on ? WS_MAXIMIZEBOX : 0, on ? 0 : WS_MAXIMIZEBOX);
+}
+void Window::Impl::PSetClosable(bool on) {
+    opts.closable = on;
+    if (pdata && pdata->hwnd)
+        ToggleWinStyle(pdata->hwnd, on ? WS_SYSMENU : 0, on ? 0 : WS_SYSMENU);
+}
+void Window::Impl::PSetAlwaysOnTop(bool on, int) {
+    opts.alwaysOnTop = on;
+    if (pdata && pdata->hwnd)
+        SetWindowPos(pdata->hwnd, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE);
+    EmitPlatformEvent(this, "alwaysOnTopChanged", on ? "true" : "false");
+}
+void Window::Impl::PSetSkipTaskbar(bool on) {
+    opts.skipTaskbar = on;
+    if (pdata && pdata->hwnd)
+        ToggleWinExStyle(pdata->hwnd, on ? WS_EX_TOOLWINDOW : 0,
+                         on ? 0 : WS_EX_TOOLWINDOW);
+}
+void Window::Impl::PSetHasShadow(bool on) { opts.hasShadow = on; }
+void Window::Impl::PSetKiosk(bool on) {
+    if (!pdata || !pdata->hwnd) return;
+    pdata->kiosk = on;
+    SetWindowPos(pdata->hwnd, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE);
+    ShowWindow(pdata->hwnd, on ? SW_MAXIMIZE : SW_RESTORE);
+}
+void Window::Impl::PSetIgnoreMouseEvents(bool ignore, bool forward) {
+    if (!pdata || !pdata->hwnd) return;
+    LONG_PTR add = ignore ? WS_EX_TRANSPARENT : 0;
+    LONG_PTR rem = ignore ? 0 : WS_EX_TRANSPARENT;
+    if (ignore && forward) add |= WS_EX_LAYERED;
+    ToggleWinExStyle(pdata->hwnd, add, rem);
+}
+void Window::Impl::PSetProgressBar(double value, const std::string& mode) {
+    if (!pdata || !pdata->hwnd) return;
+    static ITaskbarList3* s_tb = nullptr;
+    if (!s_tb) {
+        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+        if (FAILED(CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
+                                    IID_PPV_ARGS(&s_tb))) ||
+            !s_tb) {
+            s_tb = nullptr;
+            return;
+        }
+        s_tb->HrInit();
+    }
+    if (mode == "indeterminate" || value < 0) {
+        s_tb->SetProgressState(pdata->hwnd, TBPF_INDETERMINATE);
+        return;
+    }
+    TBPFLAG flag = value <= 0 ? TBPF_NOPROGRESS
+                   : mode == "paused" ? TBPF_PAUSED
+                   : mode == "error" ? TBPF_ERROR
+                                      : TBPF_NORMAL;
+    s_tb->SetProgressState(pdata->hwnd, flag);
+    if (flag != TBPF_NOPROGRESS)
+        s_tb->SetProgressValue(pdata->hwnd, static_cast<ULONGLONG>(value * 1000), 1000);
+}
+void Window::Impl::PSetBackgroundColor(const std::string& color) {
+    opts.backgroundColor = color;
+    if (color.size() < 7 || color[0] != '#' || !webview) return;
+    int r = 0, g = 0, b = 0;
+    try {
+        r = std::stoi(color.substr(1, 2), nullptr, 16);
+        g = std::stoi(color.substr(3, 2), nullptr, 16);
+        b = std::stoi(color.substr(5, 2), nullptr, 16);
+    } catch (...) {
+        return;
+    }
+    webview->SetBackgroundColor(r, g, b, 255);
+}
+void Window::Impl::PMoveTop() {
+    if (!pdata || !pdata->hwnd) return;
+    SetWindowPos(pdata->hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    SetForegroundWindow(pdata->hwnd);
+}
+void Window::Impl::PSetAspectRatio(double ratio, int extraW, int extraH) {
+    if (pdata) pdata->aspect = ratio;
+    opts.aspectRatio = ratio;
+    opts.aspectExtraW = extraW;
+    opts.aspectExtraH = extraH;
+}
+Window::Bounds Window::Impl::PGetContentBounds() const {
+    Bounds b;
+    if (!pdata || !pdata->hwnd) return b;
+    RECT rc;
+    GetClientRect(pdata->hwnd, &rc);
+    POINT tl{rc.left, rc.top};
+    ClientToScreen(pdata->hwnd, &tl);
+    b.x = tl.x;
+    b.y = tl.y;
+    b.w = rc.right - rc.left;
+    b.h = rc.bottom - rc.top;
+    return b;
+}
+void Window::Impl::PSetContentSize(int w, int h) {
+    if (!pdata || !pdata->hwnd) return;
+    RECT rc{0, 0, w, h};
+    AdjustWindowRectEx(&rc, static_cast<DWORD>(GetWindowLongPtrW(pdata->hwnd, GWL_STYLE)),
+                       FALSE, static_cast<DWORD>(GetWindowLongPtrW(pdata->hwnd, GWL_EXSTYLE)));
+    SetWindowPos(pdata->hwnd, nullptr, 0, 0, rc.right - rc.left, rc.bottom - rc.top,
+                 SWP_NOMOVE | SWP_NOZORDER);
+}
+Window::Size Window::Impl::PGetContentSize() const {
+    Size s;
+    if (!pdata || !pdata->hwnd) return s;
+    RECT rc;
+    GetClientRect(pdata->hwnd, &rc);
+    s.width = rc.right - rc.left;
+    s.height = rc.bottom - rc.top;
+    return s;
+}
+Window::Size Window::Impl::PGetMinimumSize() const {
+    return Size{opts.minWidth, opts.minHeight};
+}
+Window::Size Window::Impl::PGetMaximumSize() const {
+    return Size{opts.maxWidth, opts.maxHeight};
+}
+void Window::Impl::PSetMinimumSize(int w, int h) {
+    opts.minWidth = w;
+    opts.minHeight = h;
+}
+void Window::Impl::PSetMaximumSize(int w, int h) {
+    opts.maxWidth = w;
+    opts.maxHeight = h;
 }
 
 void Window::Impl::PSetTitle(const std::string& t) {
