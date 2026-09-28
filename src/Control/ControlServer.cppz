@@ -228,9 +228,136 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         return true;
     };
 
-    if (cmd.rfind("app.", 0) == 0) return CmdApp(cmd, params, resultJson, error);
-    if (cmd == "node.ensure") return CmdNode(cmd, params, resultJson, error);
-    if (cmd.rfind("module.", 0) == 0) return CmdModule(cmd, params, resultJson, error);
+    if (cmd == "app.info") {
+        json::Object o;
+        o.emplace_back("pid", V(CurrentPid()));
+        o.emplace_back("version", V(OW_VERSION_STRING));
+        o.emplace_back("socket", V(socketPath_));
+        o.emplace_back("name", V(internal::AppName()));
+
+        const char* mainEnv = std::getenv("OW_APP_MAIN");
+        const char* assetsEnv = std::getenv("OW_ASSETS_DIR");
+        std::string appPath;
+        if (mainEnv && *mainEnv)
+            appPath = std::filesystem::path(mainEnv).parent_path().string();
+        else if (assetsEnv && *assetsEnv)
+            appPath = assetsEnv;
+        else {
+            std::error_code ec;
+            appPath = std::filesystem::current_path(ec).string();
+        }
+        o.emplace_back("appPath", V(appPath));
+        o.emplace_back("exePath", V(internal::ExecutableDir()));
+        const char* packagedEnv = std::getenv("OW_PACKAGED");
+        const bool packaged =
+            (packagedEnv && std::string(packagedEnv) == "1") ||
+            ((!mainEnv || !*mainEnv) && assetsEnv && *assetsEnv);
+        o.emplace_back("packaged", V(packaged));
+        resultJson = V(std::move(o)).Serialize();
+        return true;
+    }
+    if (cmd == "app.setName") {
+        const V* n = params.Find("name");
+        if (!n || !n->IsString()) { error = "name requerido"; return false; }
+        internal::SetAppName(n->AsString());
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "app.commandLine.appendSwitch") {
+        const V* k = params.Find("key");
+        if (!k || !k->IsString()) { error = "key requerido"; return false; }
+        std::string arg = "--" + k->AsString();
+        if (const V* v = params.Find("value"); v && v->IsString() && !v->AsString().empty())
+            arg += "=" + v->AsString();
+        internal::AppendCommandArg(arg);
+        resultJson = "null";
+        return true;
+    }
+    if (cmd == "app.commandLine.appendArgument") {
+        const V* a = params.Find("arg");
+        if (!a || !a->IsString()) { error = "arg requerido"; return false; }
+        internal::AppendCommandArg(a->AsString());
+        resultJson = "null";
+        return true;
+    }
+
+    if (cmd == "app.quit") {
+        // Responde PRIMERO y pide el quit DESPUÉS (con margen): si Quit
+        // postea WM_QUIT inmediatamente, el main loop sale y Stop cierra
+        // la pipe antes de que la respuesta llegue al cliente (mordido).
+        // Sin Post inmediato: solo el delay — la respuesta sale por el
+        // outbox durante la ventana de gracia.
+        resultJson = "null";
+        internal::PlatformDelay(300, [] { App::Quit(0); });
+        return true;
+    }
+
+    if (cmd == "node.ensure") {
+        std::string range = "latest";
+        if (const V* r = params.Find("range"); r && r->IsString()) range = r->AsString();
+        auto node = NodeManager::Resolve(range);
+        if (node.IsErr()) { error = node.Error(); return false; }
+        json::Object o;
+        o.emplace_back("path", V(node.Value().bin.string()));
+        o.emplace_back("version", V(node.Value().version));
+        o.emplace_back("source", V(node.Value().source));
+        resultJson = V(std::move(o)).Serialize();
+        return true;
+    }
+
+    // ── módulos nativos desde el proceso principal (Node) ────────────────
+    // Esta es la pieza que hace la API "tipo Electron": el main puede usar
+    // fs, dialog, tray, menu… igual que el renderer, sin depender de una
+    // ventana. Antes sólo existía el camino del bridge (renderer → módulo).
+    if (cmd == "module.invoke") {
+        const V* mod = params.Find("module");
+        const V* fn = params.Find("method");
+        if (!mod || !mod->IsString()) { error = "module requerido"; return false; }
+        if (!fn || !fn->IsString()) { error = "method requerido"; return false; }
+
+        // Los args viajan como array JSON, igual que desde el bridge.
+        std::string argsJson = "[]";
+        if (const V* a = params.Find("args"); a) argsJson = a->Serialize();
+
+        uint32_t winId = 0;
+        if (const V* wid = params.Find("windowId"); wid && wid->IsNumber())
+            winId = static_cast<uint32_t>(wid->AsInt());
+
+        ow_request_t req{};
+        req.json = argsJson.c_str();
+        req.json_len = static_cast<uint32_t>(argsJson.size());
+        req.window_id = winId;
+
+        ow_response_t res{};
+        Dispatcher::Get().Execute(winId, mod->AsString(), fn->AsString(), &req, &res);
+        if (res.status != 0) {
+            error = res.error ? std::string(res.error) : std::string("error en el módulo");
+            return false;
+        }
+        // Contrato ABI: el buffer sólo vive durante la llamada → se copia ya.
+        resultJson.assign(res.json ? res.json : "null", res.json_len);
+        return true;
+    }
+
+    if (cmd == "module.list") {
+        json::Array arr;
+        for (const auto& m : Dispatcher::Get().Modules())
+            arr.emplace_back(V(ModuleInfoJson(m)));
+        resultJson = V(std::move(arr)).Serialize();
+        return true;
+    }
+
+    if (cmd == "module.info") {
+        std::string name;
+        if (const V* n = params.Find("name"); n && n->IsString()) name = n->AsString();
+        Dispatcher::ModuleInfo m;
+        if (name.empty() || !Dispatcher::Get().Module(name, m)) {
+            error = "módulo desconocido: " + name;
+            return false;
+        }
+        resultJson = V(ModuleInfoJson(m)).Serialize();
+        return true;
+    }
 
     if (cmd == "window.create") {
         WindowOptions opts;

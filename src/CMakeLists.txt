@@ -45,6 +45,10 @@ set(OW_KERNEL_SOURCES
     Bridge/Dispatcher.cpp
     Bridge/Shm.cpp
     Control/ControlServer.cpp
+    Control/Commands/Util.cpp
+    Control/Commands/App.cpp
+    Control/Commands/Node.cpp
+    Control/Commands/Module.cpp
     Protocol/ProtocolRegistry.cpp
     Session/PermissionBroker.cpp
     Session/WebRequestBroker.cpp

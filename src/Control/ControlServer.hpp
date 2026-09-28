@@ -13,6 +13,7 @@
 #pragma once
 
 #include "ow/Common.h"
+#include "ow/detail/minjson.hpp"
 
 #include <map>
 #include <string>
@@ -72,6 +73,14 @@ private:
                        std::string_view paramsJson, std::string& resultJson,
                        std::string& error);
     void WireWindowEvents(WindowId id, Window* w);
+
+    // ── comandos por area (src/Control/Commands/*.cpp) ──────────────────
+    bool CmdApp(const std::string& cmd, const json::Value& params,
+                std::string& resultJson, std::string& error);
+    bool CmdNode(const std::string& cmd, const json::Value& params,
+                 std::string& resultJson, std::string& error);
+    bool CmdModule(const std::string& cmd, const json::Value& params,
+                   std::string& resultJson, std::string& error);
 
     /// node.call pendientes de respuesta del main: reqId → (ventana, invokeId).
     struct PendingNodeCall {
