@@ -351,3 +351,26 @@ geometría/eventos) y **C10** `screen`/`Display` (multi-monitor + eventos) y
   2. El bucle principal encolaba **un `kWmOwPump` por callback** → una ráfaga de
      N callbacks generaba N pasadas de `GetMessage` (N-1 vacías). Ahora hay **un
      único pump en vuelo** (`atomic` + rearme tras drenar).
+
+## Optimización (benchmarks Owear vs Electron vs Tauri)
+
+Medido con el harness propio (`benchmarks/`). Cambios de rendimiento:
+
+- **Puente sin `eval` — RPC por esquema `ow-rpc://`**: el renderer llama a los
+  módulos nativos (`.owm`) con `fetch` (args en el body POST, respuesta en el
+  body) → elimina el `postMessage` de request **y** el `executeJavaScript` de
+  respuesta (el motor ya no compila código por llamada). Linux y Windows
+  (WebView2). IPC secuencial ~2×, concurrente ~4-5×, payload 5 MB ~1.5×.
+- **Payload grande por SHM** (`_applyShm` + `ow-shm://`) en la ruta postMessage.
+- **Códec con scanner de spans**: sin construir el DOM del mensaje ni
+  re-serializar los args en cada `invoke`.
+- **Arranque**:
+  - `OW_GPU=auto|on|off` (política de aceleración de WebKit); `off` desactiva el
+    renderer DMABUF → **−~300 ms y −30 MB** en headless (default `auto`).
+  - **Marcas `T+ms`** (`Log::StartupBegin`/`StartupMark`) para perfilar el
+    arranque sin `strace`.
+  - **Ventana visible antes** de inyectar/cargar (`PShow` movido): de `T+371` a
+    **`T+183 ms`**.
+- **fix SHM**: `unlink` inmediato tras `mmap` (Linux) + barrido de regiones
+  huérfanas. Un crash dejaba `owear-shm-*` en `XDG_RUNTIME_DIR`; 543 ficheros
+  llenaban `tmpfs` → **SIGBUS** al leer SHM de 5 MB.
