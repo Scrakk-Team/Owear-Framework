@@ -1087,6 +1087,8 @@ export class WebContents extends EventEmitter {
 
 /** Registro de ventanas por id (para resolver clicks de menú). */
 const windowsById = new Map<number, BrowserWindow>()
+/** Ventana con foco (para `BrowserWindow.getFocusedWindow`). */
+let focusedWindowId = 0
 
 export class BrowserWindow extends EventEmitter {
   private _id: number | null = null
@@ -1107,6 +1109,9 @@ export class BrowserWindow extends EventEmitter {
       const dashWin = WIN_EVENT_NAMES[params.name]
       if (dashWin) this.emit(dashWin, params.payload)
       this._wc.emit(WC_EVENT_NAMES[params.name] ?? params.name, params.payload)
+      if (params.name === 'focus' && this._id != null) focusedWindowId = this._id
+      if (params.name === 'blur' && this._id != null && focusedWindowId === this._id)
+        focusedWindowId = 0
       if (params.name === 'closed') {
         if (this._id != null) windowsById.delete(this._id)
         this._unwireEvents()
@@ -1291,13 +1296,13 @@ export class BrowserWindow extends EventEmitter {
   }
 
   // ── estáticos (C9) ─────────────────────────────────────────────────────
-  static async getAllWindows(): Promise<BrowserWindow[]> {
-    const ids = await channel.call<number[]>('window.list').catch(() => [] as number[])
-    return ids.map((id) => windowsById.get(id)).filter((w): w is BrowserWindow => !!w)
+  /** Ventanas creadas por esta app (orden de creación). Síncrono, como Electron. */
+  static getAllWindows(): BrowserWindow[] {
+    return [...windowsById.values()]
   }
-  static async getFocusedWindow(): Promise<BrowserWindow | null> {
-    const id = await channel.call<number>('window.getFocused').catch(() => 0)
-    return id ? windowsById.get(id) ?? null : null
+  /** Ventana con foco, o `null`. Síncrono, como Electron. */
+  static getFocusedWindow(): BrowserWindow | null {
+    return focusedWindowId ? windowsById.get(focusedWindowId) ?? null : null
   }
   static fromId(id: number): BrowserWindow | null {
     return windowsById.get(id) ?? null
