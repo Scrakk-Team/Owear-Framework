@@ -168,15 +168,16 @@ def main():
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
     repeat = int(sys.argv[sys.argv.index("--repeat") + 1]) if "--repeat" in sys.argv else 1
     names = [only] if only else CASES
-    out = []
-    for n in names:
-        runs = []
-        for i in range(repeat):
+    # Round-robin: se alternan los frameworks en cada repetición para repartir
+    # el efecto de la carga de la máquina (menos sesgo de orden).
+    runs = {n: [] for n in names}
+    for rep in range(repeat):
+        for n in names:
             r = run_once(n)
-            print(f"== {n} run {i+1}/{repeat}: startup={r['startupMs']} idle={r['idleRssMB']} "
-                  f"ok={bool(r['results'])} ==", flush=True)
-            runs.append(r)
-        out.append({"framework": n, "runs": runs})
+            runs[n].append(r)
+            print(f"== {n} rep {rep+1}/{repeat}: startup={r['startupMs']} "
+                  f"idle={r['idleRssMB']} ok={bool(r['results'])} ==", flush=True)
+    out = [{"framework": n, "runs": runs[n]} for n in names]
     path = os.path.join(ROOT, "results.json")
     with open(path, "w") as f:
         json.dump(out, f, indent=2)

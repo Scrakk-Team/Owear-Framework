@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # benchmarks/make_tables.py — lee results.json (con repeticiones) y emite RESULTS.md.
-import json, os, subprocess
+import json, os, subprocess, statistics
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(ROOT)
@@ -31,7 +31,7 @@ SIZES = {
 
 def avg(vals):
     vals = [v for v in vals if isinstance(v, (int, float))]
-    return sum(vals) / len(vals) if vals else None
+    return statistics.median(vals) if vals else None
 
 
 def get(res, *path):
@@ -101,7 +101,7 @@ def main():
     order = [fw["framework"] for fw in frameworks]
 
     L = ["# Benchmarks — Owear vs Electron vs Tauri", ""]
-    L.append(f"Media de **{rep} repetición(es)**, misma máquina (Linux, Xvfb 1280×800, 4 vCPU).")
+    L.append(f"**Mediana de {rep} repeticiones intercaladas** (round-robin), misma máquina (Linux, Xvfb 1280×800, 4 vCPU).")
     L.append("Reproducir: `python3 benchmarks/run.py --repeat 3`. Detalle crudo: `results.json`.")
     L.append("")
     L.append("> Electron embebe **Chromium**; Owear/Tauri usan el **WebView del SO** (WebKitGTK).")
