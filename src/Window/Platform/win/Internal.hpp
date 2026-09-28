@@ -13,4 +13,12 @@
 
 namespace ow {
 
+/// Clase de la ventana de botones del titleBarOverlay.
+constexpr wchar_t kCaptionClass[] = L"OwearCaptionButtons";
+
+void PositionCaptionBar(Window::Impl::PlatformData* pd);
+void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd);
+void RegisterCaptionClassOnce();
+COLORREF ParseHexColorRef(const std::string& in, COLORREF def);
+
 } // namespace ow

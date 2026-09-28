@@ -106,6 +106,7 @@ elseif(OW_PLATFORM STREQUAL "win")
     list(APPEND OW_KERNEL_SOURCES
         Core/App_win.cpp
         Window/window_win.cpp
+    Window/Platform/win/Titlebar.cpp
         Control/ControlServer_win.cpp
         Runtime/NodeManager_win.cpp
         Webview/win/BuiltinUtil_win.cpp
