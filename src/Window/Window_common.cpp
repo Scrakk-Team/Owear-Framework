@@ -368,6 +368,9 @@ Window::Window(const WindowOptions& options) : impl_(new Impl(this, options)) {
     static std::atomic<uint32_t> s_next{1};
     impl_->id = s_next.fetch_add(1);
     impl_->InitCommon();
+    // Toda ventana se registra + cablea aquí: así las creadas por el kernel
+    // (p. ej. OW_DEMO) también reciben eventos de módulos.
+    ControlServer::RegisterWindow(this);
 }
 
 WindowId Window::Id() const { return impl_->id; }

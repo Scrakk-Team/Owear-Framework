@@ -101,6 +101,13 @@ void ControlServer::ForwardNodeCall(WindowId windowId, uint64_t invokeId,
 
 void ControlServer::HandleClientDisconnected(uint64_t) {}
 
+void ControlServer::RegisterWindow(Window* w) {
+    if (!w) return;
+    const WindowId id = w->Id();
+    LiveWindows()[id] = w;
+    Get().WireWindowEvents(id, w);
+}
+
 void ControlServer::WireWindowEvents(WindowId id, Window* w) {
     auto forward = [this, id](const std::string& name) {
         return [this, id, name](std::string_view payload) {
@@ -426,10 +433,8 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         if (const V* v = params.Find("aspectRatio"); v && v->IsNumber())
             opts.aspectRatio = v->AsDouble();
 
-        auto* win = new Window(opts);
+        auto* win = new Window(opts); // se auto-registra en LiveWindows
         WindowId wid = win->Id();
-        LiveWindows()[wid] = win;
-        WireWindowEvents(wid, win);
 
         json::Object o;
         o.emplace_back("windowId", V(static_cast<int64_t>(wid)));

@@ -32,6 +32,11 @@ public:
 
     std::string SocketPath() const;
 
+    /// Registra + cablea una ventana recién creada (cualquier vía: comando
+    /// window.create o creación directa del kernel como OW_DEMO), para que
+    /// también reciba eventos de módulos.
+    static void RegisterWindow(Window* w);
+
     /// Evento hacia todos los clientes conectados (SDK JS).
     void BroadcastEvent(const std::string& name, std::string_view paramsJson);
 
