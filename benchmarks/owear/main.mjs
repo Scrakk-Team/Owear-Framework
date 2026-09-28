@@ -1,3 +1,6 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
 import { app, BrowserWindow } from '/home/julian/Documentos/Proyectos/Owear/packages/core/dist/index.js'
 
 app.whenReady().then(() => {

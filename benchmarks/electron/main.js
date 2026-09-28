@@ -24,6 +24,7 @@ ipcMain.handle('bench:report', (_e, json) => {
   return null
 })
 ipcMain.handle('bench:readfile', () => fs.readFileSync('/tmp/opencode/bench/blob.bin'))
+ipcMain.handle('bench:big', (_e, n) => 'y'.repeat(n))
 ipcMain.handle('bench:done', () => {
   setTimeout(() => app.quit(), 150)
   return null

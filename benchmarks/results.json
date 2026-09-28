@@ -4,9 +4,9 @@
     "runs": [
       {
         "framework": "owear",
-        "startupMs": 2335.2,
-        "idleRssMB": 452.0,
-        "peakRssMB": 672.7,
+        "startupMs": 2109.5,
+        "idleRssMB": 451.6,
+        "peakRssMB": 722.4,
         "processes": 5,
         "results": {
           "framework": "owear",
@@ -16,65 +16,79 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3887.000000000001,
+            "totalMs": 3002,
             "min": 0,
-            "median": 1.9999999999990905,
-            "p95": 5,
-            "p99": 8,
-            "max": 14,
-            "opsPerSec": 514.5356315924876
+            "median": 1,
+            "p95": 3,
+            "p99": 5,
+            "max": 9,
+            "opsPerSec": 666.2225183211192
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 2759,
-            "opsPerSec": 724.9003262051468
+            "totalMs": 2513,
+            "opsPerSec": 795.8615200955034
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 2.000000000001819
+              "medianMs": 1
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 5.000000000001819
+              "medianMs": 8
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 46
+              "medianMs": 44
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 221
+              "medianMs": 207
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 77.99999999999818,
-            "mbPerSec": 64.1025641025656
+            "medianMs": 64,
+            "mbPerSec": 78.125
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 27,
+              "mbPerSec": 37.03703703703704
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 97,
+              "mbPerSec": 51.54639175257732
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 26.99999999999818,
-            "eventsPerSec": 185185.18518519765
+            "ms": 30,
+            "eventsPerSec": 166666.66666666666
           },
           "js": {
-            "loopMs": 29,
-            "sortMs": 1253,
+            "loopMs": 24,
+            "sortMs": 1207.0000000000018,
             "checksum": 199999990000000
           }
         }
       },
       {
         "framework": "owear",
-        "startupMs": 2115.1,
-        "idleRssMB": 457.9,
-        "peakRssMB": 663.5,
+        "startupMs": 2114.8,
+        "idleRssMB": 451.5,
+        "peakRssMB": 762.5,
         "processes": 5,
         "results": {
           "framework": "owear",
@@ -84,19 +98,19 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 2999.000000000001,
+            "totalMs": 2966,
             "min": 0,
             "median": 1,
-            "p95": 4,
+            "p95": 3.9999999999990905,
             "p99": 5,
             "max": 8,
-            "opsPerSec": 666.8889629876624
+            "opsPerSec": 674.3088334457182
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 2496.000000000001,
-            "opsPerSec": 801.282051282051
+            "totalMs": 2498.999999999999,
+            "opsPerSec": 800.3201280512208
           },
           "payload": [
             {
@@ -107,33 +121,47 @@
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 4.000000000001819
+              "medianMs": 7
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 40
+              "medianMs": 48
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 199
+              "medianMs": 192
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 67,
-            "mbPerSec": 74.62686567164178
+            "medianMs": 68,
+            "mbPerSec": 73.52941176470588
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 28,
+              "mbPerSec": 35.714285714285715
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 103,
+              "mbPerSec": 48.54368932038835
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 22,
-            "eventsPerSec": 227272.7272727273
+            "ms": 23,
+            "eventsPerSec": 217391.30434782608
           },
           "js": {
-            "loopMs": 32,
-            "sortMs": 1209.0000000000018,
+            "loopMs": 27.99999999999818,
+            "sortMs": 1149,
             "checksum": 199999990000000
           }
         }
@@ -145,9 +173,9 @@
     "runs": [
       {
         "framework": "owear-nom",
-        "startupMs": 1908.8,
-        "idleRssMB": 394.7,
-        "peakRssMB": 611.1,
+        "startupMs": 1916.2,
+        "idleRssMB": 397.1,
+        "peakRssMB": 660.0,
         "processes": 4,
         "results": {
           "framework": "owear",
@@ -157,40 +185,40 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 2900.000000000001,
+            "totalMs": 3206,
             "min": 0,
             "median": 1,
             "p95": 4,
-            "p99": 5,
-            "max": 8,
-            "opsPerSec": 689.6551724137929
+            "p99": 5.0000000000009095,
+            "max": 9,
+            "opsPerSec": 623.8303181534623
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 2504,
-            "opsPerSec": 798.7220447284345
+            "totalMs": 2491.999999999999,
+            "opsPerSec": 802.5682182985556
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 2
+              "medianMs": 1
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 4.000000000001819
+              "medianMs": 7
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 43.00000000000182
+              "medianMs": 47
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 201
+              "medianMs": 215
             }
           ],
           "binary": {
@@ -199,23 +227,37 @@
             "medianMs": 72,
             "mbPerSec": 69.44444444444444
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 23,
+              "mbPerSec": 43.47826086956522
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 102,
+              "mbPerSec": 49.01960784313726
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 30.99999999999818,
-            "eventsPerSec": 161290.3225806546
+            "ms": 21,
+            "eventsPerSec": 238095.2380952381
           },
           "js": {
-            "loopMs": 28.00000000000182,
-            "sortMs": 1178.9999999999982,
+            "loopMs": 32,
+            "sortMs": 1182,
             "checksum": 199999990000000
           }
         }
       },
       {
         "framework": "owear-nom",
-        "startupMs": 1914.0,
-        "idleRssMB": 394.1,
-        "peakRssMB": 605.5,
+        "startupMs": 1910.0,
+        "idleRssMB": 394.0,
+        "peakRssMB": 656.6,
         "processes": 4,
         "results": {
           "framework": "owear",
@@ -225,19 +267,19 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3192,
+            "totalMs": 3341,
             "min": 0,
             "median": 1,
             "p95": 4,
-            "p99": 6,
-            "max": 9,
-            "opsPerSec": 626.5664160401002
+            "p99": 6.0000000000009095,
+            "max": 21,
+            "opsPerSec": 598.623166716552
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 2535,
-            "opsPerSec": 788.9546351084813
+            "totalMs": 2462,
+            "opsPerSec": 812.3476848090983
           },
           "payload": [
             {
@@ -248,33 +290,47 @@
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 4
+              "medianMs": 8
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 41
+              "medianMs": 43
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 206
+              "medianMs": 209
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 76,
-            "mbPerSec": 65.78947368421053
+            "medianMs": 78,
+            "mbPerSec": 64.1025641025641
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 26,
+              "mbPerSec": 38.46153846153846
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 104,
+              "mbPerSec": 48.07692307692308
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 31,
-            "eventsPerSec": 161290.32258064515
+            "ms": 22,
+            "eventsPerSec": 227272.7272727273
           },
           "js": {
-            "loopMs": 28,
-            "sortMs": 1221,
+            "loopMs": 26,
+            "sortMs": 1186,
             "checksum": 199999990000000
           }
         }
@@ -286,9 +342,9 @@
     "runs": [
       {
         "framework": "electron",
-        "startupMs": 1612.4,
-        "idleRssMB": 634.0,
-        "peakRssMB": 769.2,
+        "startupMs": 1611.2,
+        "idleRssMB": 633.2,
+        "peakRssMB": 782.6,
         "processes": 8,
         "results": {
           "framework": "electron",
@@ -298,65 +354,79 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 1549.2999999523163,
+            "totalMs": 1496.7999999523163,
             "min": 0.09999990463256836,
             "median": 0.5,
-            "p95": 2.200000047683716,
-            "p99": 3.899999976158142,
-            "max": 5.899999976158142,
-            "opsPerSec": 1290.9055702972666
+            "p95": 2.1999999284744263,
+            "p99": 4.299999952316284,
+            "max": 6.5,
+            "opsPerSec": 1336.1838589415515
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 343.299999833107,
-            "opsPerSec": 5825.80833373809
+            "totalMs": 303.89999997615814,
+            "opsPerSec": 6581.112208479453
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 0.30000007152557373
+              "medianMs": 0.5
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 2.9000000953674316
+              "medianMs": 2
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 19.300000071525574
+              "medianMs": 18.899999976158142
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 76.20000004768372
+              "medianMs": 67.20000004768372
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 64.80000007152557,
-            "mbPerSec": 77.16049374199153
+            "medianMs": 56.299999952316284,
+            "mbPerSec": 88.80994678925023
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 9,
+              "mbPerSec": 111.11111111111111
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 40.60000002384186,
+              "mbPerSec": 123.15270928728599
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 225.89999997615814,
-            "eventsPerSec": 22133.687474668917
+            "ms": 261.10000002384186,
+            "eventsPerSec": 19149.751051487685
           },
           "js": {
-            "loopMs": 28,
-            "sortMs": 3612,
+            "loopMs": 31.5,
+            "sortMs": 3615.600000023842,
             "checksum": 199999990000000
           }
         }
       },
       {
         "framework": "electron",
-        "startupMs": 1614.7,
-        "idleRssMB": 634.7,
-        "peakRssMB": 783.0,
+        "startupMs": 1612.8,
+        "idleRssMB": 640.8,
+        "peakRssMB": 790.1,
         "processes": 8,
         "results": {
           "framework": "electron",
@@ -366,56 +436,70 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 1355.7000000476837,
+            "totalMs": 1436.8999999761581,
             "min": 0.09999990463256836,
-            "median": 0.40000009536743164,
-            "p95": 1.899999976158142,
-            "p99": 3.399999976158142,
-            "max": 5.399999976158142,
-            "opsPerSec": 1475.2526369621999
+            "median": 0.5,
+            "p95": 2,
+            "p99": 3.700000047683716,
+            "max": 6,
+            "opsPerSec": 1391.8853086736622
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 267.59999990463257,
-            "opsPerSec": 7473.841557222575
+            "totalMs": 315.60000002384186,
+            "opsPerSec": 6337.135614223419
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 0.6000000238418579
+              "medianMs": 0.7000000476837158
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 2.5
+              "medianMs": 2.299999952316284
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 19.600000023841858
+              "medianMs": 19
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 78
+              "medianMs": 81.20000004768372
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 61.10000002384186,
-            "mbPerSec": 81.8330605245327
+            "medianMs": 58.60000002384186,
+            "mbPerSec": 85.32423204719645
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 10.600000023841858,
+              "mbPerSec": 94.33962242931776
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 40.60000002384186,
+              "mbPerSec": 123.15270928728599
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 197.69999992847443,
-            "eventsPerSec": 25290.84472336339
+            "ms": 184.80000007152557,
+            "eventsPerSec": 27056.27704580511
           },
           "js": {
-            "loopMs": 28.800000071525574,
-            "sortMs": 3166.2999999523163,
+            "loopMs": 29.299999952316284,
+            "sortMs": 3394,
             "checksum": 199999990000000
           }
         }
@@ -427,9 +511,9 @@
     "runs": [
       {
         "framework": "tauri",
-        "startupMs": 1312.1,
-        "idleRssMB": 403.2,
-        "peakRssMB": 542.0,
+        "startupMs": 1308.7,
+        "idleRssMB": 402.5,
+        "peakRssMB": 541.4,
         "processes": 4,
         "results": {
           "framework": "tauri",
@@ -439,65 +523,79 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3242,
+            "totalMs": 3448.000000000001,
             "min": 0,
-            "median": 1.0000000000004547,
+            "median": 1.0000000000009095,
             "p95": 4,
-            "p99": 5,
-            "max": 9,
-            "opsPerSec": 616.9031462060457
+            "p99": 6,
+            "max": 9.999999999999545,
+            "opsPerSec": 580.0464037122969
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 949.9999999999991,
-            "opsPerSec": 2105.263157894739
+            "totalMs": 1083.999999999999,
+            "opsPerSec": 1845.0184501845035
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 2.0000000000009095
+              "medianMs": 1
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 5
+              "medianMs": 2.0000000000009095
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 30.99999999999909
+              "medianMs": 31
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 132.99999999999818
+              "medianMs": 231
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 61,
-            "mbPerSec": 81.9672131147541
+            "medianMs": 68,
+            "mbPerSec": 73.52941176470588
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 21,
+              "mbPerSec": 47.61904761904761
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 74,
+              "mbPerSec": 67.56756756756756
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 4862,
-            "eventsPerSec": 1028.3833813245578
+            "ms": 2875,
+            "eventsPerSec": 1739.1304347826087
           },
           "js": {
-            "loopMs": 30,
-            "sortMs": 1225,
+            "loopMs": 28,
+            "sortMs": 1273,
             "checksum": 199999990000000
           }
         }
       },
       {
         "framework": "tauri",
-        "startupMs": 1207.6,
-        "idleRssMB": 402.6,
-        "peakRssMB": 545.9,
+        "startupMs": 1208.4,
+        "idleRssMB": 402.0,
+        "peakRssMB": 538.4,
         "processes": 4,
         "results": {
           "framework": "tauri",
@@ -507,56 +605,70 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3270,
+            "totalMs": 3453,
             "min": 0,
-            "median": 1,
+            "median": 1.0000000000009095,
             "p95": 4,
-            "p99": 5.9999999999990905,
-            "max": 9.99999999999909,
-            "opsPerSec": 611.6207951070336
+            "p99": 7,
+            "max": 13,
+            "opsPerSec": 579.2064871126556
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 930,
-            "opsPerSec": 2150.537634408602
+            "totalMs": 1022.0000000000009,
+            "opsPerSec": 1956.9471624266127
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 2
+              "medianMs": 4
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 4.0000000000009095
+              "medianMs": 4
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 27.00000000000091
+              "medianMs": 29
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 139.99999999999818
+              "medianMs": 117
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 63,
-            "mbPerSec": 79.36507936507937
+            "medianMs": 59,
+            "mbPerSec": 84.74576271186442
           },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 24,
+              "mbPerSec": 41.666666666666664
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 84,
+              "mbPerSec": 59.52380952380952
+            }
+          ],
           "events": {
             "n": 5000,
-            "ms": 4925,
-            "eventsPerSec": 1015.228426395939
+            "ms": 5483,
+            "eventsPerSec": 911.9095385737735
           },
           "js": {
-            "loopMs": 27,
-            "sortMs": 1275,
+            "loopMs": 29,
+            "sortMs": 1341.9999999999982,
             "checksum": 199999990000000
           }
         }

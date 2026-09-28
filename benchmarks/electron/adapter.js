@@ -4,6 +4,7 @@ window.BENCH = {
   invoke: (x) => window.bench.invoke(x),
   on: (ev, cb) => window.bench.on(ev, cb),
   burst: (n) => window.bench.burst(n),
+  big: (n) => window.bench.big(n),
   ready: () => window.bench.ready(),
   report: (json) => window.bench.report(json),
   readFile: async () => {

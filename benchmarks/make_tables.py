@@ -53,9 +53,12 @@ def collect(frameworks):
             out[fw["framework"]] = None
             continue
         rs = [r["results"] for r in runs]
-        pl, bl = {}, {}
+        pl, bl, dl = {}, {}, {}
         for sz in (1024, 65536, 1048576, 5242880):
             pl[sz] = avg([next((e["medianMs"] for e in (r.get("payload") or [])
+                                if e.get("size") == sz), None) for r in rs])
+        for sz in (1048576, 5242880):
+            dl[sz] = avg([next((e["medianMs"] for e in (r.get("download") or [])
                                 if e.get("size") == sz), None) for r in rs])
         bl[5242880] = avg([get(r, "binary", "medianMs") for r in rs])
         bl["mb"] = avg([get(r, "binary", "mbPerSec") for r in rs])
@@ -70,6 +73,7 @@ def collect(frameworks):
             "p99": avg([get(r, "latency", "p99") for r in rs]),
             "conc_ops": avg([get(r, "concurrent", "opsPerSec") for r in rs]),
             "payload": pl,
+            "download": dl,
             "bin_med": bl[5242880],
             "bin_mb": bl["mb"],
             "ev_ms": avg([get(r, "events", "ms") for r in rs]),
@@ -141,6 +145,16 @@ def main():
 
     table("Binario — leer 5 MB nativo→renderer", ["mediana (ms)", "MB/s"],
           lambda m, fw: [f(m["bin_med"], 0), f(m["bin_mb"])])
+
+    L.append("## Descarga — respuesta de 1 MB / 5 MB (mediana ms)")
+    L.append("")
+    L.append("| Framework | 1 MB | 5 MB |")
+    L.append("|---|---:|---:|")
+    for fw in order:
+        m = M.get(fw)
+        cells = ["—", "—"] if not m else [f(m["download"][s], 0) for s in (1048576, 5242880)]
+        L.append(f"| {NAME.get(fw,fw)} | " + " | ".join(cells) + " |")
+    L.append("")
 
     table("Eventos nativo → renderer (5000)", ["ms", "eventos/s"],
           lambda m, fw: [f(m["ev_ms"], 0), f(m["ev_ops"], 0)])

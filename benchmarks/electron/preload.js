@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('bench', {
   burst: (n) => ipcRenderer.invoke('bench:burst', n),
   ready: () => ipcRenderer.invoke('bench:ready'),
   report: (json) => ipcRenderer.invoke('bench:report', json),
+  big: (n) => ipcRenderer.invoke('bench:big', n),
   readfile: () => ipcRenderer.invoke('bench:readfile'),
   done: () => ipcRenderer.invoke('bench:done'),
 })

@@ -10,6 +10,7 @@ window.BENCH = {
   invoke: (x) => window.ow.invoke('bench', 'echo', x),
   on: (ev, cb) => window.ow.on(ev, cb),
   burst: (n) => window.ow.invoke('bench', 'burst', n),
+  big: (n) => window.ow.invoke('bench', 'big', n),
   ready: () => window.ow.invoke('bench', 'ready'),
   report: (json) => window.ow.invoke('bench', 'report', OUT, json),
   readFile: async () => {

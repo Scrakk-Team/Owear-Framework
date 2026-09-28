@@ -68,6 +68,18 @@ void mark(const ow_request_t* req, ow_response_t* res) {
     RespondOk(res, "null");
 }
 
+/// Devuelve una cadena JSON de `n` bytes (respuesta grande sin request grande).
+void big(const ow_request_t* req, ow_response_t* res) {
+    auto p = ow::json::Parse(std::string_view(req->json, req->json_len));
+    int n = 5242880;
+    if (p.value && p.value->IsArray() && !p.value->AsArray().empty() &&
+        p.value->AsArray()[0].IsNumber())
+        n = static_cast<int>(p.value->AsArray()[0].AsInt());
+    if (n < 0) n = 0;
+    const std::string s(static_cast<size_t>(n), 'y');
+    RespondOk(res, ow::json::Value(s).Serialize().c_str());
+}
+
 } // namespace bn
 
 extern "C" OW_MODULE_EXPORT void ow_module_set_host(const ow_module_host_t* h) {
@@ -81,6 +93,7 @@ extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
         {"ready", &bn::ready},
         {"report", &bn::report},
         {"mark", &bn::mark},
+        {"big", &bn::big},
     };
     static const ow_module_desc_t d{"bench", OW_VERSION_STRING, fns,
                                     sizeof(fns) / sizeof(fns[0])};

@@ -39,13 +39,18 @@ fn readfile() -> tauri::ipc::Response {
 }
 
 #[tauri::command]
+fn big(n: usize) -> String {
+    "y".repeat(n)
+}
+
+#[tauri::command]
 fn done(app: tauri::AppHandle) {
     app.exit(0);
 }
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![echo, burst, ready, report, readfile, done])
+        .invoke_handler(tauri::generate_handler![echo, burst, ready, report, readfile, big, done])
         .run(tauri::generate_context!())
         .expect("error running tauri app");
 }

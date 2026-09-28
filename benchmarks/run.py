@@ -97,6 +97,12 @@ def run_once(name):
     for f in (out, out + ".done"):
         if os.path.exists(f):
             os.remove(f)
+    if name.startswith("owear"):
+        # WebKit cachea los assets servidos por HTTP de forma persistente por app
+        import shutil
+        for p in (os.path.expanduser("~/.local/share/owear/owearbench"),
+                  os.path.expanduser("~/.cache/owear/owearbench")):
+            shutil.rmtree(p, ignore_errors=True)
     cmd, env, cwd = app_cmd(name)
     full = ["xvfb-run", "-a", "-s", "-screen 0 1280x800x24"] + cmd
     logpath = f"/tmp/opencode/bench/{name}.log"

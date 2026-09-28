@@ -88,6 +88,19 @@
     return { bytes, iterations, medianMs: median, mbPerSec: bytes / 1024 / 1024 / (median / 1000) }
   }
 
+  async function measureDownload(size, iterations) {
+    const times = []
+    let got = 0
+    for (let i = 0; i < iterations; i++) {
+      const a = now()
+      const s = await withTimeout(B.big(size), 30000, 'big ' + size)
+      times.push(now() - a)
+      got = s ? s.length : 0
+    }
+    const median = summarize(times).median
+    return { size, got, medianMs: median, mbPerSec: size / 1024 / 1024 / (median / 1000) }
+  }
+
   async function measureEvents(n) {
     return await new Promise((resolve, reject) => {
       let got = 0
@@ -145,6 +158,12 @@
 
       results.binary = await measureBinary(5)
       await flush()
+
+      results.download = []
+      for (const size of [1048576, 5242880]) {
+        results.download.push(await measureDownload(size, 3))
+        await flush()
+      }
 
       results.events = await measureEvents(5000)
       await flush()
