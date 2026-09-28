@@ -1,0 +1,6 @@
+node_modules/
+tauri/src-tauri/target/
+# copias generadas de web/bench.js
+owear/assets/bench.js
+electron/bench.js
+tauri/dist/bench.js

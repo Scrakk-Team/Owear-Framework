@@ -1,0 +1,566 @@
+[
+  {
+    "framework": "owear",
+    "runs": [
+      {
+        "framework": "owear",
+        "startupMs": 2335.2,
+        "idleRssMB": 452.0,
+        "peakRssMB": 672.7,
+        "processes": 5,
+        "results": {
+          "framework": "owear",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 3887.000000000001,
+            "min": 0,
+            "median": 1.9999999999990905,
+            "p95": 5,
+            "p99": 8,
+            "max": 14,
+            "opsPerSec": 514.5356315924876
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 2759,
+            "opsPerSec": 724.9003262051468
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 2.000000000001819
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 5.000000000001819
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 46
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 221
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 77.99999999999818,
+            "mbPerSec": 64.1025641025656
+          },
+          "events": {
+            "n": 5000,
+            "ms": 26.99999999999818,
+            "eventsPerSec": 185185.18518519765
+          },
+          "js": {
+            "loopMs": 29,
+            "sortMs": 1253,
+            "checksum": 199999990000000
+          }
+        }
+      },
+      {
+        "framework": "owear",
+        "startupMs": 2115.1,
+        "idleRssMB": 457.9,
+        "peakRssMB": 663.5,
+        "processes": 5,
+        "results": {
+          "framework": "owear",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 2999.000000000001,
+            "min": 0,
+            "median": 1,
+            "p95": 4,
+            "p99": 5,
+            "max": 8,
+            "opsPerSec": 666.8889629876624
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 2496.000000000001,
+            "opsPerSec": 801.282051282051
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 2
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 4.000000000001819
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 40
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 199
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 67,
+            "mbPerSec": 74.62686567164178
+          },
+          "events": {
+            "n": 5000,
+            "ms": 22,
+            "eventsPerSec": 227272.7272727273
+          },
+          "js": {
+            "loopMs": 32,
+            "sortMs": 1209.0000000000018,
+            "checksum": 199999990000000
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "owear-nom",
+    "runs": [
+      {
+        "framework": "owear-nom",
+        "startupMs": 1908.8,
+        "idleRssMB": 394.7,
+        "peakRssMB": 611.1,
+        "processes": 4,
+        "results": {
+          "framework": "owear",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 2900.000000000001,
+            "min": 0,
+            "median": 1,
+            "p95": 4,
+            "p99": 5,
+            "max": 8,
+            "opsPerSec": 689.6551724137929
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 2504,
+            "opsPerSec": 798.7220447284345
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 2
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 4.000000000001819
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 43.00000000000182
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 201
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 72,
+            "mbPerSec": 69.44444444444444
+          },
+          "events": {
+            "n": 5000,
+            "ms": 30.99999999999818,
+            "eventsPerSec": 161290.3225806546
+          },
+          "js": {
+            "loopMs": 28.00000000000182,
+            "sortMs": 1178.9999999999982,
+            "checksum": 199999990000000
+          }
+        }
+      },
+      {
+        "framework": "owear-nom",
+        "startupMs": 1914.0,
+        "idleRssMB": 394.1,
+        "peakRssMB": 605.5,
+        "processes": 4,
+        "results": {
+          "framework": "owear",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 3192,
+            "min": 0,
+            "median": 1,
+            "p95": 4,
+            "p99": 6,
+            "max": 9,
+            "opsPerSec": 626.5664160401002
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 2535,
+            "opsPerSec": 788.9546351084813
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 2
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 4
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 41
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 206
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 76,
+            "mbPerSec": 65.78947368421053
+          },
+          "events": {
+            "n": 5000,
+            "ms": 31,
+            "eventsPerSec": 161290.32258064515
+          },
+          "js": {
+            "loopMs": 28,
+            "sortMs": 1221,
+            "checksum": 199999990000000
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "electron",
+    "runs": [
+      {
+        "framework": "electron",
+        "startupMs": 1612.4,
+        "idleRssMB": 634.0,
+        "peakRssMB": 769.2,
+        "processes": 8,
+        "results": {
+          "framework": "electron",
+          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 1549.2999999523163,
+            "min": 0.09999990463256836,
+            "median": 0.5,
+            "p95": 2.200000047683716,
+            "p99": 3.899999976158142,
+            "max": 5.899999976158142,
+            "opsPerSec": 1290.9055702972666
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 343.299999833107,
+            "opsPerSec": 5825.80833373809
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 0.30000007152557373
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 2.9000000953674316
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 19.300000071525574
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 76.20000004768372
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 64.80000007152557,
+            "mbPerSec": 77.16049374199153
+          },
+          "events": {
+            "n": 5000,
+            "ms": 225.89999997615814,
+            "eventsPerSec": 22133.687474668917
+          },
+          "js": {
+            "loopMs": 28,
+            "sortMs": 3612,
+            "checksum": 199999990000000
+          }
+        }
+      },
+      {
+        "framework": "electron",
+        "startupMs": 1614.7,
+        "idleRssMB": 634.7,
+        "peakRssMB": 783.0,
+        "processes": 8,
+        "results": {
+          "framework": "electron",
+          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 1355.7000000476837,
+            "min": 0.09999990463256836,
+            "median": 0.40000009536743164,
+            "p95": 1.899999976158142,
+            "p99": 3.399999976158142,
+            "max": 5.399999976158142,
+            "opsPerSec": 1475.2526369621999
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 267.59999990463257,
+            "opsPerSec": 7473.841557222575
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 0.6000000238418579
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 2.5
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 19.600000023841858
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 78
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 61.10000002384186,
+            "mbPerSec": 81.8330605245327
+          },
+          "events": {
+            "n": 5000,
+            "ms": 197.69999992847443,
+            "eventsPerSec": 25290.84472336339
+          },
+          "js": {
+            "loopMs": 28.800000071525574,
+            "sortMs": 3166.2999999523163,
+            "checksum": 199999990000000
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "tauri",
+    "runs": [
+      {
+        "framework": "tauri",
+        "startupMs": 1312.1,
+        "idleRssMB": 403.2,
+        "peakRssMB": 542.0,
+        "processes": 4,
+        "results": {
+          "framework": "tauri",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 3242,
+            "min": 0,
+            "median": 1.0000000000004547,
+            "p95": 4,
+            "p99": 5,
+            "max": 9,
+            "opsPerSec": 616.9031462060457
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 949.9999999999991,
+            "opsPerSec": 2105.263157894739
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 2.0000000000009095
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 5
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 30.99999999999909
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 132.99999999999818
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 61,
+            "mbPerSec": 81.9672131147541
+          },
+          "events": {
+            "n": 5000,
+            "ms": 4862,
+            "eventsPerSec": 1028.3833813245578
+          },
+          "js": {
+            "loopMs": 30,
+            "sortMs": 1225,
+            "checksum": 199999990000000
+          }
+        }
+      },
+      {
+        "framework": "tauri",
+        "startupMs": 1207.6,
+        "idleRssMB": 402.6,
+        "peakRssMB": 545.9,
+        "processes": 4,
+        "results": {
+          "framework": "tauri",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 3270,
+            "min": 0,
+            "median": 1,
+            "p95": 4,
+            "p99": 5.9999999999990905,
+            "max": 9.99999999999909,
+            "opsPerSec": 611.6207951070336
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 930,
+            "opsPerSec": 2150.537634408602
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 2
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 4.0000000000009095
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 27.00000000000091
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 139.99999999999818
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 63,
+            "mbPerSec": 79.36507936507937
+          },
+          "events": {
+            "n": 5000,
+            "ms": 4925,
+            "eventsPerSec": 1015.228426395939
+          },
+          "js": {
+            "loopMs": 27,
+            "sortMs": 1275,
+            "checksum": 199999990000000
+          }
+        }
+      }
+    ]
+  }
+]
