@@ -9,11 +9,13 @@
 
 #include "../Bridge/Dispatcher.hpp"
 #include "../Control/ControlServer.hpp"
+#include "../Pack/Pack.hpp"
 #include "../Runtime/NodeManager.hpp"
 #include "Log.hpp"
 #include "ow/App.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <thread>
 #include <vector>
 
@@ -59,11 +61,41 @@ namespace internal {
 // src/Core/BuiltinRegistry.generated.cpp. No hardcodear módulos aquí.
 void RegisterGeneratedBuiltins();
 
+namespace {
+void SetEnv(const char* key, const std::string& value) {
+#ifdef _WIN32
+    _putenv_s(key, value.c_str());
+#else
+    setenv(key, value.c_str(), 1);
+#endif
+}
+} // namespace
+
 bool Bootstrap(int argc, char** argv, const AppOptions& options) {
     if (g_initialized) return true;
     g_options = options;
 
     if (!PlatformInit(argc, argv)) return false;
+
+    // Single binary: si el payload va embebido al final del propio ejecutable,
+    // se extrae una vez y se expone como si fueran ficheros externos (módulos,
+    // assets y main). Así el resto del kernel no cambia.
+    if (pack::HasPayload()) {
+        const std::string dir = pack::EnsureExtracted();
+        if (!dir.empty()) {
+            std::string mods = dir + "/modules";
+            if (const char* cur = std::getenv("OW_MODULES_DIR"); cur && *cur)
+                mods += std::string(":") + cur;
+            SetEnv("OW_MODULES_DIR", mods);
+            if (!std::getenv("OW_ASSETS_DIR") &&
+                std::filesystem::is_directory(dir + "/app"))
+                SetEnv("OW_ASSETS_DIR", dir + "/app");
+            if (!std::getenv("OW_APP_MAIN") &&
+                std::filesystem::exists(dir + "/app/main.js"))
+                SetEnv("OW_APP_MAIN", dir + "/app/main.js");
+            log::Info("app", "single-binary: payload en " + dir);
+        }
+    }
 
     RegisterGeneratedBuiltins();
     ModuleLoader::ProvideHostToBuiltins();

@@ -164,6 +164,7 @@ bool ExtractTarGz(const std::filesystem::path& tarGz,
     uint8_t hdr[kBlock];
     size_t hdrFill = 0;
     uint64_t dataLeft = 0;
+    uint64_t padLeft = 0;
     bool inData = false;
     std::string longName;
     bool pendingLong = false;
@@ -210,7 +211,8 @@ bool ExtractTarGz(const std::filesystem::path& tarGz,
                 uint64_t rounded = (size + kBlock - 1) / kBlock * kBlock;
                 if (rounded > 0) {
                     inData = true;
-                    dataLeft = rounded;
+                    dataLeft = size;          // solo los bytes reales al fichero
+                    padLeft = rounded - size; // padding a descartar
                 } else {
                     std::string outLong;
                     writer.End(error, outLong, onEntry);
@@ -226,7 +228,12 @@ bool ExtractTarGz(const std::filesystem::path& tarGz,
             p += take;
             n -= take;
             if (dataLeft == 0) {
-                // el padding ya está incluido en dataLeft (rounded)
+                // descarta el padding (hasta el bloque de 512) que aún quede
+                size_t skip = padLeft < n ? static_cast<size_t>(padLeft) : n;
+                padLeft -= skip;
+                p += skip;
+                n -= skip;
+                if (padLeft != 0) continue; // el resto del padding vendrá después
                 std::string outLong;
                 writer.End(error, outLong, onEntry);
                 if (pendingLong) { longName = outLong; pendingLong = false; }

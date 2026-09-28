@@ -52,6 +52,7 @@ set(OW_KERNEL_SOURCES
     Window/Window_common.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp
+    Pack/Pack.cpp
     ${OW_HTTP_SOURCE}
     Runtime/NodeManager.cpp
 )
