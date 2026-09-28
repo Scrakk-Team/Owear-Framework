@@ -90,6 +90,12 @@ void Window::Impl::InitCommon() {
     }
     log::StartupMark("ventana+webview creados");
 
+    // MOSTRAR YA: el usuario ve la ventana sin esperar a WebKit (load_uri
+    // bloquea ~200 ms y el bring-up del WebProcess ~800 ms). El contenido llega
+    // después; la ventana ya está en pantalla.
+    if (opts.show) PShow();
+    log::StartupMark("ventana visible");
+
     // Scripts de inicio: corren en orden, ANTES de cualquier script de página.
     webview->InjectInitScript(BuildBridgeScript());
     webview->InjectInitScript("window.__owWindowId=" + std::to_string(id) + ";");
@@ -102,8 +108,6 @@ void Window::Impl::InitCommon() {
 
     if (!opts.url.empty()) webview->LoadURL(opts.url);
     log::StartupMark("loadURL lanzado");
-    if (opts.show) PShow();
-    log::StartupMark("ventana mostrada");
 }
 
 // ── mensajes del WebView ─────────────────────────────────────────────────────
