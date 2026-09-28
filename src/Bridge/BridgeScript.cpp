@@ -110,9 +110,27 @@ std::string BuildBridgeScript() {
     }
   }, true);
 
+  // Módulos builtin con estado: siguen por el canal postMessage (necesitan el
+  // flujo asíncrono del kernel: node.call, ow-window, window, …).
+  var OW_LEGACY = { node: 1, 'ow-window': 1, window: 1, app: 1, session: 1,
+                    webview: 1, crashreporter: 1 };
+
   window.ow = {
     invoke: function(module, fn) {
       var args = Array.prototype.slice.call(arguments, 2);
+      // Ruta rápida: módulos nativos por RPC de esquema (fetch). Sin
+      // postMessage de request ni eval de respuesta.
+      if (!OW_LEGACY[module]) {
+        return fetch('ow-rpc://call/' + encodeURIComponent(module) + '/' +
+                     encodeURIComponent(fn) + '?w=' + (window.__owWindowId || 0), {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(args)
+        }).then(function(r) { return r.json(); }).then(function(o) {
+          if (o && o.ok) return o.r;
+          throw new Error((o && o.r && o.r.message) ? o.r.message : 'ow-rpc error');
+        });
+      }
       var id = nextId++;
       return new Promise(function(resolve, reject) {
         pending.set(id, { resolve: resolve, reject: reject, timer: 0 });

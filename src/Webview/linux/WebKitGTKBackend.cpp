@@ -174,6 +174,39 @@ void FinishBytesStatic(WebKitURISchemeRequest* request,
 #endif
 }
 
+/// Como FinishBytesStatic pero COPIANDO: seguro si `data` apunta a memoria
+/// temporal (p. ej. un std::string local del handler de esquema).
+void FinishBytesCopy(WebKitURISchemeRequest* request, const uint8_t* data, size_t len,
+                     const char* mime, const char* extraHeaderName = nullptr,
+                     const char* extraHeaderValue = nullptr) {
+#if WEBKIT_CHECK_VERSION(2, 40, 0)
+    GBytes* bytes = g_bytes_new(data, len); // copia
+    WebKitURISchemeResponse* resp = webkit_uri_scheme_response_new(
+        g_memory_input_stream_new_from_bytes(bytes), static_cast<gint64>(len));
+    g_bytes_unref(bytes);
+    webkit_uri_scheme_response_set_status(resp, 200, "OK");
+    webkit_uri_scheme_response_set_content_type(resp, mime);
+    if (extraHeaderName) {
+        SoupMessageHeaders* headers =
+            soup_message_headers_new(SOUP_MESSAGE_HEADERS_RESPONSE);
+        soup_message_headers_append(headers, extraHeaderName,
+                                    extraHeaderValue ? extraHeaderValue : "");
+        webkit_uri_scheme_response_set_http_headers(resp, headers);
+    }
+    webkit_uri_scheme_request_finish_with_response(request, resp);
+    g_object_unref(resp);
+#else
+    auto* copy = new std::string(reinterpret_cast<const char*>(data), len);
+    GBytes* bytes = g_bytes_new_with_free_func(
+        copy->data(), copy->size(),
+        [](gpointer p) { delete static_cast<std::string*>(p); }, copy);
+    GInputStream* stream = g_memory_input_stream_new_from_bytes(bytes);
+    g_bytes_unref(bytes);
+    webkit_uri_scheme_request_finish(request, stream, -1, mime);
+    g_object_unref(stream);
+#endif
+}
+
 void FinishError(WebKitURISchemeRequest* request, int code, const char* msg) {
     GError* err = g_error_new(G_IO_ERROR, code, "%s", msg);
     webkit_uri_scheme_request_finish_error(request, err);
@@ -661,10 +694,85 @@ private:
                                std::string(res.json, res.json_len) + "}";
                     }
                 }
-                FinishBytesStatic(request,
-                                  reinterpret_cast<const uint8_t*>(body.data()),
-                                  body.size(), "application/json",
-                                  "Access-Control-Allow-Origin", "*");
+                FinishBytesCopy(request,
+                                reinterpret_cast<const uint8_t*>(body.data()),
+                                body.size(), "application/json",
+                                "Access-Control-Allow-Origin", "*");
+            },
+            nullptr, nullptr);
+
+        // ── ow-rpc://call/<mod>/<fn>?w=<id> ─ invoke ASÍNCRONO por fetch ───
+        // El body (POST) lleva los args; la respuesta vuelve en el body. SIN
+        // postMessage de request ni eval de respuesta: el motor no compila
+        // código por llamada. Solo para módulos nativos (.owm); los builtins
+        // con estado (node, ow-window, …) siguen por el canal postMessage.
+        {
+            WebKitSecurityManager* sm = webkit_web_context_get_security_manager(context_);
+            if (sm) {
+                webkit_security_manager_register_uri_scheme_as_secure(sm, "ow-rpc");
+                webkit_security_manager_register_uri_scheme_as_cors_enabled(sm, "ow-rpc");
+            }
+        }
+        webkit_web_context_register_uri_scheme(
+            context_, "ow-rpc",
+            [](WebKitURISchemeRequest* request, gpointer) {
+                const std::string uri = webkit_uri_scheme_request_get_uri(request);
+                std::string rest = uri, query;
+                const std::string prefix = "ow-rpc://call/";
+                std::string mod, fn;
+                if (rest.rfind(prefix, 0) == 0) {
+                    rest = rest.substr(prefix.size());
+                    const auto qpos = rest.find('?');
+                    if (qpos != std::string::npos) {
+                        query = rest.substr(qpos + 1);
+                        rest = rest.substr(0, qpos);
+                    }
+                    const auto slash = rest.find('/');
+                    mod = slash == std::string::npos ? rest : rest.substr(0, slash);
+                    fn = slash == std::string::npos ? std::string() : rest.substr(slash + 1);
+                }
+                WindowId wid = 0;
+                if (const auto wp = query.find("w="); wp != std::string::npos)
+                    wid = static_cast<WindowId>(std::strtoul(query.c_str() + wp + 2, nullptr, 10));
+
+                std::string args = "[]";
+                if (GInputStream* bodyStream =
+                        webkit_uri_scheme_request_get_http_body(request)) {
+                    std::string acc;
+                    guint8 buf[65536];
+                    gssize n = 0;
+                    while ((n = g_input_stream_read(bodyStream, buf, sizeof(buf), nullptr,
+                                                    nullptr)) > 0)
+                        acc.append(reinterpret_cast<const char*>(buf),
+                                   static_cast<size_t>(n));
+                    g_object_unref(bodyStream);
+                    if (!acc.empty()) args = std::move(acc);
+                }
+
+                auto send = [request](const std::string& b) {
+                    FinishBytesCopy(request,
+                                    reinterpret_cast<const uint8_t*>(b.data()),
+                                    b.size(), "application/json",
+                                    "Access-Control-Allow-Origin", "*");
+                };
+                if (mod.empty() || fn.empty()) {
+                    send("{\"ok\":false,\"r\":{\"message\":\"ow-rpc: ruta inválida\"}}");
+                    return;
+                }
+                ow_request_t req{};
+                req.json = args.c_str();
+                req.json_len = static_cast<uint32_t>(args.size());
+                ow_response_t res{};
+                Dispatcher::Get().Execute(wid, mod, fn, &req, &res);
+                if (res.status != 0) {
+                    json::Object e;
+                    e.emplace_back("message",
+                                   json::Value(std::string(res.error ? res.error : "")));
+                    send("{\"ok\":false,\"r\":" + json::Value(std::move(e)).Serialize() + "}");
+                } else {
+                    send("{\"ok\":true,\"r\":" +
+                         std::string(res.json, res.json_len) + "}");
+                }
             },
             nullptr, nullptr);
     }
