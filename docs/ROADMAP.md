@@ -80,10 +80,10 @@ E2E en Linux (19/19 pruebas en verde).
 | path (join/resolve/dirname/basename/extname/normalize + dirs XDG/Known Folders) | ✅ E2E | Known Folders — VERIFICAR |
 | dialog (GtkFileChooserNative / IFileDialog / NSPanel) | ✅ registrado (modal no automatizable) | VERIFICAR |
 | clipboard (texto + imagen PNG→SHM) | ✅ E2E texto | WIC pendiente |
-| screen (monitores/workarea/scale/cursor) | ✅ E2E | VERIFICAR |
+| screen (monitores/workarea/scale/rotation/label/cursor, **eventos added/removed/changed**, watch) | ✅ E2E | WM_DISPLAYCHANGE — VERIFICAR |
 | net (HTTP(S) nativo sin CORS + download SHA256; respuestas ≥256KB → SHM) | ✅ E2E | mismo código |
 | notification (sistema: org.freedesktop.Notifications) | ✅ E2E (id real) | toast/UNUser — pendiente |
-| power (logind sleep/resume + ScreenSaver inhibit) | ✅ E2E | PowerBroadcast — pendiente |
+| power (logind sleep/shutdown/lock + UPower + Xss; **idle/batería**, eventos) | ✅ E2E | PowerBroadcast + WTS — VERIFICAR |
 | shell (openExternal/openPath/showItemInFolder via FileManager1 D-Bus) | ✅ validación+launch | IShellLink — VERIFICAR |
 | updater (manifest+semver+sha256+replace atómico+execv relaunch) | ✅ E2E check/download | igual |
 | menu (popup JSON declarativo opcional; setApplicationMenu noop en Linux por diseño) | ✅ | NSMenu/HMENU — pendiente |
