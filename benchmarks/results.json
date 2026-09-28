@@ -4,9 +4,9 @@
     "runs": [
       {
         "framework": "owear",
-        "startupMs": 2109.5,
-        "idleRssMB": 451.6,
-        "peakRssMB": 722.4,
+        "startupMs": 2445.8,
+        "idleRssMB": 452.6,
+        "peakRssMB": 673.8,
         "processes": 5,
         "results": {
           "framework": "owear",
@@ -16,19 +16,19 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3002,
+            "totalMs": 1950,
             "min": 0,
             "median": 1,
-            "p95": 3,
-            "p99": 5,
-            "max": 9,
-            "opsPerSec": 666.2225183211192
+            "p95": 2.0000000000009095,
+            "p99": 4,
+            "max": 10,
+            "opsPerSec": 1025.6410256410256
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 2513,
-            "opsPerSec": 795.8615200955034
+            "totalMs": 843,
+            "opsPerSec": 2372.479240806643
           },
           "payload": [
             {
@@ -39,37 +39,37 @@
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 8
+              "medianMs": 3
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 44
+              "medianMs": 45
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 207
+              "medianMs": 270
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 64,
-            "mbPerSec": 78.125
+            "medianMs": 76,
+            "mbPerSec": 65.78947368421053
           },
           "download": [
             {
               "size": 1048576,
               "got": 1048576,
-              "medianMs": 27,
-              "mbPerSec": 37.03703703703704
+              "medianMs": 13.00000000000091,
+              "mbPerSec": 76.92307692307153
             },
             {
               "size": 5242880,
               "got": 5242880,
-              "medianMs": 97,
-              "mbPerSec": 51.54639175257732
+              "medianMs": 99,
+              "mbPerSec": 50.505050505050505
             }
           ],
           "events": {
@@ -78,17 +78,17 @@
             "eventsPerSec": 166666.66666666666
           },
           "js": {
-            "loopMs": 24,
-            "sortMs": 1207.0000000000018,
+            "loopMs": 34.00000000000182,
+            "sortMs": 1003.9999999999982,
             "checksum": 199999990000000
           }
         }
       },
       {
         "framework": "owear",
-        "startupMs": 2114.8,
-        "idleRssMB": 451.5,
-        "peakRssMB": 762.5,
+        "startupMs": 1915.2,
+        "idleRssMB": 452.3,
+        "peakRssMB": 670.4,
         "processes": 5,
         "results": {
           "framework": "owear",
@@ -98,19 +98,19 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 2966,
+            "totalMs": 1623,
             "min": 0,
             "median": 1,
-            "p95": 3.9999999999990905,
-            "p99": 5,
-            "max": 8,
-            "opsPerSec": 674.3088334457182
+            "p95": 2,
+            "p99": 3,
+            "max": 4.0000000000009095,
+            "opsPerSec": 1232.2858903265558
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 2498.999999999999,
-            "opsPerSec": 800.3201280512208
+            "totalMs": 543,
+            "opsPerSec": 3683.2412523020257
           },
           "payload": [
             {
@@ -121,47 +121,47 @@
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 7
+              "medianMs": 4
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 48
+              "medianMs": 32
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 192
+              "medianMs": 217
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 68,
-            "mbPerSec": 73.52941176470588
+            "medianMs": 96,
+            "mbPerSec": 52.083333333333336
           },
           "download": [
             {
               "size": 1048576,
               "got": 1048576,
-              "medianMs": 28,
-              "mbPerSec": 35.714285714285715
+              "medianMs": 20,
+              "mbPerSec": 50
             },
             {
               "size": 5242880,
               "got": 5242880,
-              "medianMs": 103,
-              "mbPerSec": 48.54368932038835
+              "medianMs": 163,
+              "mbPerSec": 30.67484662576687
             }
           ],
           "events": {
             "n": 5000,
-            "ms": 23,
-            "eventsPerSec": 217391.30434782608
+            "ms": 42,
+            "eventsPerSec": 119047.61904761905
           },
           "js": {
-            "loopMs": 27.99999999999818,
-            "sortMs": 1149,
+            "loopMs": 53.99999999999909,
+            "sortMs": 2364,
             "checksum": 199999990000000
           }
         }
@@ -173,9 +173,9 @@
     "runs": [
       {
         "framework": "owear-nom",
-        "startupMs": 1916.2,
-        "idleRssMB": 397.1,
-        "peakRssMB": 660.0,
+        "startupMs": 2014.9,
+        "idleRssMB": 397.8,
+        "peakRssMB": 643.1,
         "processes": 4,
         "results": {
           "framework": "owear",
@@ -185,357 +185,19 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3206,
+            "totalMs": 1495,
             "min": 0,
             "median": 1,
-            "p95": 4,
-            "p99": 5.0000000000009095,
-            "max": 9,
-            "opsPerSec": 623.8303181534623
-          },
-          "concurrent": {
-            "n": 2000,
-            "width": 50,
-            "totalMs": 2491.999999999999,
-            "opsPerSec": 802.5682182985556
-          },
-          "payload": [
-            {
-              "size": 1024,
-              "iterations": 10,
-              "medianMs": 1
-            },
-            {
-              "size": 65536,
-              "iterations": 10,
-              "medianMs": 7
-            },
-            {
-              "size": 1048576,
-              "iterations": 10,
-              "medianMs": 47
-            },
-            {
-              "size": 5242880,
-              "iterations": 3,
-              "medianMs": 215
-            }
-          ],
-          "binary": {
-            "bytes": 5242880,
-            "iterations": 5,
-            "medianMs": 72,
-            "mbPerSec": 69.44444444444444
-          },
-          "download": [
-            {
-              "size": 1048576,
-              "got": 1048576,
-              "medianMs": 23,
-              "mbPerSec": 43.47826086956522
-            },
-            {
-              "size": 5242880,
-              "got": 5242880,
-              "medianMs": 102,
-              "mbPerSec": 49.01960784313726
-            }
-          ],
-          "events": {
-            "n": 5000,
-            "ms": 21,
-            "eventsPerSec": 238095.2380952381
-          },
-          "js": {
-            "loopMs": 32,
-            "sortMs": 1182,
-            "checksum": 199999990000000
-          }
-        }
-      },
-      {
-        "framework": "owear-nom",
-        "startupMs": 1910.0,
-        "idleRssMB": 394.0,
-        "peakRssMB": 656.6,
-        "processes": 4,
-        "results": {
-          "framework": "owear",
-          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
-          "idle": {
-            "idleMs": 3000
-          },
-          "latency": {
-            "n": 2000,
-            "totalMs": 3341,
-            "min": 0,
-            "median": 1,
-            "p95": 4,
-            "p99": 6.0000000000009095,
-            "max": 21,
-            "opsPerSec": 598.623166716552
-          },
-          "concurrent": {
-            "n": 2000,
-            "width": 50,
-            "totalMs": 2462,
-            "opsPerSec": 812.3476848090983
-          },
-          "payload": [
-            {
-              "size": 1024,
-              "iterations": 10,
-              "medianMs": 2
-            },
-            {
-              "size": 65536,
-              "iterations": 10,
-              "medianMs": 8
-            },
-            {
-              "size": 1048576,
-              "iterations": 10,
-              "medianMs": 43
-            },
-            {
-              "size": 5242880,
-              "iterations": 3,
-              "medianMs": 209
-            }
-          ],
-          "binary": {
-            "bytes": 5242880,
-            "iterations": 5,
-            "medianMs": 78,
-            "mbPerSec": 64.1025641025641
-          },
-          "download": [
-            {
-              "size": 1048576,
-              "got": 1048576,
-              "medianMs": 26,
-              "mbPerSec": 38.46153846153846
-            },
-            {
-              "size": 5242880,
-              "got": 5242880,
-              "medianMs": 104,
-              "mbPerSec": 48.07692307692308
-            }
-          ],
-          "events": {
-            "n": 5000,
-            "ms": 22,
-            "eventsPerSec": 227272.7272727273
-          },
-          "js": {
-            "loopMs": 26,
-            "sortMs": 1186,
-            "checksum": 199999990000000
-          }
-        }
-      }
-    ]
-  },
-  {
-    "framework": "electron",
-    "runs": [
-      {
-        "framework": "electron",
-        "startupMs": 1611.2,
-        "idleRssMB": 633.2,
-        "peakRssMB": 782.6,
-        "processes": 8,
-        "results": {
-          "framework": "electron",
-          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
-          "idle": {
-            "idleMs": 3000
-          },
-          "latency": {
-            "n": 2000,
-            "totalMs": 1496.7999999523163,
-            "min": 0.09999990463256836,
-            "median": 0.5,
-            "p95": 2.1999999284744263,
-            "p99": 4.299999952316284,
-            "max": 6.5,
-            "opsPerSec": 1336.1838589415515
-          },
-          "concurrent": {
-            "n": 2000,
-            "width": 50,
-            "totalMs": 303.89999997615814,
-            "opsPerSec": 6581.112208479453
-          },
-          "payload": [
-            {
-              "size": 1024,
-              "iterations": 10,
-              "medianMs": 0.5
-            },
-            {
-              "size": 65536,
-              "iterations": 10,
-              "medianMs": 2
-            },
-            {
-              "size": 1048576,
-              "iterations": 10,
-              "medianMs": 18.899999976158142
-            },
-            {
-              "size": 5242880,
-              "iterations": 3,
-              "medianMs": 67.20000004768372
-            }
-          ],
-          "binary": {
-            "bytes": 5242880,
-            "iterations": 5,
-            "medianMs": 56.299999952316284,
-            "mbPerSec": 88.80994678925023
-          },
-          "download": [
-            {
-              "size": 1048576,
-              "got": 1048576,
-              "medianMs": 9,
-              "mbPerSec": 111.11111111111111
-            },
-            {
-              "size": 5242880,
-              "got": 5242880,
-              "medianMs": 40.60000002384186,
-              "mbPerSec": 123.15270928728599
-            }
-          ],
-          "events": {
-            "n": 5000,
-            "ms": 261.10000002384186,
-            "eventsPerSec": 19149.751051487685
-          },
-          "js": {
-            "loopMs": 31.5,
-            "sortMs": 3615.600000023842,
-            "checksum": 199999990000000
-          }
-        }
-      },
-      {
-        "framework": "electron",
-        "startupMs": 1612.8,
-        "idleRssMB": 640.8,
-        "peakRssMB": 790.1,
-        "processes": 8,
-        "results": {
-          "framework": "electron",
-          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
-          "idle": {
-            "idleMs": 3000
-          },
-          "latency": {
-            "n": 2000,
-            "totalMs": 1436.8999999761581,
-            "min": 0.09999990463256836,
-            "median": 0.5,
             "p95": 2,
-            "p99": 3.700000047683716,
-            "max": 6,
-            "opsPerSec": 1391.8853086736622
+            "p99": 3,
+            "max": 5,
+            "opsPerSec": 1337.7926421404682
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 315.60000002384186,
-            "opsPerSec": 6337.135614223419
-          },
-          "payload": [
-            {
-              "size": 1024,
-              "iterations": 10,
-              "medianMs": 0.7000000476837158
-            },
-            {
-              "size": 65536,
-              "iterations": 10,
-              "medianMs": 2.299999952316284
-            },
-            {
-              "size": 1048576,
-              "iterations": 10,
-              "medianMs": 19
-            },
-            {
-              "size": 5242880,
-              "iterations": 3,
-              "medianMs": 81.20000004768372
-            }
-          ],
-          "binary": {
-            "bytes": 5242880,
-            "iterations": 5,
-            "medianMs": 58.60000002384186,
-            "mbPerSec": 85.32423204719645
-          },
-          "download": [
-            {
-              "size": 1048576,
-              "got": 1048576,
-              "medianMs": 10.600000023841858,
-              "mbPerSec": 94.33962242931776
-            },
-            {
-              "size": 5242880,
-              "got": 5242880,
-              "medianMs": 40.60000002384186,
-              "mbPerSec": 123.15270928728599
-            }
-          ],
-          "events": {
-            "n": 5000,
-            "ms": 184.80000007152557,
-            "eventsPerSec": 27056.27704580511
-          },
-          "js": {
-            "loopMs": 29.299999952316284,
-            "sortMs": 3394,
-            "checksum": 199999990000000
-          }
-        }
-      }
-    ]
-  },
-  {
-    "framework": "tauri",
-    "runs": [
-      {
-        "framework": "tauri",
-        "startupMs": 1308.7,
-        "idleRssMB": 402.5,
-        "peakRssMB": 541.4,
-        "processes": 4,
-        "results": {
-          "framework": "tauri",
-          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
-          "idle": {
-            "idleMs": 3000
-          },
-          "latency": {
-            "n": 2000,
-            "totalMs": 3448.000000000001,
-            "min": 0,
-            "median": 1.0000000000009095,
-            "p95": 4,
-            "p99": 6,
-            "max": 9.999999999999545,
-            "opsPerSec": 580.0464037122969
-          },
-          "concurrent": {
-            "n": 2000,
-            "width": 50,
-            "totalMs": 1083.999999999999,
-            "opsPerSec": 1845.0184501845035
+            "totalMs": 479,
+            "opsPerSec": 4175.365344467641
           },
           "payload": [
             {
@@ -551,51 +213,307 @@
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 31
+              "medianMs": 27
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 231
+              "medianMs": 131
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 68,
-            "mbPerSec": 73.52941176470588
+            "medianMs": 65,
+            "mbPerSec": 76.92307692307692
           },
           "download": [
             {
               "size": 1048576,
               "got": 1048576,
-              "medianMs": 21,
-              "mbPerSec": 47.61904761904761
+              "medianMs": 16,
+              "mbPerSec": 62.5
             },
             {
               "size": 5242880,
               "got": 5242880,
-              "medianMs": 74,
-              "mbPerSec": 67.56756756756756
+              "medianMs": 83.99999999999909,
+              "mbPerSec": 59.52380952381017
             }
           ],
           "events": {
             "n": 5000,
-            "ms": 2875,
-            "eventsPerSec": 1739.1304347826087
+            "ms": 16.99999999999909,
+            "eventsPerSec": 294117.64705883927
           },
           "js": {
-            "loopMs": 28,
-            "sortMs": 1273,
+            "loopMs": 24,
+            "sortMs": 1012.0000000000009,
             "checksum": 199999990000000
           }
         }
       },
       {
+        "framework": "owear-nom",
+        "startupMs": 1708.3,
+        "idleRssMB": 394.9,
+        "peakRssMB": 644.5,
+        "processes": 4,
+        "results": {
+          "framework": "owear",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 1697,
+            "min": 0,
+            "median": 1,
+            "p95": 2,
+            "p99": 3,
+            "max": 5.999999999999545,
+            "opsPerSec": 1178.5503830288744
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 569,
+            "opsPerSec": 3514.93848857645
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 1
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 3.0000000000009095
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 25
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 139.9999999999991
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 58,
+            "mbPerSec": 86.20689655172413
+          },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 15,
+              "mbPerSec": 66.66666666666667
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 80,
+              "mbPerSec": 62.5
+            }
+          ],
+          "events": {
+            "n": 5000,
+            "ms": 17,
+            "eventsPerSec": 294117.64705882355
+          },
+          "js": {
+            "loopMs": 23,
+            "sortMs": 1008,
+            "checksum": 199999990000000
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "electron",
+    "runs": [
+      {
+        "framework": "electron",
+        "startupMs": 1312.2,
+        "idleRssMB": 633.2,
+        "peakRssMB": 802.2,
+        "processes": 8,
+        "results": {
+          "framework": "electron",
+          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 624.7000000476837,
+            "min": 0,
+            "median": 0.2999999523162842,
+            "p95": 0.6999999284744263,
+            "p99": 1.600000023841858,
+            "max": 3.899999976158142,
+            "opsPerSec": 3201.5367373896893
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 232.89999997615814,
+            "opsPerSec": 8587.376557341086
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 0.30000007152557373
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 1.7000000476837158
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 13.899999976158142
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 53.5
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 44.60000002384186,
+            "mbPerSec": 112.10762325845619
+          },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 7.300000071525574,
+              "mbPerSec": 136.986300027668
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 36.10000002384186,
+              "mbPerSec": 138.50415503318015
+            }
+          ],
+          "events": {
+            "n": 5000,
+            "ms": 144.10000002384186,
+            "eventsPerSec": 34698.12629543881
+          },
+          "js": {
+            "loopMs": 25.199999928474426,
+            "sortMs": 2522.5,
+            "checksum": 199999990000000
+          }
+        }
+      },
+      {
+        "framework": "electron",
+        "startupMs": 1308.5,
+        "idleRssMB": 635.1,
+        "peakRssMB": 801.6,
+        "processes": 8,
+        "results": {
+          "framework": "electron",
+          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) bench-electron/1.0.0 Chrome/130.0.6723.191 Electron/33.4.11 Safari/537.36",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 680.0999999046326,
+            "min": 0.09999990463256836,
+            "median": 0.2999999523162842,
+            "p95": 0.6999999284744263,
+            "p99": 1.600000023841858,
+            "max": 4.100000023841858,
+            "opsPerSec": 2940.7440086464508
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 216.39999997615814,
+            "opsPerSec": 9242.14417846742
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 0.2999999523162842
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 2.100000023841858
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 13.100000023841858
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 53.39999997615814
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 42.199999928474426,
+            "mbPerSec": 118.48341252309466
+          },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 6.900000095367432,
+              "mbPerSec": 144.92753422878744
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 31.199999928474426,
+              "mbPerSec": 160.2564106237959
+            }
+          ],
+          "events": {
+            "n": 5000,
+            "ms": 134.39999997615814,
+            "eventsPerSec": 37202.380958980466
+          },
+          "js": {
+            "loopMs": 25.800000071525574,
+            "sortMs": 2415.899999976158,
+            "checksum": 199999990000000
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "tauri",
+    "runs": [
+      {
         "framework": "tauri",
-        "startupMs": 1208.4,
-        "idleRssMB": 402.0,
-        "peakRssMB": 538.4,
+        "startupMs": 1204.0,
+        "idleRssMB": 402.3,
+        "peakRssMB": 545.5,
         "processes": 4,
         "results": {
           "framework": "tauri",
@@ -605,70 +523,152 @@
           },
           "latency": {
             "n": 2000,
-            "totalMs": 3453,
+            "totalMs": 2205.9999999999995,
             "min": 0,
-            "median": 1.0000000000009095,
-            "p95": 4,
-            "p99": 7,
-            "max": 13,
-            "opsPerSec": 579.2064871126556
+            "median": 1,
+            "p95": 3,
+            "p99": 5,
+            "max": 7.000000000000455,
+            "opsPerSec": 906.6183136899367
           },
           "concurrent": {
             "n": 2000,
             "width": 50,
-            "totalMs": 1022.0000000000009,
-            "opsPerSec": 1956.9471624266127
+            "totalMs": 757,
+            "opsPerSec": 2642.007926023778
           },
           "payload": [
             {
               "size": 1024,
               "iterations": 10,
-              "medianMs": 4
+              "medianMs": 1
             },
             {
               "size": 65536,
               "iterations": 10,
-              "medianMs": 4
+              "medianMs": 2.9999999999990905
             },
             {
               "size": 1048576,
               "iterations": 10,
-              "medianMs": 29
+              "medianMs": 22
             },
             {
               "size": 5242880,
               "iterations": 3,
-              "medianMs": 117
+              "medianMs": 102
             }
           ],
           "binary": {
             "bytes": 5242880,
             "iterations": 5,
-            "medianMs": 59,
-            "mbPerSec": 84.74576271186442
+            "medianMs": 52,
+            "mbPerSec": 96.15384615384616
           },
           "download": [
             {
               "size": 1048576,
               "got": 1048576,
-              "medianMs": 24,
-              "mbPerSec": 41.666666666666664
+              "medianMs": 18,
+              "mbPerSec": 55.55555555555556
             },
             {
               "size": 5242880,
               "got": 5242880,
-              "medianMs": 84,
-              "mbPerSec": 59.52380952380952
+              "medianMs": 117,
+              "mbPerSec": 42.73504273504273
             }
           ],
           "events": {
             "n": 5000,
-            "ms": 5483,
-            "eventsPerSec": 911.9095385737735
+            "ms": 5086.999999999999,
+            "eventsPerSec": 982.8975820719484
           },
           "js": {
-            "loopMs": 29,
-            "sortMs": 1341.9999999999982,
+            "loopMs": 24,
+            "sortMs": 1053,
+            "checksum": 199999990000000
+          }
+        }
+      },
+      {
+        "framework": "tauri",
+        "startupMs": 1107.7,
+        "idleRssMB": 402.4,
+        "peakRssMB": 540.4,
+        "processes": 4,
+        "results": {
+          "framework": "tauri",
+          "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+          "idle": {
+            "idleMs": 3000
+          },
+          "latency": {
+            "n": 2000,
+            "totalMs": 2081,
+            "min": 0,
+            "median": 1,
+            "p95": 2,
+            "p99": 3,
+            "max": 7.000000000000455,
+            "opsPerSec": 961.0764055742432
+          },
+          "concurrent": {
+            "n": 2000,
+            "width": 50,
+            "totalMs": 709.9999999999991,
+            "opsPerSec": 2816.901408450708
+          },
+          "payload": [
+            {
+              "size": 1024,
+              "iterations": 10,
+              "medianMs": 1
+            },
+            {
+              "size": 65536,
+              "iterations": 10,
+              "medianMs": 2
+            },
+            {
+              "size": 1048576,
+              "iterations": 10,
+              "medianMs": 19
+            },
+            {
+              "size": 5242880,
+              "iterations": 3,
+              "medianMs": 107
+            }
+          ],
+          "binary": {
+            "bytes": 5242880,
+            "iterations": 5,
+            "medianMs": 54.00000000000091,
+            "mbPerSec": 92.59259259259103
+          },
+          "download": [
+            {
+              "size": 1048576,
+              "got": 1048576,
+              "medianMs": 13,
+              "mbPerSec": 76.92307692307692
+            },
+            {
+              "size": 5242880,
+              "got": 5242880,
+              "medianMs": 67,
+              "mbPerSec": 74.62686567164178
+            }
+          ],
+          "events": {
+            "n": 5000,
+            "ms": 4806,
+            "eventsPerSec": 1040.3662089055347
+          },
+          "js": {
+            "loopMs": 26,
+            "sortMs": 1136,
             "checksum": 199999990000000
           }
         }
