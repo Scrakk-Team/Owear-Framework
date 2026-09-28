@@ -94,9 +94,12 @@ public:
 
     void PlatformSend(uint64_t clientId, std::string_view line) override {
         // NO escribir aquí: este lo llama el hilo principal y el handle del
-        // pipe está síncrono-bloqueado en ReadFile por el hilo lector (I/O
-        // serializada en el mismo handle = la escritura no saldría hasta
-        // que el lector desbloquee). Encolamos y despertamos al lector.
+        // pipe está reservado al hilo lector. Encolamos la respuesta y el
+        // hilo lector la drena en su siguiente pasada (sondeo con
+        // PeekNamedPipe). NO se usa CancelIoEx: cancelaba también las
+        // ESCRITURAS en vuelo (respuestas truncadas = protocolo desincronizado
+        // y cuelgue bajo ráfagas) y, si el lector aún no estaba bloqueado,
+        // dejaba la respuesta varada hasta el siguiente comando.
         {
             std::lock_guard lock(outboxMu_);
             if (clientId == 0) {
@@ -106,8 +109,6 @@ public:
                 outbox_.push_back({clientId, std::string(line) + '\n'});
             }
         }
-        if (pipe_ != INVALID_HANDLE_VALUE)
-            CancelIoEx(pipe_, nullptr); // aborta el ReadFile para que drene
     }
 
     void PlatformStop() override {
@@ -233,20 +234,35 @@ private:
         };
         processChunk(buf, n);
 
-        // lee hasta desconexión (un cliente por instancia v1). CancelIoEx
-        // (desde PlatformSend) aborta este ReadFile para que drene el outbox
-        // de respuestas: I/O síncrona en un handle es serializada, así que
-        // escribir desde otro hilo aquí colgaría detrás de este ReadFile.
+        // lee hasta desconexión (un cliente por instancia v1). Con el cliente
+        // conectado el hilo lector alterna: vaciar el outbox (respuestas ya
+        // listas) y sondear la pipe con PeekNamedPipe. No se usa CancelIoEx
+        // desde PlatformSend: cancelaba también las escrituras en vuelo
+        // (respuestas truncadas) y, si el lector aún no estaba bloqueado,
+        // dejaba la respuesta varada. El sondeo drena en ~1 ms y garantiza
+        // que nunca se escribe mientras hay un ReadFile pendiente (evita la
+        // serialización de I/O del handle síncrono).
         while (running_) {
-            if (!ReadFile(pipe_, buf, sizeof(buf), &n, nullptr) || n == 0) {
+            DrainOutbox();
+            DWORD avail = 0;
+            if (!PeekNamedPipe(pipe_, nullptr, 0, nullptr, &avail, nullptr)) {
+                break; // pipe rota / cliente desconectado
+            }
+            if (avail == 0) {
+                Sleep(1); // sin datos: cede el hilo y reintenta
+                continue;
+            }
+            const DWORD want = avail < sizeof(buf) ? avail
+                                                   : static_cast<DWORD>(sizeof(buf));
+            DWORD got = 0;
+            if (!ReadFile(pipe_, buf, want, &got, nullptr) || got == 0) {
                 if (GetLastError() == ERROR_OPERATION_ABORTED) {
-                    DrainOutbox();
+                    if (!running_) break;
                     continue;
                 }
                 break;
             }
-            processChunk(buf, n);
-            DrainOutbox();
+            processChunk(buf, got);
         }
         {
             std::lock_guard lock(clientsMu_);
