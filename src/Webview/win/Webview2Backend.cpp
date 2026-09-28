@@ -14,11 +14,13 @@
 //
 #include "../IWebviewBackend.hpp"
 #include "../../Core/Log.hpp"
+#include "../../Bridge/Dispatcher.hpp"
 #include "../../Control/ControlServer.hpp"
 #include "../../Protocol/ProtocolRegistry.hpp"
 #include "../../Session/PermissionBroker.hpp"
 #include "../../Session/WebRequestBroker.hpp"
 #include "../../Session/WindowOpenBroker.hpp"
+#include "ow/Module.h"
 #include "ow/detail/minjson.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -35,6 +37,7 @@
 #include <wrl/event.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -620,6 +623,9 @@ private:
         for (const auto& s : pendingProtocols_)
             webview_->AddWebResourceRequestedFilter(
                 Utf8ToWide(s + "://*").c_str(), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+        // RPC por esquema de los módulos nativos (args en el body POST).
+        webview_->AddWebResourceRequestedFilter(L"ow-rpc://*",
+                                                COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
         if (resourceHandlerAttached_) return;
         resourceHandlerAttached_ = true;
 
@@ -638,6 +644,82 @@ private:
                     const auto pos = uri.find("://");
                     if (pos == std::string::npos) return S_OK;
                     const std::string scheme = uri.substr(0, pos);
+
+                    // ── ow-rpc://call/<mod>/<fn>?w=<id> — invoke por esquema:
+                    //    args en el body POST, respuesta en el body. Sin
+                    //    postMessage de request ni eval de respuesta.
+                    if (scheme == "ow-rpc") {
+                        std::string body;
+                        {
+                            ComPtr<IStream> content;
+                            if (SUCCEEDED(req->get_Content(&content)) && content) {
+                                char buf[65536];
+                                ULONG n = 0;
+                                while (SUCCEEDED(content->Read(buf, sizeof(buf), &n)) && n > 0)
+                                    body.append(buf, n);
+                            }
+                        }
+                        std::string rest = uri, query, mod, fn;
+                        const std::string prefix = "ow-rpc://call/";
+                        if (rest.rfind(prefix, 0) == 0) {
+                            rest = rest.substr(prefix.size());
+                            const auto qpos = rest.find('?');
+                            if (qpos != std::string::npos) {
+                                query = rest.substr(qpos + 1);
+                                rest = rest.substr(0, qpos);
+                            }
+                            const auto slash = rest.find('/');
+                            mod = slash == std::string::npos ? rest : rest.substr(0, slash);
+                            fn = slash == std::string::npos ? std::string()
+                                                            : rest.substr(slash + 1);
+                        }
+                        WindowId wid = 0;
+                        if (const auto wp = query.find("w="); wp != std::string::npos)
+                            wid = static_cast<WindowId>(
+                                std::strtoul(query.c_str() + wp + 2, nullptr, 10));
+                        std::string argsJson = body.empty() ? std::string("[]") : body;
+                        std::string out;
+                        if (mod.empty() || fn.empty()) {
+                            out = "{\"ok\":false,\"r\":{\"message\":\"ow-rpc: ruta "
+                                  "inválida\"}}";
+                        } else {
+                            ow_request_t oreq{};
+                            oreq.json = argsJson.c_str();
+                            oreq.json_len = static_cast<uint32_t>(argsJson.size());
+                            ow_response_t ores{};
+                            Dispatcher::Get().Execute(wid, mod, fn, &oreq, &ores);
+                            if (ores.status != 0) {
+                                json::Object e;
+                                e.emplace_back(
+                                    "message",
+                                    json::Value(std::string(ores.error ? ores.error : "")));
+                                out = "{\"ok\":false,\"r\":" +
+                                      json::Value(std::move(e)).Serialize() + "}";
+                            } else {
+                                out = "{\"ok\":true,\"r\":" +
+                                      std::string(ores.json, ores.json_len) + "}";
+                            }
+                        }
+                        ComPtr<IStream> stream;
+                        HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, out.size());
+                        if (h) {
+                            if (void* p = GlobalLock(h)) {
+                                std::memcpy(p, out.data(), out.size());
+                                GlobalUnlock(h);
+                            }
+                            CreateStreamOnHGlobal(h, TRUE, &stream);
+                        }
+                        ComPtr<ICoreWebView2WebResourceResponse> resp;
+                        if (environment_)
+                            environment_->CreateWebResourceResponse(
+                                stream.Get(), 200, L"OK",
+                                L"Content-Type: application/json\r\n"
+                                L"Access-Control-Allow-Origin: *\r\n",
+                                &resp);
+                        if (resp) args->put_Response(resp.Get());
+                        return S_OK;
+                    }
+
                     if (!ProtocolRegistry::Get().Has(scheme)) return S_OK;
 
                     ComPtr<ICoreWebView2Deferral> deferral;
@@ -696,6 +778,7 @@ private:
                     const std::string scheme =
                         pos == std::string::npos ? "" : uri.substr(0, pos);
                     // Los esquemas de `protocol` los gestiona el otro handler.
+                    if (scheme == "ow-rpc") return S_OK;
                     if (ProtocolRegistry::Get().Has(scheme)) return S_OK;
                     if (!WebRequestBroker::Get().Matches(uri)) return S_OK;
 

@@ -30,21 +30,36 @@ int main(int argc, char** argv) {
     if (const char* id = std::getenv("OW_APP_ID")) opts.id = id;
     if (const char* name = std::getenv("OW_APP_NAME")) opts.name = name;
 
-    if (std::getenv("OW_DEMO")) {
-        ow::App::OnReady([] {
-            auto* w = new ow::Window([] {
+    // Ventana creada por el KERNEL (sin main Node):
+    //  · OW_DEMO=1 → demo de desarrollo.
+    //  · Modo renderer-only → OW_START_URL definido y OW_APP_MAIN ausente.
+    //    Así una app puede correr SIN Node (cero sidecar).
+    const char* startUrl = std::getenv("OW_START_URL");
+    const bool rendererOnly = startUrl && *startUrl && !std::getenv("OW_APP_MAIN");
+    if (std::getenv("OW_DEMO") || rendererOnly) {
+        ow::App::OnReady([startUrl] {
+            auto* w = new ow::Window([startUrl] {
                 ow::WindowOptions wo;
                 if (const char* n = std::getenv("OW_APP_NAME")) wo.title = n;
                 wo.width = 1100;
                 wo.height = 720;
+                if (const char* v = std::getenv("OW_WINDOW_WIDTH")) wo.width = std::atoi(v);
+                if (const char* v = std::getenv("OW_WINDOW_HEIGHT")) wo.height = std::atoi(v);
                 wo.titleBarStyle = ow::TitleBarStyle::Custom;
+                if (const char* s = std::getenv("OW_TITLEBAR_STYLE")) {
+                    const std::string st = s;
+                    if (st == "hidden") wo.titleBarStyle = ow::TitleBarStyle::Hidden;
+                    else if (st == "default") wo.titleBarStyle = ow::TitleBarStyle::Default;
+                    else wo.titleBarStyle = ow::TitleBarStyle::Custom;
+                }
                 // Dev: permite probar el overlay nativo sin tocar la app.
                 if (std::getenv("OW_TITLEBAR_OVERLAY")) {
                     wo.titleBarOverlay.enabled = true;
                     if (const char* h = std::getenv("OW_TITLEBAR_OVERLAY_HEIGHT"))
                         wo.titleBarOverlay.height = std::atoi(h);
                 }
-                if (const char* url = std::getenv("OW_DEV_SERVER_URL")) wo.url = url;
+                if (startUrl && *startUrl) wo.url = startUrl;
+                else if (const char* url = std::getenv("OW_DEV_SERVER_URL")) wo.url = url;
                 return wo;
             }());
             w->On("closed", [](ow::EventPayload) { ow::App::Quit(0); });

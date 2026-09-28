@@ -483,7 +483,7 @@ async function cmdDev() {
       ...process.env,
       OW_APP_NAME: JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8')).name ?? 'Owear App',
       OW_DEV_SERVER_URL: 'http://localhost:5173/',
-      ...(mainJs ? { OW_APP_MAIN: mainJs } : {}),
+      ...(mainJs ? { OW_APP_MAIN: mainJs } : { OW_START_URL: 'http://localhost:5173/' }),
       ...(workersDir ? { OW_APP_WORKERS: workersDir } : {}),
       ...(() => {
         // módulos stock (fs/path/…) + los nativos de la app, si los hay

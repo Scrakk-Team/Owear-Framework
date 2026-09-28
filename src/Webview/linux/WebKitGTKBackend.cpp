@@ -213,6 +213,64 @@ void FinishError(WebKitURISchemeRequest* request, int code, const char* msg) {
     g_error_free(err);
 }
 
+// ── ejecución de RPC (compartida entre el hilo de UI y el pool) ─────────────
+std::string ExecRpc(WindowId wid, const std::string& mod, const std::string& fn,
+                    const std::string& args) {
+    if (mod.empty() || fn.empty())
+        return "{\"ok\":false,\"r\":{\"message\":\"ow-rpc: ruta inválida\"}}";
+    ow_request_t req{};
+    req.json = args.c_str();
+    req.json_len = static_cast<uint32_t>(args.size());
+    ow_response_t res{};
+    Dispatcher::Get().Execute(wid, mod, fn, &req, &res);
+    if (res.status != 0) {
+        json::Object e;
+        e.emplace_back("message", json::Value(std::string(res.error ? res.error : "")));
+        return "{\"ok\":false,\"r\":" + json::Value(std::move(e)).Serialize() + "}";
+    }
+    return "{\"ok\":true,\"r\":" + std::string(res.json, res.json_len) + "}";
+}
+
+// Módulos sin UI que pueden correr en un hilo del pool (concurrencia real).
+// OFF por defecto: el handoff al pool cuesta más que el trabajo para payloads
+// pequeños (medido). Activable con OW_RPC_POOL=1.
+bool RpcPoolEnabled() {
+    const char* v = std::getenv("OW_RPC_POOL");
+    return v && std::string(v) == "1";
+}
+bool RpcPoolModule(const std::string& m) {
+    static const std::set<std::string> s = {"fs", "path", "net", "bench", "process"};
+    return s.count(m) != 0;
+}
+
+struct RpcJob {
+    WebKitURISchemeRequest* request = nullptr;
+    WindowId wid = 0;
+    std::string mod, fn, args;
+    std::string out;
+};
+
+gboolean RpcJobFinish(gpointer data) {
+    auto* job = static_cast<RpcJob*>(data);
+    FinishBytesCopy(job->request, reinterpret_cast<const uint8_t*>(job->out.data()),
+                    job->out.size(), "application/json",
+                    "Access-Control-Allow-Origin", "*");
+    g_object_unref(job->request);
+    delete job;
+    return G_SOURCE_REMOVE;
+}
+
+void RpcJobRun(gpointer data, gpointer) {
+    auto* job = static_cast<RpcJob*>(data);
+    job->out = ExecRpc(job->wid, job->mod, job->fn, job->args);
+    g_idle_add(RpcJobFinish, job); // la respuesta se entrega en el hilo de UI
+}
+
+GThreadPool* RpcPool() {
+    static GThreadPool* pool = g_thread_pool_new(RpcJobRun, nullptr, 4, FALSE, nullptr);
+    return pool;
+}
+
 // Directorio de datos del WebView AISLADO POR APP (data/cache). Antes se usaba
 // el WebsiteDataManager por defecto (compartido) → localStorage/IndexedDB/cache
 // se cruzaban entre apps Owear. Se elige por OW_APP_ID (o OW_APP_NAME).
@@ -755,24 +813,18 @@ private:
                                     b.size(), "application/json",
                                     "Access-Control-Allow-Origin", "*");
                 };
-                if (mod.empty() || fn.empty()) {
-                    send("{\"ok\":false,\"r\":{\"message\":\"ow-rpc: ruta inválida\"}}");
+                if (RpcPoolEnabled() && RpcPoolModule(mod)) {
+                    auto* job = new RpcJob{};
+                    job->request = request;
+                    g_object_ref(request);
+                    job->wid = wid;
+                    job->mod = mod;
+                    job->fn = fn;
+                    job->args = args;
+                    g_thread_pool_push(RpcPool(), job, nullptr);
                     return;
                 }
-                ow_request_t req{};
-                req.json = args.c_str();
-                req.json_len = static_cast<uint32_t>(args.size());
-                ow_response_t res{};
-                Dispatcher::Get().Execute(wid, mod, fn, &req, &res);
-                if (res.status != 0) {
-                    json::Object e;
-                    e.emplace_back("message",
-                                   json::Value(std::string(res.error ? res.error : "")));
-                    send("{\"ok\":false,\"r\":" + json::Value(std::move(e)).Serialize() + "}");
-                } else {
-                    send("{\"ok\":true,\"r\":" +
-                         std::string(res.json, res.json_len) + "}");
-                }
+                send(ExecRpc(wid, mod, fn, args));
             },
             nullptr, nullptr);
     }
