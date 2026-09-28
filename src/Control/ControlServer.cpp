@@ -438,6 +438,13 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
     }
 
     // ── C9: estáticos de ventana ─────────────────────────────────────────
+    if (cmd == "window.setColorScheme") {
+        const V* s = params.Find("scheme");
+        const int mode = (s && s->IsNumber()) ? static_cast<int>(s->AsInt()) : 0;
+        for (auto& [wid, w] : LiveWindows()) w->SetColorScheme(mode);
+        resultJson = "null";
+        return true;
+    }
     if (cmd == "window.list") {
         json::Array arr;
         for (auto& [wid, wp] : LiveWindows()) arr.emplace_back(V(static_cast<int64_t>(wid)));
@@ -668,13 +675,6 @@ bool ControlServer::HandleCommand(uint64_t clientId, uint64_t id,
         return true;
     }
     // ── theme: forzar el esquema de color del contenido ──────────────────
-    if (cmd == "window.setColorScheme") {
-        const V* s = params.Find("scheme");
-        const int mode = (s && s->IsNumber()) ? static_cast<int>(s->AsInt()) : 0;
-        for (auto& [wid, w] : LiveWindows()) w->SetColorScheme(mode);
-        resultJson = "null";
-        return true;
-    }
 
     // ── menu: menubar de aplicación ──────────────────────────────────────
     if (cmd == "menu.setApplicationMenu") {

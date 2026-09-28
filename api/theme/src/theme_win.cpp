@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -27,14 +28,25 @@ using ow::Module::RespondOk;
 
 static const ow_module_host_t* g_host = nullptr;
 static std::string g_source = "system";
+static std::mutex g_sourceMu;  // g_source lo escribe el main y lo lee el watch
 static std::atomic<bool> g_stop{true};
 static std::thread g_thread;
 static bool g_watching = false;
 static bool g_atexit = false;
 
+static std::string GetSource() {
+    std::lock_guard<std::mutex> l(g_sourceMu);
+    return g_source;
+}
+static void PutSource(const std::string& s) {
+    std::lock_guard<std::mutex> l(g_sourceMu);
+    g_source = s;
+}
+
 static bool ReadDark() {
-    if (g_source == "dark") return true;
-    if (g_source == "light") return false;
+    const std::string src = GetSource();
+    if (src == "dark") return true;
+    if (src == "light") return false;
     DWORD value = 1;
     DWORD size = sizeof(value);
     LONG r = RegGetValueA(HKEY_CURRENT_USER,
@@ -48,7 +60,7 @@ static std::string Payload() {
     std::string s = "{\"dark\":";
     s += ReadDark() ? "true" : "false";
     s += ",\"source\":\"";
-    s += g_source;
+    s += GetSource();
     s += "\",\"highContrast\":false,\"reducedTransparency\":false}";
     return s;
 }
@@ -91,7 +103,7 @@ void setSource(const ow_request_t* req, ow_response_t* res) {
         src = parsed.value->AsArray()[0].AsString();
     if (src != "system" && src != "light" && src != "dark")
         return RespondError(res, "source inválido (system|light|dark)");
-    g_source = src;
+    PutSource(src);
     RespondOk(res, Payload().c_str());
     EmitChanged();
 }
