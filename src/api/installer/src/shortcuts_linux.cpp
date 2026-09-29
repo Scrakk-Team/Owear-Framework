@@ -89,6 +89,14 @@ bool LaunchDetached(const std::string& path, const std::vector<std::string>& arg
     pid_t pid = fork();
     if (pid < 0) return false;
     if (pid == 0) {
+        // El binario lanzado es OTRA app Owear: no debe heredar el entorno del
+        // instalador (OW_ASSETS_DIR/OW_APP_MAIN apuntan a la caché del
+        // instalador, y harían que el lanzado cargue el UI del instalador en
+        // vez de la app instalada).
+        for (const char* k : {"OW_ASSETS_DIR", "OW_APP_MAIN", "OW_MODULES_DIR",
+                              "OW_APP_WORKERS", "OW_MODE", "OW_APP_ID",
+                              "OW_APP_VERSION"})
+            ::unsetenv(k);
         std::vector<char*> argv;
         argv.push_back(const_cast<char*>(path.c_str()));
         for (const auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));

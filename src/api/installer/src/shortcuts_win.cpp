@@ -136,6 +136,12 @@ bool LaunchDetached(const std::string& path, const std::vector<std::string>& arg
     PROCESS_INFORMATION pi{};
     std::vector<wchar_t> buf(cmd.begin(), cmd.end());
     buf.push_back(L'\0');
+    // No heredar el entorno del instalador (ver shortcuts_linux.cpp): si no, el
+    // lanzado carga el UI del instalador en vez de la app instalada.
+    for (const wchar_t* k : {L"OW_ASSETS_DIR", L"OW_APP_MAIN", L"OW_MODULES_DIR",
+                             L"OW_APP_WORKERS", L"OW_MODE", L"OW_APP_ID",
+                             L"OW_APP_VERSION"})
+        SetEnvironmentVariableW(k, nullptr);
     if (!CreateProcessW(nullptr, buf.data(), nullptr, nullptr, FALSE, 0, nullptr,
                         nullptr, &si, &pi))
         return false;
