@@ -17,113 +17,19 @@
 #include <queue>
 #include <thread>
 
+
+#include "App/win/Internal.hpp"
+
 namespace ow::internal {
-
-namespace {
-constexpr UINT kWmOwPump = WM_APP + 0x4F51; // mensaje interno de drenaje
-DWORD g_mainThreadId = 0;
-HWND g_pumpHwnd = nullptr;
-
-std::mutex g_pendingMu;
-std::queue<std::function<void()>> g_pending;
-// Un único kWmOwPump en vuelo a la vez: sin esto, una ráfaga de N callbacks
-// encolaba N mensajes y el loop hacía N pasadas de GetMessage (todas vacías
-// menos una). Bajo carga alta eso inundaba la cola de mensajes del hilo.
-std::atomic<bool> g_pumpPosted{false};
-
-static void EnsurePumpPosted();
-
-static void DrainPending() {
-    g_pumpPosted.store(false, std::memory_order_release);
-    std::queue<std::function<void()>> batch;
-    {
-        std::lock_guard lock(g_pendingMu);
-        batch.swap(g_pending);
-    }
-    while (!batch.empty()) {
-        auto fn = std::move(batch.front());
-        batch.pop();
-        try {
-            fn();
-        } catch (...) {
-            // nunca matar el loop por un callback
-        }
-    }
-    // Llegaron callbacks entre el reseteo del flag y el swap (o durante el
-    // drenaje): rearma el pump para no perderlos.
-    {
-        std::lock_guard lock(g_pendingMu);
-        if (g_pending.empty()) return;
-    }
-    EnsurePumpPosted();
-}
-
-static void EnsurePumpPosted() {
-    bool expected = false;
-    if (!g_pumpPosted.compare_exchange_strong(expected, true,
-                                              std::memory_order_acq_rel))
-        return; // ya hay un mensaje en vuelo
-    if (g_pumpHwnd && PostMessageW(g_pumpHwnd, kWmOwPump, 0, 0)) return;
-    // canal viejo: PostThreadMessage exige que la cola del destino exista
-    // (PlatformInit la crea con PeekMessage PM_NOREMOVE); si falla lo
-    // registramos — perder este mensaje = respuesta nunca entregada.
-    if (!PostThreadMessageW(g_mainThreadId, kWmOwPump, 0, 0)) {
-        g_pumpPosted.store(false, std::memory_order_release);
-        log::Error("app", "despacho perdido: PostThreadMessageW falló (" +
-                              std::to_string(GetLastError()) + ")");
-    } else if (g_pumpHwnd) {
-        log::Warn("app", "despacho vía PostThreadMessage (fallback)");
-    }
-}
-
-LRESULT CALLBACK PumpWndProc(HWND h, UINT m, WPARAM, LPARAM) {
-    if (m == kWmOwPump) {
-        DrainPending();
-        return 0;
-    }
-    return DefWindowProcW(h, m, 0, 0);
-}
-
-// Diagnóstico: los crashes silenciosos (p.ej. en la creación de WebView2)
-// matan el proceso sin una sola línea de log. Esto registra al menos el
-// código de excepción y el módulo donde ocurrió.
-LONG WINAPI OwUnhandledFilter(EXCEPTION_POINTERS* info) {
-    log::Error("app", "excepción no manejada: código 0x" +
-                          std::to_string(static_cast<unsigned long>(
-                              info->ExceptionRecord->ExceptionCode)));
-    return EXCEPTION_EXECUTE_HANDLER;
-}
-
-// Primera oportunidad: registra TODAS las excepciones, incluidos los
-// fail-fast que no llegan al filtro global ni al __except.
-LONG CALLBACK OwVectoredHandler(PEXCEPTION_POINTERS info) {
-    const ULONG_PTR code =
-        info && info->ExceptionRecord
-            ? info->ExceptionRecord->ExceptionCode
-            : 0;
-    // filtra ruido benigno de C++/guard pages
-    if (code != 0xE06D7363 /*C++ throw*/ &&
-        code != 0x80000001 /*guard page*/) {
-        log::Error("app", "excepción (1a oportunidad): 0x" +
-                              std::to_string(static_cast<unsigned long>(code)) +
-                              " en addr=0x" + std::to_string(
-                                  reinterpret_cast<uintptr_t>(
-                                      info->ExceptionRecord
-                                          ->ExceptionAddress)));
-    }
-    return EXCEPTION_CONTINUE_SEARCH;
-}
-} // namespace
 
 bool PlatformInit(int argc, char** argv) {
     (void)argc;
     (void)argv;
-    g_mainThreadId = GetCurrentThreadId();
+    PumpSetThreadId(GetCurrentThreadId());
     // DPI awareness ANTES de crear ventanas: sin esto, en monitores escalados
     // WebView2/el layout quedan mal (patrón de ole).
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    SetUnhandledExceptionFilter(&OwUnhandledFilter);
-    AddVectoredExceptionHandler(1, &OwVectoredHandler);
+    InstallCrashHandlers();
 
     // COM apartment single-threaded para WebView2
     HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
@@ -144,44 +50,36 @@ bool PlatformInit(int argc, char** argv) {
     wc.lpszClassName = L"owear-pump";
     wc.hInstance = GetModuleHandleW(nullptr);
     ATOM atom = RegisterClassW(&wc);
+    HWND pump = nullptr;
     if (!atom && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
         log::Error("app", "RegisterClassW(pump) falló: " +
                               std::to_string(GetLastError()));
     } else {
-        g_pumpHwnd = CreateWindowExW(0, wc.lpszClassName, nullptr, 0, 0, 0, 0,
-                                     0, HWND_MESSAGE, nullptr, wc.hInstance,
-                                     nullptr);
-        if (!g_pumpHwnd) {
+        pump = CreateWindowExW(0, wc.lpszClassName, nullptr, 0, 0, 0, 0, 0,
+                               HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
+        if (!pump) {
             DWORD err = GetLastError();
             log::Warn("app", "ventana pump HWND_MESSAGE no disponible (" +
                                  std::to_string(err) + ") — reintento normal");
             // reintento como ventana oculta común (algunos entornos de
             // sesión no interactiva rechazan message-only windows)
-            g_pumpHwnd = CreateWindowExW(
-                0, wc.lpszClassName, L"", WS_OVERLAPPED, 0, 0, 0, 0, nullptr,
-                nullptr, wc.hInstance, nullptr);
-            if (!g_pumpHwnd) {
+            pump = CreateWindowExW(0, wc.lpszClassName, L"", WS_OVERLAPPED, 0, 0,
+                                   0, 0, nullptr, nullptr, wc.hInstance, nullptr);
+            if (!pump) {
                 log::Warn("app", "ventana pump no disponible (" +
                                      std::to_string(GetLastError()) +
                                      ") — despacho vía PostThreadMessage");
             }
         }
     }
-    if (g_pumpHwnd) log::Info("app", "pump window lista");
+    PumpSetHwnd(pump);
+    if (PumpHwnd()) log::Info("app", "pump window lista");
 
     // tolerante: el kernel arranca aunque el pump window no exista
     return true;
 }
 
-void PlatformPost(std::function<void()> fn) {
-    {
-        std::lock_guard lock(g_pendingMu);
-        g_pending.push(std::move(fn));
-    }
-    // Un solo mensaje de pump en vuelo: bajo ráfagas (click rápido) evita
-    // inundar la cola de mensajes con N kWmOwPump redundantes.
-    EnsurePumpPosted();
-}
+void PlatformPost(std::function<void()> fn) { PumpPost(std::move(fn)); }
 
 int RunMainLoop() {
     MSG msg;
@@ -189,7 +87,7 @@ int RunMainLoop() {
     while ((r = GetMessageW(&msg, nullptr, 0, 0)) > 0) {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
-        DrainPending();
+        PumpDrain();
         if (msg.message == WM_QUIT) break;
     }
     return 0;
@@ -197,7 +95,7 @@ int RunMainLoop() {
 
 void PlatformQuit() {
     // WM_QUIT vía mensaje de hilo: seguro desde cualquier hilo.
-    PostThreadMessageW(g_mainThreadId, WM_QUIT, 0, 0);
+    PostThreadMessageW(PumpThreadId(), WM_QUIT, 0, 0);
 }
 
 void PlatformDelay(int ms, std::function<void()> fn) {

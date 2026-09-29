@@ -132,6 +132,8 @@ elseif(OW_PLATFORM STREQUAL "win")
 
     list(APPEND OW_KERNEL_SOURCES
         Core/App_win.cpp
+    Core/App/win/Pump.cpp
+    Core/App/win/Exceptions.cpp
         Window/window_win.cpp
     Window/Platform/win/Titlebar.cpp
     Window/Platform/win/Titlebar/Drawing.cpp
