@@ -107,6 +107,7 @@ elseif(OW_PLATFORM STREQUAL "win")
         Core/App_win.cpp
         Window/window_win.cpp
     Window/Platform/win/Titlebar.cpp
+    Window/Platform/win/Menu.cpp
         Control/ControlServer_win.cpp
         Runtime/NodeManager_win.cpp
         Webview/win/BuiltinUtil_win.cpp
