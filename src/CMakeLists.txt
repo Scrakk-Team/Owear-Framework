@@ -139,7 +139,8 @@ elseif(OW_PLATFORM STREQUAL "win")
     Window/Platform/win/Titlebar/Drawing.cpp
     Window/Platform/win/Menu.cpp
     Window/Platform/win/Util.cpp
-    Window/Platform/win/Webviews.cpp
+    Window/Platform/win/Webviews/Create.cpp
+    Window/Platform/win/Webviews/Commands.cpp
     Window/Platform/win/Webviews/Helpers.cpp
     Window/Platform/win/Events.cpp
     Window/Platform/win/Create.cpp
