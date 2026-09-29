@@ -380,7 +380,7 @@ function findMainEntry(cwd) {
  * así que compilamos con esbuild (viene con vite). De este modo el runtime del
  * sistema sirve y el arranque no depende de la versión que tenga el usuario.
  */
-function prepareMain(cwd, outDir) {
+function prepareMain(cwd, outDir, bundle = false) {
   const entry = findMainEntry(cwd)
   if (!entry) return null
   if (entry.endsWith('.js') || entry.endsWith('.mjs')) return entry
@@ -393,7 +393,11 @@ function prepareMain(cwd, outDir) {
     [
       'esbuild', entry,
       '--bundle', '--platform=node', '--format=esm',
-      '--packages=external', `--outfile=${out}`, '--log-level=warning',
+      // En producción se EMBEBE @owear/core (y deps) en main.js: el payload de
+      // un single-binary/instalador no lleva node_modules. En dev se dejan
+      // externas (node_modules está presente).
+      ...(bundle ? [] : ['--packages=external']),
+      `--outfile=${out}`, '--log-level=warning',
     ],
     { cwd, stdio: 'inherit', shell: process.platform === 'win32' }
   )
@@ -538,7 +542,7 @@ async function cmdBuildBundle(cwd) {
   const code = await runProc('npx', ['vite', 'build'], { cwd, shell: process.platform === 'win32' })
   if (code !== 0) die('vite build falló')
 
-  const mainJs = prepareMain(cwd, path.join(cwd, 'dist'))
+  const mainJs = prepareMain(cwd, path.join(cwd, 'dist'), true)
 
   const workersDir = prepareWorkers(cwd, path.join(cwd, 'dist'))
   if (workersDir) log(`workers: ${path.relative(cwd, workersDir)}`)

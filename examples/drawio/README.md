@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
 # draw.io → Owear (port de `drawio-desktop`)
 
 Este directorio es **draw.io** (el renderer real de `jgraph/drawio-desktop`,

@@ -4,5 +4,7 @@
 webapp/
 .owear/
 dist/
+release/
+**/ui-dist/
 node_modules/
 *.log
