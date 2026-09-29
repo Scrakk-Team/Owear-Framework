@@ -110,6 +110,8 @@ elseif(OW_PLATFORM STREQUAL "win")
     Window/Platform/win/Menu.cpp
     Window/Platform/win/Util.cpp
     Window/Platform/win/Webviews.cpp
+    Window/Platform/win/Events.cpp
+    Window/Platform/win/Create.cpp
     Window/Platform/win/Methods.cpp
         Control/ControlServer_win.cpp
         Runtime/NodeManager_win.cpp

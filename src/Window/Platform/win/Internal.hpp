@@ -15,6 +15,11 @@
 
 namespace ow {
 
+constexpr wchar_t kOwWindowClass[] = L"OwearWindow"; // clase de la ventana
+constexpr COLORREF kCapKey = RGB(255, 0, 255); // color transparente (colorkey)
+LRESULT CALLBACK OwWndProc(HWND, UINT, WPARAM, LPARAM);
+void RegisterClassOnce();
+
 /// Clase de la ventana de botones del titleBarOverlay.
 constexpr wchar_t kCaptionClass[] = L"OwearCaptionButtons";
 
