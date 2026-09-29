@@ -37,6 +37,8 @@ set(OW_KERNEL_SOURCES
     Core/App.cpp
     Core/Log.cpp
     Core/ModuleLoader.cpp
+    Core/ModuleLoader/Host.cpp
+    Core/ModuleLoader/Paths.cpp
     Core/WindowModule.cpp
     Core/NodeBridge.cpp
     Core/BuiltinRegistry.generated.cpp   # generado por tools/gen-apis.mjs
