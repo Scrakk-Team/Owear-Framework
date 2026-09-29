@@ -54,6 +54,9 @@ set(OW_KERNEL_SOURCES
     Control/Commands/Node.cpp
     Control/Commands/Module.cpp
     Control/Commands/Window.cpp
+    Control/Commands/Window/Create.cpp
+    Control/Commands/Window/State.cpp
+    Control/Commands/Window/Page.cpp
     Control/Commands/Menu.cpp
     Control/Commands/Protocol.cpp
     Control/Commands/Session.cpp
