@@ -61,6 +61,9 @@ set(OW_KERNEL_SOURCES
     Session/WebRequestBroker.cpp
     Session/WindowOpenBroker.cpp
     Window/Window_common.cpp
+    Window/Common/Helpers.cpp
+    Window/Common/Messages.cpp
+    Window/Common/Outbox.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp
     Pack/Pack.cpp
