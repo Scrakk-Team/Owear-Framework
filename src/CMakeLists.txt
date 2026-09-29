@@ -47,6 +47,8 @@ set(OW_KERNEL_SOURCES
     Bridge/Codec.cpp
     Bridge/Codec/Scanner.cpp
     Bridge/BridgeScript.cpp
+    Bridge/Script/Core.cpp
+    Bridge/Script/Api.cpp
     Bridge/Dispatcher.cpp
     Bridge/Shm.cpp
     Bridge/Shm/Helpers.cpp

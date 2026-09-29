@@ -1,0 +1,206 @@
+// Copyright 2026 Owear Contributors
+// SPDX-License-Identifier: Apache-2.0
+//
+// src/Bridge/Script/Api.cpp — API publica window.__ow (invoke/sync/shm/eventos).
+#include "Internal.hpp"
+
+#include <string>
+
+namespace ow {
+
+std::string ScriptApi() {
+    return R"JS(  window.__ow = {
+    _apply: function(id, ok, jsonLiteral) {
+      var p = pending.get(id);
+      if (!p) return;
+      pending.delete(id);
+      var val = null;
+      try { val = (jsonLiteral == null) ? null : JSON.parse(jsonLiteral); }
+      catch (e) { val = null; }
+      clearTimeout(p.timer);
+      if (ok) p.resolve(val);
+      else {
+        var msg = (val && val.message) ? val.message : String(val);
+        p.reject(new Error(msg));
+      }
+    },
+    // Respuesta cuyo payload vive en memoria compartida (ow-shm://): evita
+    // embeber MB de JSON como código JS y que el motor lo compile.
+    _applyShm: function(id, ok, shmId, size) {
+      try {
+        window.ow.readShared({ id: shmId, size: size }).then(function(buf) {
+          var text = new TextDecoder().decode(new Uint8Array(buf));
+          window.__ow._apply(id, ok, text);
+        }).catch(function(e) {
+          window.__ow._apply(id, false, JSON.stringify({ message: String(e) }));
+        });
+      } catch (e) {
+        window.__ow._apply(id, false, JSON.stringify({ message: String(e) }));
+      }
+    },
+    _event: function(w, name, payloadLiteral) {
+      if (w && window.__owWindowId && w !== window.__owWindowId && w !== 0) return;
+      var payload = null;
+      try { payload = (payloadLiteral == null) ? null : JSON.parse(payloadLiteral); }
+      catch (e) {}
+      // Mensajes de MessagePort dirigidos a un endpoint local del renderer.
+      if (name === '__ow_port:msg' && payload && payload.id != null) {
+        var rec = ports.get(payload.id);
+        if (rec) rec.forEach(function(cb) { try { cb(payload.data); } catch (e) {} });
+        return;
+      }
+      var set = listeners.get(name);
+      if (set && set.size) {
+        set.forEach(function(cb) {
+          try { cb(payload); } catch (e) { console.error('[ow] listener', e); }
+        });
+        return;
+      }
+      // Sin listener del renderer para closeRequested → no vetamos: respondemos
+      // allow AL INSTANTE para que la ventana se cierre ya (sin esperar el
+      // timeout de veto OW_CLOSE_TIMEOUT_MS, que hacía que tardase en cerrar).
+      if (name === 'closeRequested' && payload && payload.requestId) {
+        try {
+          window.ow.invoke('ow-window', 'respondCloseRequest',
+                           window.__owWindowId, payload.requestId, true);
+        } catch (e) {}
+      }
+    },
+    _batch: function(ops) {
+      for (var i = 0; i < ops.length; i++) {
+        var op = ops[i];
+        if (op[0] === 'a') this._apply(op[1], op[2], op[3]);
+        else this._event(op[1], op[2], op[3]);
+      }
+    }
+  };
+
+  // Regiones de arrastre nativas: [data-ow-drag] mueve, [data-ow-resize="left|right|top|bottom|top-left|..."]
+  document.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    var t = e.target;
+    while (t && t !== document.body) {
+      if (t.hasAttribute && t.hasAttribute('data-ow-resize')) {
+        ow.invoke('ow-window', 'beginResizeDrag', t.getAttribute('data-ow-resize'));
+        return;
+      }
+      if (t.hasAttribute && t.hasAttribute('data-ow-drag')) {
+        ow.invoke('ow-window', 'beginMoveDrag');
+        return;
+      }
+      t = t.parentElement;
+    }
+  }, true);
+
+  // Módulos builtin con estado: siguen por el canal postMessage (necesitan el
+  // flujo asíncrono del kernel: node.call, ow-window, window, …).
+  var OW_LEGACY = { node: 1, 'ow-window': 1, window: 1, app: 1, session: 1,
+                    webview: 1, crashreporter: 1 };
+
+  window.ow = {
+    invoke: function(module, fn) {
+      var args = Array.prototype.slice.call(arguments, 2);
+      // Ruta rápida: módulos nativos por RPC de esquema (fetch). Sin
+      // postMessage de request ni eval de respuesta.
+      if (!OW_LEGACY[module]) {
+        return fetch('ow-rpc://call/' + encodeURIComponent(module) + '/' +
+                     encodeURIComponent(fn) + '?w=' + (window.__owWindowId || 0), {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(args)
+        }).then(function(r) { return r.json(); }).then(function(o) {
+          if (o && o.ok) return o.r;
+          throw new Error((o && o.r && o.r.message) ? o.r.message : 'ow-rpc error');
+        });
+      }
+      var id = nextId++;
+      return new Promise(function(resolve, reject) {
+        pending.set(id, { resolve: resolve, reject: reject, timer: 0 });
+        pending.get(id).timer = setTimeout(function() {
+          if (pending.delete(id)) reject(new Error('ow: timeout ' + module + '/' + fn));
+        }, 30000);
+        send({ t: 'invoke', id: id, m: module, f: fn, a: args, w: window.__owWindowId || 0 });
+      });
+    },
+    /* F3.3 — invoke SÍNCRONO vía ow-sync:// (XHR bloqueante).
+       ⚠️ Solo para arranque/bootstrap: bloquea el renderer y el handler
+       corre en el main thread del kernel (no llamar APIs que hagan eval). */
+    invokeSync: function(module, fn) {
+      var args = Array.prototype.slice.call(arguments, 2);
+      var payload = encodeURIComponent(JSON.stringify({
+        t: 'invoke', id: -1, m: module, f: fn, a: args,
+        w: window.__owWindowId || 0
+      }));
+      var x = new XMLHttpRequest();
+      x.open('GET', 'ow-sync://i/' + payload, false); // síncrono
+      x.send(null);
+      if (x.status !== 200) throw new Error('ow.sync: HTTP ' + x.status);
+      var res = JSON.parse(x.responseText);
+      if (!res.ok) throw new Error((res.r && res.r.message) || 'ow.sync error');
+      return res.r;
+    },
+    /* F3.1 — lee una región de memoria compartida como ArrayBuffer.
+       Sin base64 ni JSON: el scheme sirve el mmap directo. */
+    readShared: function(handle) {
+      if (!handle || !handle.id)
+        return Promise.reject(new Error('ow.readShared: handle inválido'));
+      return fetch('ow-shm://' + handle.id).then(function(r) {
+        if (!r.ok) throw new Error('ow.readShared: HTTP ' + r.status);
+        return r.arrayBuffer();
+      });
+    },
+    /* findInPage vía window.find (fallback JS; el nativo usa FindController) */
+    findInPage: function(text, opts) {
+      var cs = opts && opts.matchCase ? false : true; // insensitive por defecto
+      var bw = opts && opts.backwards ? true : false;
+      if (!window.find || !window.find(text, cs, bw)) return { matches: 0, active: 0 };
+      var n = 1;
+      while (n < 1000 && window.find(text, cs, bw)) n++;
+      return { matches: n, active: n };
+    },
+    /* IPC dirigido ventana→ventana (F-next) */
+    emitTo: function(targetWindowId, name, payload) {
+      if (targetWindowId === window.__owWindowId) {
+        // mismo destino: despacho local inmediato
+        var set0 = listeners.get(name);
+        if (set0) set0.forEach(function(cb) { try { cb(payload); } catch (e) {} });
+      }
+      send({ t: 'event', to: targetWindowId, n: name,
+             p: payload === undefined ? null : payload,
+             w: window.__owWindowId || 0 });
+    },
+    on: function(name, cb) {
+      if (!listeners.has(name)) listeners.set(name, new Set());
+      listeners.get(name).add(cb);
+      return function() { listeners.get(name).delete(cb); };
+    },
+    emit: function(name, payload) {
+      // evento JS→nativo (otros listeners JS lo reciben también)
+      var set = listeners.get(name);
+      if (set) set.forEach(function(cb) { try { cb(payload); } catch (e) {} });
+      send({ t: 'event', n: name, p: payload === undefined ? null : payload, w: window.__owWindowId || 0 });
+    },
+    /* MessagePort: endpoint local de un canal main↔renderer. Se crea con el id
+       que entrega el main (app.sendPort → ow.on(name, ({port}) => ow.port(port))). */
+    port: function(id) {
+      if (!ports.has(id)) ports.set(id, new Set());
+      return {
+        portId: id,
+        postMessage: function(data) {
+          window.ow.invoke('node', 'call', { fn: '__ow_port_post', args: [{ id: id, data: data }] });
+        },
+        on: function(name, cb) {
+          if (name !== 'message') return function() {};
+          if (!ports.has(id)) ports.set(id, new Set());
+          ports.get(id).add(cb);
+          return function() { var s = ports.get(id); if (s) s.delete(cb); };
+        },
+        start: function() {},
+        close: function() { ports.delete(id); }
+      };
+    }
+  };
+})();)JS";
+}
+
+} // namespace ow
