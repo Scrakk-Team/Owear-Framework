@@ -433,10 +433,27 @@ Internos del kernel (para contribuidores, en `src/`): `bridge::Codec`,
 
 ```bash
 ow create <dir>     # scaffoldea una app desde el template
+ow create installer [dir]    # scaffoldea el instalador (app Owear en modo installer)
+ow create uninstaller [dir]  # scaffoldea el desinstalador
 ow dev              # kernel + vite dev server + sidecar node (hot reload)
 ow build            # vite build + native/*.cpp → dist/modules/*.owm
+ow build app        # payload de la app (--format binary|deb|appimage)
+ow build installer  # binario instalador (linux) / .exe (win)
+ow build uninstaller
 owear-build-native  # compila native/*.cpp → .owm (usado por dev/build/plugin)
 ```
+
+### Instalador (D1)
+
+El instalador es **una app Owear aparte** (`./installer`), con su `package.json`
+y opcionalmente sidecar Node. El contrato app ↔ installer es el **bridge**
+`owear.bridge.ts` (`defineBridge`), que `ow build installer` embebe como
+`bridge.json`. En tiempo de instalación, el kernel entra en modo installer
+(`OW_MODE=installer`) y expone la API nativa `installer`:
+`mode · info · bridge · payloadList · payloadRead · plan · install · uninstall ·
+verify · state · shortcuts · launch · elevate`. Modos de payload: `minimal`
+(binario único) y `layout` (árbol de carpetas). Ver
+`docs/changelog/changelog-0.1.4.md`.
 
 ---
 
@@ -452,6 +469,8 @@ owear-build-native  # compila native/*.cpp → .owm (usado por dev/build/plugin)
 | `OW_ASSETS_DIR` | kernel | raíz del scheme `app://` (default `./dist`) |
 | `OW_DEMO` | kernel | ventana demo nativa |
 | `OW_APP_NAME` / `OW_APP_ID` | kernel | identidad de la app |
+| `OW_MODE` | kernel/installer | `app` \| `installer` \| `uninstaller` (lo fija el payload embebido) |
+| `OW_APP_VERSION` | kernel/installer | versión de la app a instalar (de `installer.json`) |
 | `OW_CLOSE_TIMEOUT_MS` | kernel | timeout del veto de cierre (default 1000) |
 | `OW_KERNEL_BIN` | CLI | ruta al binario `owear` |
 | `OW_MODULES_OUT` | CLI/plugin | destino de los .owm compilados |
