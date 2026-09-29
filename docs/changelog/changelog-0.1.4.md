@@ -1,0 +1,48 @@
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+
+# 0.1.4 (WIP / sin publicar)
+
+Mejoras del **sistema de instaladores (D1)** y de su **template por defecto**, más
+el port de **draw.io** como ejemplo con instalador propio. Todo en local; **no se
+publica en npm** todavía.
+
+## Added
+
+- **Template del instalador con los estilos del Starter**: el instalador por
+  defecto (`packages/cli/template-installer/`) usa ahora los tokens y
+  componentes del app Starter de Owear — **One Dark Pro** + acento rosado,
+  **JetBrains Mono** y **Dancing Script** (self-hosted, con `@font-face`),
+  titlebar con `brand__mark`, `.btn` con hover interno, `.card`/`.board`/
+  `.console`/`.badge`. Se aplica también al sub-template del **desinstalador**.
+- **Dev-loop del instalador** (`examples/drawio/dev-installer.mjs`): arranca
+  `vite` (dev server del UI del instalador) y lanza el **binario instalador**
+  apuntándolo a ese server con `OW_DEV_SERVER_URL` → **hot-reload del UI** con
+  la API `installer` real (payload del binario), **sin re-empaquetar** los 55 MB.
+- **Port de draw.io + instalador** en `examples/drawio/`: webapp real de draw.io
+  sobre Owear, `owear.bridge.ts`, template del instalador scaffolded y build del
+  instalador con el **comando** `ow build installer --mode minimal`.
+
+## Changed
+
+- **Template del instalador sin emojis hardcoded**: el plan de instalación
+  muestra ruta + tamaño (antes `📁`/`📄`), y los controles de ventana
+  (min/max/close) se cablean en el renderer.
+- `ow build` (producción) **embebe `@owear/core`** en `app/main.js`
+  (`prepareMain(..., bundle)`); en `ow dev` sigue externo. Necesario porque el
+  payload de un single-binary/instalador **no lleva `node_modules`**.
+
+## Fixed
+
+- **Entorno al lanzar la app instalada**: al abrir la app desde el instalador se
+  heredaban las `OW_*` del instalador (`OW_ASSETS_DIR`/`OW_APP_MAIN` apuntaban a
+  su caché) y el lanzado cargaba **el UI del instalador** en vez de la app. Ahora
+  se limpian (`OW_ASSETS_DIR`, `OW_APP_MAIN`, `OW_MODULES_DIR`, `OW_APP_WORKERS`,
+  `OW_MODE`, `OW_APP_ID`, `OW_APP_VERSION`) antes de `execv` / `CreateProcessW`.
+
+## Notas
+
+- Verificado end-to-end: `ow build installer` produce instalador +
+  desinstalador; instala y **la app instalada arranca con su propio payload**.
+- Pendiente de pulir (en curso): progreso por fichero, selector de modo
+  (`minimal`/`layout`) en el UI, icono de la app, y afinar el layout/ventana.
