@@ -77,6 +77,8 @@ export interface StateResult {
   version?: string
   mode?: string
   app?: string
+  /** Directorio de instalación (si se conoce / está registrado). */
+  dir?: string
 }
 
 export interface ShortcutOptions {
@@ -155,9 +157,14 @@ export const installer = {
     return invokeNative<VerifyResult>('installer', 'verify', opts)
   },
 
-  /** Estado de instalación en `dir`. */
-  state(opts: { dir: string }): Promise<StateResult> {
+  /** Estado de instalación en `dir` (o el registrado si se omite). */
+  state(opts: { dir?: string } = {}): Promise<StateResult> {
     return invokeNative<StateResult>('installer', 'state', opts)
+  },
+
+  /** Lista las apps instaladas (registro de Owear). */
+  list(): Promise<Array<Record<string, unknown>>> {
+    return invokeNative<Array<Record<string, unknown>>>('installer', 'list')
   },
 
   /** Crea accesos directos / integración de escritorio. */

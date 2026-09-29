@@ -9,6 +9,17 @@ publica en npm** todavía.
 
 ## Added
 
+- **Registro de apps instaladas** (capacidad de Owear, en el builtin `installer`):
+  `install()` escribe `~/.config/owear/installed/<appId>.json` (Linux) /
+  `%APPDATA%\\owear\\installed` (Windows) con `{appId, appName, version, dir,
+  mode, installedAt}`; `uninstall()` lo borra. API asociada:
+  - `installer.info()` incluye `installed` y `dir` (merge de `installer.json` +
+    registro).
+  - `installer.state({ dir? })` — **sin `dir`** usa el registrado.
+  - `installer.uninstall({ dir? })` — **sin `dir`** usa el registrado.
+  - **`installer.list()`** — todas las apps instaladas.
+- **Uninstaller del template**: detecta la instalación **por el registro** (sin
+  escribir la ruta) y usa `installer.chooseDir()` nativo (fuera `dialog`).
 - **API de icono de app**: `BrowserWindow({ icon })` (ruta a PNG/JPEG) y
   `app.setIcon(path)` (icono por defecto de la app, aplicado a las ventanas que
   se creen). El instalador usa además `owear.bridge.ts → app.icon` para el

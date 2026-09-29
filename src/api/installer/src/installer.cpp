@@ -120,6 +120,19 @@ static const InstallerMeta& Meta() {
 }
 
 /// Identificador para nombres de fichero/rutas (appId → slug seguro).
+static std::string Slug(const std::string& in) {
+    std::string out;
+    for (char c : in) {
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_')
+            out += c;
+        else if (c >= 'A' && c <= 'Z')
+            out += static_cast<char>(c - 'A' + 'a');
+        else if (c == ' ')
+            out += '-';
+    }
+    return out.empty() ? "app" : out;
+}
+
 static std::string AppSlug() {
     std::string s;
     const auto& m = Meta();
@@ -129,17 +142,83 @@ static std::string AppSlug() {
         else if (const Value* v = m.root.Find("appId"); v && v->IsString())
             s = v->AsString();
     }
-    if (s.empty()) s = AppId();
-    std::string out;
-    for (char c : s) {
-        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_')
-            out += c;
-        else if (c >= 'A' && c <= 'Z')
-            out += static_cast<char>(c - 'A' + 'a');
-        else if (c == ' ')
-            out += '-';
+    if (s.empty()) s = AppName();
+    return Slug(s);
+}
+
+static std::string AppIdSlug() { return Slug(AppId()); }
+
+// ── registro de apps INSTALADAS (a nivel de usuario) ────────────────────────
+//
+// Es una capacidad de Owear (builtin installer): apunta dónde quedó cada app
+// para que `state`/`uninstall`/el desinstalador la encuentren SIN pedir la ruta.
+//   Linux:   $XDG_CONFIG_HOME|~/.config/owear/installed/<appId>.json
+//   Windows: %APPDATA%\owear\installed\<appId>.json  (+ HKCU Uninstall)
+
+static std::string RegistryDir() {
+#ifdef _WIN32
+    const char* ad = std::getenv("APPDATA");
+    const std::string base = (ad && *ad) ? std::string(ad) : ExpandPath("~");
+    return base + "\\owear\\installed";
+#else
+    const char* xdg = std::getenv("XDG_CONFIG_HOME");
+    const std::string base = (xdg && *xdg) ? std::string(xdg) : ExpandPath("~/.config");
+    return base + "/owear/installed";
+#endif
+}
+
+static std::string RegistryFile(const std::string& appId) {
+#ifdef _WIN32
+    return RegistryDir() + "\\" + Slug(appId) + ".json";
+#else
+    return RegistryDir() + "/" + Slug(appId) + ".json";
+#endif
+}
+
+static void RegistryWrite(const std::string& dir, const std::string& mode) {
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const int64_t stamp = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+    Object o;
+    o.emplace_back("appId", Value(AppId()));
+    o.emplace_back("appName", Value(AppName()));
+    o.emplace_back("version", Value(std::string(EnvOr("OW_APP_VERSION", "0.0.0"))));
+    o.emplace_back("dir", Value(dir));
+    o.emplace_back("mode", Value(mode));
+    o.emplace_back("installedAt", Value(stamp));
+    std::error_code ec;
+    fs::create_directories(RegistryDir(), ec);
+    std::ofstream f(RegistryFile(AppId()), std::ios::binary | std::ios::trunc);
+    if (f) f << Value(std::move(o)).Serialize();
+}
+
+/// Entrada del registro para `appId` (o null si no hay).
+static Value RegistryRead(const std::string& appId) {
+    std::ifstream f(RegistryFile(appId), std::ios::binary);
+    if (!f) return Value(nullptr);
+    std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    auto parsed = ow::json::Parse(raw);
+    return (parsed.value && parsed.value->IsObject()) ? *parsed.value : Value(nullptr);
+}
+
+static void RegistryRemove(const std::string& appId) {
+    std::error_code ec;
+    fs::remove(RegistryFile(appId), ec);
+}
+
+static Value RegistryList() {
+    Array arr;
+    std::error_code ec;
+    for (auto it = fs::directory_iterator(RegistryDir(), ec);
+         it != fs::directory_iterator(); it.increment(ec)) {
+        if (ec) break;
+        if (it->path().extension() != ".json") continue;
+        std::ifstream f(it->path(), std::ios::binary);
+        if (!f) continue;
+        std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        auto parsed = ow::json::Parse(raw);
+        if (parsed.value && parsed.value->IsObject()) arr.emplace_back(*parsed.value);
     }
-    return out.empty() ? "app" : out;
+    return Value(std::move(arr));
 }
 
 /// Grupo lógico de una ruta del payload (para `protect`).
@@ -283,20 +362,43 @@ static void mode(const ow_request_t*, ow_response_t* res) {
 
 static void info(const ow_request_t*, ow_response_t* res) {
     const std::string root = PayloadRoot();
-    std::ifstream f(root + "/installer.json", std::ios::binary);
-    if (f) {
+    Value base(nullptr);
+    for (const char* name : {"/installer.json", "/uninstaller.json"}) {
+        std::ifstream f(root + name, std::ios::binary);
+        if (!f) continue;
         std::string raw((std::istreambuf_iterator<char>(f)),
                         std::istreambuf_iterator<char>());
-        RespondOk(res, raw.empty() ? "{}" : raw);
-        return;
+        auto parsed = ow::json::Parse(raw);
+        if (parsed.value && parsed.value->IsObject()) {
+            base = *parsed.value;
+            break;
+        }
     }
+
     Object o;
-    o.emplace_back("appId", Value(AppId()));
-    o.emplace_back("appName", Value(AppName()));
-    o.emplace_back("version", Value(std::string(EnvOr("OW_APP_VERSION", "0.0.0"))));
-    o.emplace_back("mode", Value(std::string(EnvOr("OW_MODE", "app"))));
+    if (base.IsObject()) {
+        for (const auto& m : base.AsObject()) o.emplace_back(m.first, m.second);
+    } else {
+        o.emplace_back("appId", Value(AppId()));
+        o.emplace_back("appName", Value(AppName()));
+        o.emplace_back("version", Value(std::string(EnvOr("OW_APP_VERSION", "0.0.0"))));
+        o.emplace_back("mode", Value(std::string(EnvOr("OW_MODE", "app"))));
+    }
+
+    // Estado real de instalación (registro por usuario) → dir / installed.
+    const Value reg = RegistryRead(AppId());
+    if (reg.IsObject()) {
+        o.emplace_back("installed", Value(true));
+        if (const Value* d = reg.Find("dir"); d && d->IsString()) o.emplace_back("dir", *d);
+        if (const Value* v = reg.Find("version"); v && v->IsString()) o.emplace_back("version", *v);
+    } else {
+        o.emplace_back("installed", Value(false));
+    }
     Ok(res, Value(std::move(o)));
 }
+
+/// Lista las apps instaladas (registro).
+static void list(const ow_request_t*, ow_response_t* res) { Ok(res, RegistryList()); }
 
 static void bridge(const ow_request_t*, ow_response_t* res) {
     std::ifstream f(PayloadRoot() + "/bridge.json", std::ios::binary);
@@ -416,6 +518,9 @@ static void install(const ow_request_t* req, ow_response_t* res) {
                                     Str(a, "publisher"), dir, uninstaller);
     }
 
+    // Registro de apps instaladas (Owear) → el desinstalador/`state` la encuentran.
+    RegistryWrite(dir, modeArg);
+
     EmitHook("postInstall");
 
     Object r;
@@ -428,10 +533,16 @@ static void install(const ow_request_t* req, ow_response_t* res) {
 
 static void uninstall(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
-    const std::string dir = ExpandPath(Str(a, "dir"));
+    std::string dir = ExpandPath(Str(a, "dir"));
     const bool keepData = Bool(a, "keepData", false);
     (void)keepData; // reservado: datos de usuario en la caché se conservan siempre en v1
-    if (dir.empty()) { RespondError(res, "dir requerido"); return; }
+    // Sin dir: usar el registrado (así el desinstalador no necesita la ruta).
+    if (dir.empty()) {
+        const Value reg = RegistryRead(AppId());
+        if (reg.IsObject())
+            if (const Value* d = reg.Find("dir"); d && d->IsString()) dir = d->AsString();
+    }
+    if (dir.empty()) { RespondError(res, "no hay instalación registrada"); return; }
 
     EmitHook("preUninstall");
 
@@ -464,6 +575,7 @@ static void uninstall(const ow_request_t* req, ow_response_t* res) {
     }
     platform::RemoveShortcuts(AppId(), AppName());
     platform::UnregisterUninstall(AppId());
+    RegistryRemove(AppId());
 
     EmitHook("postUninstall");
 
@@ -506,29 +618,40 @@ static void verify(const ow_request_t* req, ow_response_t* res) {
 
 static void state(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
-    const std::string dir = ExpandPath(Str(a, "dir"));
+    std::string dir = ExpandPath(Str(a, "dir"));
+    if (dir.empty()) {
+        const Value reg = RegistryRead(AppId());
+        if (reg.IsObject())
+            if (const Value* d = reg.Find("dir"); d && d->IsString()) dir = d->AsString();
+    }
     std::ifstream f(fs::path(dir) / ".owear-install.json", std::ios::binary);
     if (!f) {
+        // Fallback: el registro por usuario (aunque el dir no se pueda leer).
+        const Value reg = RegistryRead(AppId());
         Object r;
-        r.emplace_back("installed", Value(false));
+        if (reg.IsObject()) {
+            r.emplace_back("installed", Value(true));
+            if (const Value* d = reg.Find("dir"); d && d->IsString()) r.emplace_back("dir", *d);
+            if (const Value* v = reg.Find("version"); v && v->IsString()) r.emplace_back("version", *v);
+            if (const Value* m = reg.Find("mode"); m && m->IsString()) r.emplace_back("mode", *m);
+            if (const Value* n = reg.Find("appName"); n && n->IsString()) r.emplace_back("app", *n);
+        } else {
+            r.emplace_back("installed", Value(false));
+        }
         Ok(res, Value(std::move(r)));
         return;
     }
     std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     auto parsed = ow::json::Parse(raw);
     Value man = parsed.value ? *parsed.value : Value(nullptr);
-    if (man.IsObject()) {
-        Object r;
-        r.emplace_back("installed", Value(true));
-        if (const Value* v = man.Find("version"); v && v->IsString())
-            r.emplace_back("version", *v);
-        if (const Value* v = man.Find("mode"); v && v->IsString()) r.emplace_back("mode", *v);
-        if (const Value* v = man.Find("app"); v && v->IsString()) r.emplace_back("app", *v);
-        Ok(res, Value(std::move(r)));
-        return;
-    }
     Object r;
     r.emplace_back("installed", Value(true));
+    if (!dir.empty()) r.emplace_back("dir", Value(dir));
+    if (man.IsObject()) {
+        if (const Value* v = man.Find("version"); v && v->IsString()) r.emplace_back("version", *v);
+        if (const Value* v = man.Find("mode"); v && v->IsString()) r.emplace_back("mode", *v);
+        if (const Value* v = man.Find("app"); v && v->IsString()) r.emplace_back("app", *v);
+    }
     Ok(res, Value(std::move(r)));
 }
 
@@ -606,6 +729,7 @@ const ow_module_desc_t* InstallerModuleDescriptor() {
         {"uninstall", &installermod::uninstall},
         {"verify", &installermod::verify},
         {"state", &installermod::state},
+        {"list", &installermod::list},
         {"shortcuts", &installermod::shortcuts},
         {"launch", &installermod::launch},
         {"elevate", &installermod::elevate},
