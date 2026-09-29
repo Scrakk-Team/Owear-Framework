@@ -28,7 +28,8 @@ find_package(Threads REQUIRED)
 # (p.ej. cross-compile Linux→Windows) → se usa Runtime/Http_nossl.cpp.
 option(OW_WITH_OPENSSL "Compilar con OpenSSL (HTTPS y módulos net/updater)" ON)
 
-set(OW_HTTP_SOURCE Runtime/Http.cpp Runtime/Http/Transport.cpp Runtime/Http/Url.cpp)
+set(OW_HTTP_SOURCE Runtime/Http.cpp Runtime/Http/Transport.cpp Runtime/Http/Url.cpp
+    Runtime/Http/Transport/Shims.cpp Runtime/Http/Transport/Tls.cpp Runtime/Http/Transport/Plain.cpp)
 if(NOT OW_WITH_OPENSSL)
     set(OW_HTTP_SOURCE Runtime/Http_nossl.cpp)
 endif()
