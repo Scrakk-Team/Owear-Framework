@@ -90,8 +90,11 @@ if(OW_PLATFORM STREQUAL "linux")
     Window/Platform/linux/Theme.cpp
     Window/Platform/linux/ViewEvents.cpp
     Window/Platform/linux/Titlebar.cpp
+    Window/Platform/linux/Titlebar/Overlay.cpp
+    Window/Platform/linux/Titlebar/Edges.cpp
     Window/Platform/linux/Create.cpp
-    Window/Platform/linux/Webviews.cpp
+    Window/Platform/linux/Webviews/Create.cpp
+    Window/Platform/linux/Webviews/Commands.cpp
         Webview/linux/WebKitGTKBackend.cpp
         Webview/linux/Helpers.cpp
         Webview/linux/Backend/Protocols.cpp
@@ -122,6 +125,7 @@ elseif(OW_PLATFORM STREQUAL "win")
         Core/App_win.cpp
         Window/window_win.cpp
     Window/Platform/win/Titlebar.cpp
+    Window/Platform/win/Titlebar/Drawing.cpp
     Window/Platform/win/Menu.cpp
     Window/Platform/win/Util.cpp
     Window/Platform/win/Webviews.cpp
