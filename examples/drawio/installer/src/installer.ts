@@ -5,20 +5,20 @@
 // la API nativa `installer` vía `window.ow` (inyectado por el kernel).
 //
 // Personalízalo a gusto (React, Vue, Tailwind…): esto es sólo el default.
+// Los estilos siguen los tokens del Starter de Owear.
 
 import './style.css'
 
-declare global {
-  interface Window {
-    __owWindowId: number
-    ow: { invoke<T = unknown>(module: string, fn: string, ...args: unknown[]): Promise<T> }
-  }
+interface OwBridge {
+  invoke<T = unknown>(module: string, fn: string, ...args: unknown[]): Promise<T>
 }
+const ow = (window as unknown as { ow: OwBridge }).ow
+const wid = (window as unknown as { __owWindowId: number }).__owWindowId
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T =>
   document.querySelector(sel) as T
 const invoke = <T = unknown>(module: string, fn: string, ...args: unknown[]): Promise<T> =>
-  window.ow.invoke(module, fn, ...args) as Promise<T>
+  ow.invoke<T>(module, fn, ...args)
 
 interface PayloadEntry {
   rel: string
@@ -52,6 +52,13 @@ let mode: 'minimal' | 'layout' = 'minimal'
 let plan: PayloadEntry[] = []
 let busy = false
 
+function fmtSize(bytes: number): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
+}
+
 function setStatus(msg: string, kind: 'ok' | 'err' | '' = ''): void {
   const el = $('#status')
   el.textContent = msg
@@ -60,8 +67,9 @@ function setStatus(msg: string, kind: 'ok' | 'err' | '' = ''): void {
 
 async function boot(): Promise<void> {
   // controles de ventana (titlebar propia)
-  const id = window.__owWindowId
-  $('#win-close').addEventListener('click', () => void invoke('ow-window', 'close', id))
+  $('#win-min').addEventListener('click', () => void invoke('ow-window', 'minimize', wid))
+  $('#win-max').addEventListener('click', () => void invoke('ow-window', 'maximize', wid))
+  $('#win-close').addEventListener('click', () => void invoke('ow-window', 'close', wid))
 
   const info = await invoke<InstallerInfo>('installer', 'info').catch(() => ({}))
   const bridge = await invoke<Bridge | null>('installer', 'bridge').catch(() => null)
@@ -69,8 +77,10 @@ async function boot(): Promise<void> {
   mode = t.layout ?? 'minimal'
 
   const name = info.appName ?? bridge?.app?.name ?? 'la app'
-  $('#summary').textContent =
-    `${name} ${info.version ?? bridge?.app?.version ?? ''} — modo ${mode} · ${platform}`
+  const version = info.version ?? bridge?.app?.version ?? ''
+  $('#summary').innerHTML =
+    `Se instalará <strong>${name}</strong>${version ? ` ${version}` : ''} ` +
+    `· modo <code>${mode}</code> · ${platform}`
 
   const value = t.dir ?? (info.appName ? `~/opt/${info.appName.toLowerCase()}` : '')
   ;($('#dir') as HTMLInputElement).value = value
@@ -80,16 +90,17 @@ async function boot(): Promise<void> {
 }
 
 async function refreshPlan(): Promise<void> {
+  const bridge = await invoke<Bridge | null>('installer', 'bridge').catch(() => null)
   plan = await invoke<PayloadEntry[]>('installer', 'plan', {
     mode,
     layout: mode === 'minimal' ? 'flat' : 'tree',
-    order: (await invoke<Bridge | null>('installer', 'bridge').catch(() => null))?.order,
+    order: bridge?.order,
   })
   const total = plan.reduce((n, e) => n + e.size, 0)
-  $('#count').textContent = `${plan.length} entradas · ${(total / 1024).toFixed(1)} KiB`
+  $('#count').textContent = `${plan.length} · ${fmtSize(total)}`
   $('#plan').textContent = plan
     .slice(0, 300)
-    .map((e) => `${e.dir ? '📁' : '📄'} ${e.dst}${e.size ? `  (${e.size} B)` : ''}`)
+    .map((e) => `${e.dst}${e.dir ? '/' : ''}${e.size ? `  ${fmtSize(e.size)}` : ''}`)
     .join('\n')
 }
 
@@ -100,6 +111,11 @@ async function pickDir(): Promise<void> {
   } catch {
     /* cancelado o sin picker */
   }
+}
+
+function targetExec(dir: string): string {
+  const top = plan.find((e) => !e.dir && !e.dst.includes('/')) ?? plan[0]
+  return top ? `${dir}/${top.dst}` : ''
 }
 
 async function doInstall(): Promise<void> {
@@ -126,15 +142,11 @@ async function doInstall(): Promise<void> {
     setStatus(`Instalado en ${res.dir} (${res.files} ficheros)`, 'ok')
 
     if (($('#shortcut') as HTMLInputElement).checked) {
-      const exec = plan.find((e) => !e.dir && !e.dst.includes('/'))?.dst ?? plan[0]?.dst
-      await invoke('installer', 'shortcuts', { execPath: `${dir}/${exec ?? ''}` }).catch(() => false)
+      await invoke('installer', 'shortcuts', { execPath: targetExec(dir) }).catch(() => false)
     }
     if (($('#launch') as HTMLInputElement).checked) {
-      const exec = plan.find((e) => !e.dir && !e.dst.includes('/'))?.dst ?? plan[0]?.dst
-      await invoke('installer', 'launch', { path: `${dir}/${exec ?? ''}` }).catch(() => false)
-      const v = await invoke<{ elevated: boolean }>('installer', 'elevate').catch(() => ({ elevated: false }))
-      void v
-      await invoke('ow-window', 'close', window.__owWindowId)
+      await invoke('installer', 'launch', { path: targetExec(dir) }).catch(() => false)
+      await invoke('ow-window', 'close', wid)
     }
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e), 'err')
@@ -147,6 +159,6 @@ async function doInstall(): Promise<void> {
 
 $('#pick').addEventListener('click', () => void pickDir())
 $('#install').addEventListener('click', () => void doInstall())
-$('#cancel').addEventListener('click', () => void invoke('ow-window', 'close', window.__owWindowId))
+$('#cancel').addEventListener('click', () => void invoke('ow-window', 'close', wid))
 
 void boot()

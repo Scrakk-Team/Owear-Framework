@@ -5,14 +5,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Desinstalar — __APP_NAME__</title>
+    <title>Desinstalar · __APP_NAME__</title>
   </head>
   <body>
     <header class="titlebar">
       <div class="titlebar__drag" data-ow-drag>
+        <span class="brand__mark" aria-hidden="true"></span>
         <span class="brand__name">Desinstalador · __APP_NAME__</span>
       </div>
       <div class="titlebar__controls">
+        <button id="win-min" class="winbtn" title="Minimizar" aria-label="Minimizar">
+          <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 6h8" /></svg>
+        </button>
         <button id="win-close" class="winbtn winbtn--close" title="Cerrar" aria-label="Cerrar">
           <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
         </button>
@@ -21,27 +25,29 @@
 
     <main class="page">
       <section class="hero">
-        <span class="eyebrow">Owear Uninstaller</span>
         <h1>Desinstalar __APP_NAME__</h1>
         <p class="lead" id="summary">Localizando la instalación…</p>
       </section>
 
-      <section class="card">
-        <header class="card__head"><h2>Instalación</h2></header>
-        <div class="row">
-          <input id="dir" class="input" type="text" spellcheck="false" />
-          <button id="pick" class="btn">Elegir…</button>
-        </div>
-        <div class="row">
-          <label class="opt"><input type="checkbox" id="keepData" checked /> Conservar mis datos</label>
-        </div>
+      <section class="board">
+        <article class="card">
+          <header class="card__head"><h2>Instalación</h2></header>
+          <div class="row">
+            <input id="dir" class="field" type="text" spellcheck="false" aria-label="Directorio de instalación" />
+            <button id="pick" class="btn">Elegir…</button>
+          </div>
+          <div class="row">
+            <label class="opt"><input type="checkbox" id="keepData" checked /> Conservar mis datos</label>
+          </div>
+        </article>
       </section>
-
-      <footer class="actions">
-        <span id="status" class="status"></span>
-        <button id="uninstall" class="btn btn--primary" disabled>Desinstalar</button>
-      </footer>
     </main>
+
+    <footer class="foot">
+      <span id="status" class="status"></span>
+      <span class="foot__spacer"></span>
+      <button id="uninstall" class="btn btn--primary" disabled>Desinstalar</button>
+    </footer>
 
     <script type="module" src="/src/uninstaller.ts"></script>
   </body>

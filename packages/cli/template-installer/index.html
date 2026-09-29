@@ -6,14 +6,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Instalador — __APP_NAME__</title>
+    <title>Instalador · __APP_NAME__</title>
   </head>
   <body>
+    <!-- Titlebar propia: el kernel convierte [data-ow-drag] en zona de arrastre. -->
     <header class="titlebar">
       <div class="titlebar__drag" data-ow-drag>
+        <span class="brand__mark" aria-hidden="true"></span>
         <span class="brand__name">Instalador · __APP_NAME__</span>
       </div>
       <div class="titlebar__controls">
+        <button id="win-min" class="winbtn" title="Minimizar" aria-label="Minimizar">
+          <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 6h8" /></svg>
+        </button>
+        <button id="win-max" class="winbtn" title="Maximizar" aria-label="Maximizar">
+          <svg viewBox="0 0 12 12" width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" rx="1" /></svg>
+        </button>
         <button id="win-close" class="winbtn winbtn--close" title="Cerrar" aria-label="Cerrar">
           <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
         </button>
@@ -22,38 +30,40 @@
 
     <main class="page">
       <section class="hero">
-        <span class="eyebrow">Owear Installer</span>
         <h1>Instalar __APP_NAME__</h1>
         <p class="lead" id="summary">Cargando metadatos…</p>
       </section>
 
-      <section class="card">
-        <header class="card__head"><h2>Destino</h2></header>
-        <div class="row">
-          <input id="dir" class="input" type="text" spellcheck="false" />
-          <button id="pick" class="btn">Elegir…</button>
-        </div>
-        <div class="row">
-          <label class="opt"><input type="checkbox" id="shortcut" checked /> Acceso directo</label>
-          <label class="opt"><input type="checkbox" id="launch" checked /> Abrir al terminar</label>
-        </div>
-      </section>
+      <section class="board">
+        <article class="card">
+          <header class="card__head"><h2>Destino</h2></header>
+          <div class="row">
+            <input id="dir" class="field" type="text" spellcheck="false" aria-label="Directorio de instalación" />
+            <button id="pick" class="btn">Elegir…</button>
+          </div>
+          <div class="row">
+            <label class="opt"><input type="checkbox" id="shortcut" checked /> Acceso directo</label>
+            <label class="opt"><input type="checkbox" id="launch" checked /> Abrir al terminar</label>
+          </div>
+        </article>
 
-      <section class="card card--grow">
-        <header class="card__head">
-          <h2>Contenido</h2>
-          <span class="badge" id="count">—</span>
-        </header>
-        <pre id="plan" class="console">—</pre>
+        <article class="card card--grow">
+          <header class="card__head">
+            <h2>Contenido</h2>
+            <span class="badge" id="count">—</span>
+          </header>
+          <pre id="plan" class="console">—</pre>
+        </article>
       </section>
-
-      <footer class="actions">
-        <progress id="bar" max="100" value="0" hidden></progress>
-        <span id="status" class="status"></span>
-        <button id="install" class="btn btn--primary" disabled>Instalar</button>
-        <button id="cancel" class="btn btn--ghost" hidden>Cancelar</button>
-      </footer>
     </main>
+
+    <footer class="foot">
+      <span id="status" class="status"></span>
+      <span class="foot__spacer"></span>
+      <progress id="bar" max="100" value="0" hidden></progress>
+      <button id="cancel" class="btn btn--ghost" hidden>Cancelar</button>
+      <button id="install" class="btn btn--primary" disabled>Instalar</button>
+    </footer>
 
     <script type="module" src="/src/installer.ts"></script>
   </body>
