@@ -1,0 +1,18 @@
+{
+  "name": "owear-example-drawio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Port de draw.io (drawio-desktop) a Owear.",
+  "type": "module",
+  "scripts": {
+    "setup": "node setup.mjs",
+    "start": "node run.mjs"
+  },
+  "dependencies": {
+    "@owear/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@owear/cli": "workspace:*",
+    "esbuild": "^0.25.0"
+  }
+}

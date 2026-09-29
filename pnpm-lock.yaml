@@ -34,6 +34,19 @@ importers:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(stylus@0.54.8(supports-color@7.2.0))(yaml@2.9.1)
 
+  examples/drawio:
+    dependencies:
+      '@owear/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      '@owear/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+
   examples/picgo:
     dependencies:
       '@base-ui/react':
