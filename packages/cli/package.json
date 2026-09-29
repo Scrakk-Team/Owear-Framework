@@ -13,10 +13,12 @@
   },
   "files": [
     "src",
-    "template"
+    "tools",
+    "template",
+    "template-installer"
   ],
   "scripts": {
-    "typecheck": "node --check src/ow.js && node --check src/owear-build-native.js"
+    "typecheck": "node --check src/ow.js && node --check src/owear-build-native.js && node --check tools/owear-pack.mjs && node --check tools/owear-installer.mjs && node --check tools/owear-linux.mjs && node --check tools/owear-msi.mjs"
   },
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",

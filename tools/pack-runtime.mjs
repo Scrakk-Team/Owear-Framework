@@ -74,8 +74,8 @@ if (process.platform !== 'win32') fs.chmodSync(binDst, 0o755)
 // módulo de una DLL de soporte (zlib / OpenSSL / runtime MSVC).
 const moduleNames = new Set(
   fs
-    .readdirSync(path.join(ROOT, 'api'), { withFileTypes: true })
-    .filter((d) => d.isDirectory() && fs.existsSync(path.join(ROOT, 'api', d.name, 'owear.module.json')))
+    .readdirSync(path.join(ROOT, 'src', 'api'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(ROOT, 'src', 'api', d.name, 'owear.module.json')))
     .map((d) => d.name)
 )
 
@@ -96,7 +96,7 @@ if (T.ext === '.dll') {
 }
 
 // Módulos stock → bin/modules. Sus DLLs de soporte → junto al exe.
-const apiDir = path.join(BUILD, 'api')
+const apiDir = path.join(BUILD, 'src', 'api')
 let mods = 0
 if (fs.existsSync(apiDir)) {
   const found = []

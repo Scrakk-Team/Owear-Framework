@@ -44,11 +44,17 @@ jobs:
   windows:
     name: runtime · @owear/win32-x64
     runs-on: windows-2022
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: 'https://registry.npmjs.org'
       - name: Deps (zlib + openssl vía vcpkg preinstalado)
         run: vcpkg install zlib openssl --triplet x64-windows
         shell: cmd
@@ -73,3 +79,10 @@ jobs:
           name: runtime-win32-x64
           path: packages/runtime-win32-x64
           if-no-files-found: error
+      - name: Publish @owear/win32-x64
+        if: env.NPM_TOKEN != ''
+        shell: bash
+        run: npm publish --access public --provenance
+        working-directory: packages/runtime-win32-x64
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

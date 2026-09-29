@@ -571,11 +571,15 @@ async function cmdBuildBundle(cwd) {
 
 // ── empaquetado (D1) ─────────────────────────────────────────────────────────
 
-/** Ruta a un script de tools/ del repo de Owear (dev/monorepo). */
-function repoTool(name) {
+/** Ruta a un script de empaquetado incluido en el paquete @owear/cli. */
+function packTool(name) {
+  const local = path.resolve(__dirname, '..', 'tools', name)
+  if (fs.existsSync(local)) return local
   const root = owearRepoRoot()
-  if (!root) die(`\`ow build installer\` necesita el repo de Owear (no encuentro tools/${name})`)
-  return path.join(root, 'tools', name)
+  if (root && fs.existsSync(path.join(root, 'tools', name))) {
+    return path.join(root, 'tools', name)
+  }
+  die(`no encuentro ${name} (reinstala @owear/cli)`)
 }
 
 /** Plataforma del destino (para elegir target del bridge). */
@@ -625,7 +629,7 @@ function assembleAppBundle(cwd, built) {
 function packDir(kernel, inDir, out) {
   const r = spawnSync(
     process.execPath,
-    [repoTool('owear-pack.mjs'), '--kernel', kernel, '--in', inDir, '--out', out],
+    [packTool('owear-pack.mjs'), '--kernel', kernel, '--in', inDir, '--out', out],
     { stdio: 'inherit' }
   )
   if (r.status !== 0) die('falló owear-pack')
@@ -687,7 +691,7 @@ async function buildInstallerUI(cwd, which) {
 
 /** Ejecuta un script de tools/ del repo con Node. */
 function runTool(name, args) {
-  const r = spawnSync(process.execPath, [repoTool(name), ...args], { stdio: 'inherit' })
+  const r = spawnSync(process.execPath, [packTool(name), ...args], { stdio: 'inherit' })
   if (r.status !== 0) die(`falló ${name}`)
 }
 
@@ -896,7 +900,7 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
   const kind = isUninstaller ? 'uninstaller' : 'installer'
   const out = path.join(outDir, `${slug}-${kind}${exe}`)
   const toolArgs = [
-    repoTool('owear-installer.mjs'),
+    packTool('owear-installer.mjs'),
     '--kernel', kernel,
     '--out', out,
     '--ui', ui,
