@@ -41,6 +41,7 @@ set(OW_KERNEL_SOURCES
     Core/NodeBridge.cpp
     Core/BuiltinRegistry.generated.cpp   # generado por tools/gen-apis.mjs
     Bridge/Codec.cpp
+    Bridge/Codec/Scanner.cpp
     Bridge/BridgeScript.cpp
     Bridge/Dispatcher.cpp
     Bridge/Shm.cpp
@@ -66,6 +67,7 @@ set(OW_KERNEL_SOURCES
     Window/Common/Outbox.cpp
     Runtime/Sha256.cpp
     Runtime/TarGz.cpp
+    Runtime/TarGz/Helpers.cpp
     Pack/Pack.cpp
     ${OW_HTTP_SOURCE}
     Runtime/NodeManager.cpp

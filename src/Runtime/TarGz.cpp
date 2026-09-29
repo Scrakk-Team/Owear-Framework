@@ -5,6 +5,7 @@
 // incremental (sin cargar todo en RAM).
 //
 #include "TarGz.hpp"
+#include "TarGz/Internal.hpp"
 
 #include "../Core/Log.hpp"
 
@@ -19,121 +20,7 @@
 
 namespace ow::archive {
 
-namespace {
-
-constexpr size_t kBlock = 512;
-
-bool IsZeroBlock(const uint8_t* b) {
-    for (size_t i = 0; i < kBlock; ++i)
-        if (b[i] != 0) return false;
-    return true;
-}
-
-uint64_t ParseOctal(const uint8_t* p, size_t n) {
-    uint64_t v = 0;
-    for (size_t i = 0; i < n; ++i) {
-        uint8_t c = p[i];
-        if (c == 0 || c == ' ') break;
-        if (c < '0' || c > '7') continue;
-        v = v * 8 + (c - '0');
-    }
-    return v;
-}
-
-std::string ParseName(const uint8_t* h) {
-    // ustar: name[0..99] + prefix[345..499]
-    std::string name(reinterpret_cast<const char*>(h), 100);
-    name.resize(::strnlen(name.c_str(), 100));
-    if (h[345] != 0) {
-        std::string prefix(reinterpret_cast<const char*>(h + 345), 155);
-        prefix.resize(::strnlen(prefix.c_str(), 155));
-        if (!prefix.empty()) return prefix + "/" + name;
-    }
-    return name;
-}
-
-class TarWriter {
-public:
-    explicit TarWriter(const std::filesystem::path& dest) : dest_(dest) {}
-
-    bool Begin(const std::string& longName, const std::string& name, char type,
-               uint64_t size, std::string& err) {
-        std::string path = longName.empty() ? name : longName;
-        // normaliza y anti-traversal
-        std::filesystem::path rel(path);
-        if (rel.is_absolute() || path.find("..") != std::string::npos) {
-            err = "ruta peligrosa en tar: " + path;
-            return false;
-        }
-        current_ = dest_ / rel;
-
-        if (type == '5') { // directorio
-            std::error_code ec;
-            std::filesystem::create_directories(current_, ec);
-            return true;
-        }
-        if (type == 'L') { // GNU longname: el "archivo" es el nombre siguiente
-            longBuf_.clear();
-            longBuf_.reserve(static_cast<size_t>(size));
-            return true;
-        }
-        if (type == '0' || type == 0) {
-            auto parent = current_.parent_path();
-            std::error_code ec;
-            std::filesystem::create_directories(parent, ec);
-            file_.open(current_, std::ios::binary | std::ios::trunc);
-            if (!file_) { err = "no se pudo crear " + current_.string(); return false; }
-            return true;
-        }
-        // symlink/hardlink/pax: solo consumir datos
-        return true;
-    }
-
-    void Data(const uint8_t* p, size_t n) {
-        if (collectingLong_) {
-            longBuf_.append(reinterpret_cast<const char*>(p), n);
-            return;
-        }
-        if (file_.is_open()) file_.write(reinterpret_cast<const char*>(p),
-                                         static_cast<std::streamsize>(n));
-    }
-
-    bool End(std::string& err, std::string& outLongName,
-             const std::function<void(const std::string&)>& onEntry) {
-        if (file_.is_open()) {
-            file_.close();
-            // permisos ejecutables para bin/node se ajustan fuera
-            std::error_code ec;
-            std::filesystem::permissions(
-                current_, std::filesystem::perms::owner_read |
-                              std::filesystem::perms::owner_write |
-                              std::filesystem::perms::group_read |
-                              std::filesystem::perms::others_read,
-                ec);
-            if (onEntry) {
-                auto rel = std::filesystem::relative(current_, dest_, ec);
-                if (!ec) onEntry(rel.string());
-            }
-        }
-        if (collectingLong_) {
-            outLongName = longBuf_;
-            longBuf_.clear();
-            collectingLong_ = false;
-        }
-        (void)err;
-        return true;
-    }
-
-    bool collectingLong_ = false;
-
-private:
-    std::filesystem::path dest_;
-    std::filesystem::path current_;
-    std::ofstream file_;
-    std::string longBuf_;
-};
-
-} // namespace
+using namespace archive_detail;
 
 bool ExtractTarGz(const std::filesystem::path& tarGz,
                   const std::filesystem::path& destDir,
