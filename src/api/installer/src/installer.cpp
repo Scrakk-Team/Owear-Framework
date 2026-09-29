@@ -291,6 +291,14 @@ static void install(const ow_request_t* req, ow_response_t* res) {
         if (out) out << Value(std::move(man)).Serialize();
     }
 
+    // Registro de desinstalación del S.O. (Windows: Add/Remove Programs; Linux: no-op).
+    const std::string uninstaller = Str(a, "uninstaller");
+    if (!uninstaller.empty()) {
+        platform::RegisterUninstall(AppId(), AppName(),
+                                    Str(a, "version", std::string(EnvOr("OW_APP_VERSION", "0.0.0"))),
+                                    Str(a, "publisher"), dir, uninstaller);
+    }
+
     Object r;
     r.emplace_back("installed", Value(true));
     r.emplace_back("dir", Value(dir));

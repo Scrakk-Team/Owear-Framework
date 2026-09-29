@@ -49,6 +49,10 @@ export interface PlanOptions {
 export interface InstallOptions extends PlanOptions {
   /** Directorio de instalación. */
   dir: string
+  /** Ruta del desinstalador (si se indica, se registra en el S.O.). */
+  uninstaller?: string
+  /** Publisher para el registro de desinstalación. */
+  publisher?: string
 }
 
 export interface InstallResult {

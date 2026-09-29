@@ -731,6 +731,14 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
     } else {
       fs.cpSync(bundle, payloadDir, { recursive: true })
     }
+
+    // 1b) desinstalador (si existe installer/uninstaller) → se instala junto a la app
+    if (fs.existsSync(path.join(cwd, 'installer', 'uninstaller'))) {
+      log('build del desinstalador…')
+      await cmdBuildInstaller(cwd, [], true)
+      const un = path.join(outDir, `${slug}-uninstaller${exe}`)
+      if (fs.existsSync(un)) fs.copyFileSync(un, path.join(payloadDir, path.basename(un)))
+    }
   }
 
   // 2) UI del instalador/desinstalador
