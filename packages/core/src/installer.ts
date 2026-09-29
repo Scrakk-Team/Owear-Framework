@@ -82,6 +82,9 @@ export interface StateResult {
 export interface ShortcutOptions {
   execPath: string
   iconPath?: string
+  /** Anulan los del manifiesto (por defecto: appId/appName del installer.json). */
+  appId?: string
+  appName?: string
   desktop?: boolean
   menu?: boolean
   startup?: boolean
@@ -110,6 +113,16 @@ export const installer = {
   /** Bridge embebido (contrato app ↔ installer). */
   bridge<T = unknown>(): Promise<T | null> {
     return invokeNative<T | null>('installer', 'bridge')
+  },
+
+  /** Directorio de instalación por defecto (absoluto, por usuario). */
+  defaultDir(): Promise<string> {
+    return invokeNative<string>('installer', 'defaultDir')
+  },
+
+  /** Selector NATIVO de carpeta (no depende de módulos .owm). null si cancela. */
+  chooseDir(opts: { title?: string; defaultPath?: string } = {}): Promise<string | null> {
+    return invokeNative<string | null>('installer', 'chooseDir', opts)
   },
 
   /** Lista los ficheros del payload embebido. */

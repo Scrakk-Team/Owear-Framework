@@ -75,6 +75,22 @@ static const char* EnvOr(const char* key, const char* def) {
 static std::string AppId() { return EnvOr("OW_APP_ID", "default"); }
 static std::string AppName() { return EnvOr("OW_APP_NAME", "Owear App"); }
 
+std::string ExpandPath(const std::string& in) {
+    if (in.empty()) return in;
+    const char* home =
+#ifdef _WIN32
+        std::getenv("USERPROFILE");
+#else
+        std::getenv("HOME");
+#endif
+    std::string out = in;
+    if ((out == "~" || out.rfind("~/", 0) == 0 || out.rfind("~\\", 0) == 0) && home && *home)
+        out = std::string(home) + (out.size() > 1 ? out.substr(1) : std::string());
+    std::error_code ec;
+    auto abs = fs::absolute(out, ec);
+    return ec ? out : abs.lexically_normal().string();
+}
+
 /// Raíz del payload embebido (extraído a caché, idempotente).
 static std::string PayloadRoot() { return ow::pack::EnsureExtracted(); }
 
@@ -101,6 +117,29 @@ static const InstallerMeta& Meta() {
         return r;
     }();
     return m;
+}
+
+/// Identificador para nombres de fichero/rutas (appId → slug seguro).
+static std::string AppSlug() {
+    std::string s;
+    const auto& m = Meta();
+    if (m.valid) {
+        if (const Value* n = m.root.Find("appName"); n && n->IsString())
+            s = n->AsString();
+        else if (const Value* v = m.root.Find("appId"); v && v->IsString())
+            s = v->AsString();
+    }
+    if (s.empty()) s = AppId();
+    std::string out;
+    for (char c : s) {
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_')
+            out += c;
+        else if (c >= 'A' && c <= 'Z')
+            out += static_cast<char>(c - 'A' + 'a');
+        else if (c == ' ')
+            out += '-';
+    }
+    return out.empty() ? "app" : out;
 }
 
 /// Grupo lógico de una ruta del payload (para `protect`).
@@ -300,7 +339,7 @@ static void plan(const ow_request_t* req, ow_response_t* res) {
 
 static void install(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
-    const std::string dir = Str(a, "dir");
+    const std::string dir = ExpandPath(Str(a, "dir"));
     if (dir.empty()) { RespondError(res, "dir requerido"); return; }
     const std::string payload = PayloadDir();
     if (payload.empty()) { RespondError(res, "sin payload embebido"); return; }
@@ -389,7 +428,7 @@ static void install(const ow_request_t* req, ow_response_t* res) {
 
 static void uninstall(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
-    const std::string dir = Str(a, "dir");
+    const std::string dir = ExpandPath(Str(a, "dir"));
     const bool keepData = Bool(a, "keepData", false);
     (void)keepData; // reservado: datos de usuario en la caché se conservan siempre en v1
     if (dir.empty()) { RespondError(res, "dir requerido"); return; }
@@ -436,7 +475,7 @@ static void uninstall(const ow_request_t* req, ow_response_t* res) {
 
 static void verify(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
-    const std::string dir = Str(a, "dir");
+    const std::string dir = ExpandPath(Str(a, "dir"));
     if (dir.empty()) { RespondError(res, "dir requerido"); return; }
     std::ifstream f(fs::path(dir) / ".owear-install.json", std::ios::binary);
     if (!f) { RespondError(res, "no instado en " + dir); return; }
@@ -467,7 +506,7 @@ static void verify(const ow_request_t* req, ow_response_t* res) {
 
 static void state(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
-    const std::string dir = Str(a, "dir");
+    const std::string dir = ExpandPath(Str(a, "dir"));
     std::ifstream f(fs::path(dir) / ".owear-install.json", std::ios::binary);
     if (!f) {
         Object r;
@@ -493,10 +532,35 @@ static void state(const ow_request_t* req, ow_response_t* res) {
     Ok(res, Value(std::move(r)));
 }
 
+/// Directorio de instalación por defecto (absoluto, por usuario).
+static void defaultDir(const ow_request_t*, ow_response_t* res) {
+#ifdef _WIN32
+    const char* la = std::getenv("LOCALAPPDATA");
+    const std::string base = (la && *la) ? std::string(la) : ExpandPath("~");
+    Ok(res, Value(base + "\\" + AppSlug()));
+#else
+    // Linux/macOS per-usuario: ~/.local/opt/<slug>
+    Ok(res, Value(ExpandPath("~/.local/opt/" + AppSlug())));
+#endif
+}
+
+/// Selector nativo de carpeta (no necesita módulos .owm).
+static void chooseDir(const ow_request_t* req, ow_response_t* res) {
+    const Value a = Args(req);
+    const std::string dir = platform::ChooseDir(
+        Str(a, "title", "Elegir carpeta"), ExpandPath(Str(a, "defaultPath")));
+    if (dir.empty()) {
+        RespondOk(res, "null");
+        return;
+    }
+    Ok(res, Value(dir));
+}
+
 static void shortcuts(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
     const bool ok = platform::CreateShortcuts(
-        AppId(), AppName(), Str(a, "execPath"), Str(a, "iconPath"),
+        Str(a, "appId", AppId()), Str(a, "appName", AppName()),
+        ExpandPath(Str(a, "execPath")), ExpandPath(Str(a, "iconPath")),
         Bool(a, "desktop", true), Bool(a, "menu", true), Bool(a, "startup", false));
     Ok(res, Value(ok));
 }
@@ -523,6 +587,8 @@ const ow_module_desc_t* InstallerModuleDescriptor() {
         {"bridge", &installermod::bridge},
         {"payloadList", &installermod::payloadList},
         {"payloadRead", &installermod::payloadRead},
+        {"defaultDir", &installermod::defaultDir},
+        {"chooseDir", &installermod::chooseDir},
         {"plan", &installermod::plan},
         {"install", &installermod::install},
         {"uninstall", &installermod::uninstall},

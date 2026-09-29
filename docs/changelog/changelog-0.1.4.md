@@ -9,6 +9,10 @@ publica en npm** todavía.
 
 ## Added
 
+- **`installer.defaultDir()`** y **`installer.chooseDir()`** (nativos en el
+  builtin): el UI del instalador ya **no usa `dialog`** (un módulo `.owm`) →
+  el instalador es **autocontenido** (solo builtins). `chooseDir` abre el
+  selector de carpeta nativo (GTK en Linux, `IFileOpenDialog` en Windows).
 - **Template del instalador con los estilos del Starter**: el instalador por
   defecto (`packages/cli/template-installer/`) usa ahora los tokens y
   componentes del app Starter de Owear — **One Dark Pro** + acento rosado,
@@ -34,6 +38,13 @@ publica en npm** todavía.
 
 ## Fixed
 
+- **Rutas con `~`**: `install`/`uninstall`/`verify`/`state`/`shortcuts` ahora
+  **expanden `~`** (`$HOME`/`%USERPROFILE%`) y normalizan a **absoluto** — antes
+  se creaba literalmente una carpeta `~` (instalación “en el sitio equivocado”).
+- **Acceso directo real (Linux)**: `.desktop` con `Exec` **absoluto**,
+  `Categories`/`StartupWMClass`, `chmod 0755`, **`update-desktop-database`**
+  (aparece en el cajón), icono en `hicolor` y `~/Desktop` marcado como
+  *trusted* (`gio set … metadata::trusted`).
 - **Entorno al lanzar la app instalada**: al abrir la app desde el instalador se
   heredaban las `OW_*` del instalador (`OW_ASSETS_DIR`/`OW_APP_MAIN` apuntaban a
   su caché) y el lanzado cargaba **el UI del instalador** en vez de la app. Ahora

@@ -34,6 +34,50 @@ static std::wstring KnownFolder(REFKNOWNFOLDERID id) {
     return out;
 }
 
+static std::string U(const std::wstring& w) {
+    if (w.empty()) return {};
+    int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
+                                nullptr, 0, nullptr, nullptr);
+    std::string s(n > 0 ? n : 0, '\0');
+    if (n > 0)
+        WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), s.data(),
+                            n, nullptr, nullptr);
+    return s;
+}
+
+std::string ChooseDir(const std::string& title, const std::string& defaultPath) {
+    IFileOpenDialog* dlg = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&dlg))))
+        return {};
+    DWORD opts = 0;
+    if (SUCCEEDED(dlg->GetOptions(&opts)))
+        dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+    if (!title.empty()) dlg->SetTitle(W(title).c_str());
+    if (!defaultPath.empty()) {
+        IShellItem* folder = nullptr;
+        if (SUCCEEDED(SHCreateItemFromParsingName(W(defaultPath).c_str(), nullptr,
+                                                  IID_PPV_ARGS(&folder)))) {
+            dlg->SetFolder(folder);
+            folder->Release();
+        }
+    }
+    std::string out;
+    if (SUCCEEDED(dlg->Show(nullptr))) {
+        IShellItem* item = nullptr;
+        if (SUCCEEDED(dlg->GetResult(&item))) {
+            PWSTR p = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &p))) {
+                out = U(p);
+                CoTaskMemFree(p);
+            }
+            item->Release();
+        }
+    }
+    dlg->Release();
+    return out;
+}
+
 static bool MakeLink(const std::wstring& linkPath, const std::wstring& target,
                      const std::wstring& icon) {
     if (linkPath.empty() || target.empty()) return false;

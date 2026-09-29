@@ -18,8 +18,15 @@ struct PlanEntry {
     bool dir = false;  ///< ¿es un directorio?
 };
 
+/// Expande `~`/`~/` al HOME (Linux/mac) o USERPROFILE (Windows) y normaliza a
+/// ruta absoluta. El resto se devuelve tal cual (normalizado).
+std::string ExpandPath(const std::string& p);
+
 /// Integración con el S.O. (accesos directos, desinstalación, lanzar, elevar).
 namespace platform {
+
+/// Selector nativo de carpeta. Cadena vacía si el usuario cancela.
+std::string ChooseDir(const std::string& title, const std::string& defaultPath);
 
 bool CreateShortcuts(const std::string& appId, const std::string& appName,
                      const std::string& execPath, const std::string& iconPath,

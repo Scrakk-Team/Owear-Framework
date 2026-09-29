@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // src/installer.ts — UI del instalador (vanilla). Corre en el renderer y usa
-// la API nativa `installer` vía `window.ow` (inyectado por el kernel).
+// SOLO la API nativa `installer` (builtin, siempre presente) vía `window.ow`.
+// No depende de módulos .owm (dialog, etc.).
 //
 // Personalízalo a gusto (React, Vue, Tailwind…): esto es sólo el default.
-// Los estilos siguen los tokens del Starter de Owear.
 
 import './style.css'
 
@@ -66,7 +66,6 @@ function setStatus(msg: string, kind: 'ok' | 'err' | '' = ''): void {
 }
 
 async function boot(): Promise<void> {
-  // controles de ventana (titlebar propia)
   $('#win-min').addEventListener('click', () => void invoke('ow-window', 'minimize', wid))
   $('#win-max').addEventListener('click', () => void invoke('ow-window', 'maximize', wid))
   $('#win-close').addEventListener('click', () => void invoke('ow-window', 'close', wid))
@@ -78,11 +77,14 @@ async function boot(): Promise<void> {
 
   const name = info.appName ?? bridge?.app?.name ?? 'la app'
   const version = info.version ?? bridge?.app?.version ?? ''
-  $('#summary').innerHTML =
-    `Se instalará <strong>${name}</strong>${version ? ` ${version}` : ''} ` +
-    `· modo <code>${mode}</code> · ${platform}`
+  $('#summary').textContent =
+    `Se instalará ${name}${version ? ` ${version}` : ''} · modo ${mode} · ${platform}`
 
-  const value = t.dir ?? (info.appName ? `~/opt/${info.appName.toLowerCase()}` : '')
+  // Destino: preferimos el del bridge si es ABSOLUTO; si no, el default real.
+  let value = t.dir ?? ''
+  if (!value.startsWith('/')) {
+    value = await invoke<string>('installer', 'defaultDir').catch(() => '')
+  }
   ;($('#dir') as HTMLInputElement).value = value
 
   await refreshPlan()
@@ -105,11 +107,16 @@ async function refreshPlan(): Promise<void> {
 }
 
 async function pickDir(): Promise<void> {
+  const current = ($('#dir') as HTMLInputElement).value.trim()
   try {
-    const dir = await invoke<string | null>('dialog', 'open', 'openDirectory', 'Elegir carpeta')
+    // Selector NATIVO del builtin installer (no usa el módulo `dialog`).
+    const dir = await invoke<string | null>('installer', 'chooseDir', {
+      title: 'Elegir carpeta de instalación',
+      defaultPath: current,
+    })
     if (dir) ($('#dir') as HTMLInputElement).value = dir
   } catch {
-    /* cancelado o sin picker */
+    /* cancelado */
   }
 }
 
@@ -142,10 +149,10 @@ async function doInstall(): Promise<void> {
     setStatus(`Instalado en ${res.dir} (${res.files} ficheros)`, 'ok')
 
     if (($('#shortcut') as HTMLInputElement).checked) {
-      await invoke('installer', 'shortcuts', { execPath: targetExec(dir) }).catch(() => false)
+      await invoke('installer', 'shortcuts', { execPath: targetExec(res.dir) }).catch(() => false)
     }
     if (($('#launch') as HTMLInputElement).checked) {
-      await invoke('installer', 'launch', { path: targetExec(dir) }).catch(() => false)
+      await invoke('installer', 'launch', { path: targetExec(res.dir) }).catch(() => false)
       await invoke('ow-window', 'close', wid)
     }
   } catch (e) {

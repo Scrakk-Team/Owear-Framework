@@ -15,6 +15,8 @@
         "bridge",
         "payloadList",
         "payloadRead",
+        "defaultDir",
+        "chooseDir",
         "plan",
         "install",
         "uninstall",
