@@ -30,6 +30,9 @@ void PlatformDelay(int ms, std::function<void()> fn);
 /// Bootstrap común: módulos builtin, loader dinámico, control server, sidecar.
 bool Bootstrap(int argc, char** argv, const AppOptions& options);
 
+/// Opciones de la app ya configuradas (tras Bootstrap).
+const AppOptions& OptionsRef();
+
 void RequestQuit(int exitCode);
 
 /// Directorio del ejecutable del kernel (app.getPath('exe') en el SDK).

@@ -36,6 +36,7 @@ endif()
 
 set(OW_KERNEL_SOURCES
     Core/App.cpp
+    Core/App/Internal.cpp
     Core/Log.cpp
     Core/ModuleLoader.cpp
     Core/ModuleLoader/Host.cpp
