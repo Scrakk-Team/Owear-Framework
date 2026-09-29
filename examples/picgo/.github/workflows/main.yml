@@ -1,0 +1,393 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag to publish to (optional, defaults to current branch like dev)"
+        required: false
+        default: ""
+        type: string
+      build_os:
+        description: "Build for specific OS: Windows, macOS, Linux, All"
+        required: true
+        default: "All"
+        type: choice
+        options:
+          - Windows
+          - macOS
+          - Linux
+          - All
+      test_upload_dist:
+        description: "Test upload-dist.js script"
+        required: true
+        default: false
+        type: boolean
+      test_upload_dist_to_dev:
+        description: "Test upload-dist.js script to dev folder"
+        required: true
+        default: false
+        type: boolean
+      skip_mac_notarize:
+        description: "Skip Mac Notarization (true/false)"
+        required: true
+        default: false
+        type: boolean
+      win_signing_mode:
+        description: "Windows Signing Mode: release-signing(default) or test-signing"
+        required: true
+        default: "release-signing"
+        type: choice
+        options:
+          - release-signing
+          - test-signing
+
+env:
+  NODE_VERSION: 22.x
+
+jobs:
+  # ============== macOS Builds ==============
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    if: github.event.inputs.build_os == 'macOS' || github.event.inputs.build_os == 'All' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            target: dmg
+            arch: x64
+          - runner: macos-latest
+            target: dmg
+            arch: arm64
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Clean workspace
+        run: rm -rf dist dist_electron node_modules ~/.cache/electron-builder ~/.cache/electron
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build macOS App (${{ matrix.arch }})
+        run: pnpm run build && pnpm exec electron-builder --config electron-builder.config.ts --mac ${{ matrix.target }} --${{ matrix.arch }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SKIP_NOTARIZE: ${{ inputs.skip_mac_notarize }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicGo-macOS-${{ matrix.arch }}
+          path: dist/*.*
+
+  # ============== Windows Builds ==============
+  build-windows:
+    name: Build Windows (${{ matrix.arch }})
+    if: github.event.inputs.build_os == 'Windows' || github.event.inputs.build_os == 'All' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64-ia32
+            build_arch: --x64 --ia32
+            target: nsis
+          - runner: windows-11-arm
+            arch: arm64
+            build_arch: --arm64
+            target: nsis
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Clean workspace
+        run: |
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Test-Path dist_electron) { Remove-Item -Recurse -Force dist_electron }
+          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+          if (Test-Path "$env:LOCALAPPDATA\electron-builder") {
+            Remove-Item "$env:LOCALAPPDATA\electron-builder" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          if (Test-Path "$env:LOCALAPPDATA\electron") {
+            Remove-Item "$env:LOCALAPPDATA\electron" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 1. Build (Unsigned)
+      - name: Build Windows App (${{ matrix.arch }})
+        run: pnpm run build && pnpm exec electron-builder --config electron-builder.config.ts --win ${{matrix.target}} ${{ matrix.build_arch }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      # 2. Upload Unsigned Artifact to SignPath (Intermediate Step)
+      - name: Upload Unsigned Artifact for Signing
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-${{ matrix.arch }}
+          path: dist/*.exe
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Notification for Signing Start
+        shell: bash
+        env:
+          NOTIFY_URL: ${{ secrets.SIGN_NOTIFICATION }}
+        run: curl "$NOTIFY_URL"
+
+      # 3. Submit to SignPath and Wait
+      - name: Sign Artifact with SignPath
+        uses: signpath/github-action-submit-signing-request@v2
+        env:
+          SIGNPATH_SIGNING_POLICY_SLUG: |
+            ${{ (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') || inputs.win_signing_mode == 'release-signing') 
+              && 'release-signing' 
+              || 'test-signing' }}
+          ARTIFACT_SLUG: |
+            ${{ (matrix.arch == 'x64-ia32') 
+              && 'PicGo-Windows' 
+              || (matrix.arch == 'arm64') 
+              && 'PicGo-Windows-ARM64' 
+              || '' }}
+        with:
+          api-token: "${{ secrets.SIGNPATH_API_TOKEN }}"
+          organization-id: "${{ secrets.SIGNPATH_ORGANIZATION_ID }}"
+          project-slug: "${{ secrets.SIGNPATH_PROJECT_SLUG }}"
+          signing-policy-slug: "${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}"
+          github-artifact-id: "${{ steps.upload-unsigned.outputs.artifact-id }}"
+          artifact-configuration-slug: "${{ env.ARTIFACT_SLUG }}"
+          wait-for-completion: true
+          output-artifact-directory: "signed-artifact"
+
+      # 4. Replace Unsigned with Signed & Fix Blockmap (Critical for Auto-Update)
+      - name: Replace Unsigned with Signed & Update latest.yml
+        shell: powershell
+        run: |
+          Write-Host "[Info] Contents of signed-artifact:"
+          Get-ChildItem -Path "signed-artifact" -Recurse | Format-Table FullName, Length
+
+          # If returned zip files, extract them first
+          $zips = Get-ChildItem -Path "signed-artifact\*.zip" -ErrorAction SilentlyContinue
+          if ($zips) {
+            Write-Host "[Info] Found zip file(s), extracting..."
+            foreach ($zip in $zips) {
+              Expand-Archive -Path $zip.FullName -DestinationPath "signed-artifact" -Force
+              Remove-Item -Path $zip.FullName -Force
+              Write-Host "[Done] Extracted: $($zip.Name)"
+            }
+            Write-Host "[Info] Contents after extraction:"
+            Get-ChildItem -Path "signed-artifact" -Recurse | Format-Table FullName, Length
+          }
+
+          $exeFiles = Get-ChildItem -Path "signed-artifact\*.exe" -ErrorAction SilentlyContinue
+
+          if ($exeFiles) {
+            foreach ($exe in $exeFiles) {
+              Move-Item -Path $exe.FullName -Destination "dist\" -Force
+              Write-Host "[Done] Moved signed artifact: $($exe.Name)"
+            }
+          } else {
+            Write-Host "[Error] No .exe files found in signed-artifact!"
+            Get-ChildItem -Path "signed-artifact" -Recurse
+            exit 1
+          }
+
+          # Run the Node.js script to update latest.yml
+          node scripts/update-win-yaml.js
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicGo-Windows-${{ matrix.arch }}
+          path: dist/*.*
+
+  # ============== Linux Builds ==============
+  build-linux:
+    name: Build Linux (${{ matrix.arch }})
+    if: github.event.inputs.build_os == 'Linux' || github.event.inputs.build_os == 'All' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x64
+            target: AppImage deb snap
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            target: AppImage deb
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Clean workspace
+        run: rm -rf dist dist_electron node_modules ~/.cache/electron-builder ~/.cache/electron
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+
+      - name: Build Linux App (${{ matrix.arch }})
+        run: pnpm run build && pnpm exec electron-builder --config electron-builder.config.ts --linux ${{matrix.target}} --${{ matrix.arch }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicGo-Linux-${{ matrix.arch }}
+          path: dist/*.*
+
+  # ============== Release ==============
+  release:
+    name: Merge & Release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: PicGo-*
+
+      - name: List artifacts
+        run: ls -laR artifacts/
+
+      - name: Merge artifacts and yml files
+        run: node scripts/merge-artifacts.js
+
+      - name: List dist
+        run: ls -la dist/
+
+      - name: Upload to release.picgo.app
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.test_upload_dist || github.event.inputs.test_upload_dist_to_dev
+        run: |
+          ARGS="--all"
+
+          if [[ "${{ github.event.inputs.test_upload_dist_to_dev }}" == "true" ]]; then
+            ARGS="$ARGS --dev"
+            echo "🚧 Test Upload Mode: ON"
+          fi
+
+          node scripts/upload-dist.js $ARGS
+        env:
+          PICGO_ENV_S3_SECRET_ID: ${{ secrets.PICGO_ENV_S3_SECRET_ID }}
+          PICGO_ENV_S3_SECRET_KEY: ${{ secrets.PICGO_ENV_S3_SECRET_KEY }}
+          PICGO_ENV_S3_ACCOUNT_ID: ${{ secrets.PICGO_ENV_S3_ACCOUNT_ID }}
+          PICGO_ENV_S3_LEGACY_ACCOUNT_ID: ${{ secrets.PICGO_ENV_S3_LEGACY_ACCOUNT_ID }}
+          PICGO_ENV_S3_LEGACY_SECRET_ID: ${{ secrets.PICGO_ENV_S3_LEGACY_SECRET_ID }}
+          PICGO_ENV_S3_LEGACY_SECRET_KEY: ${{ secrets.PICGO_ENV_S3_LEGACY_SECRET_KEY }}
+
+      - name: Publish GitHub Workflow Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          draft: true
+          prerelease: false
+          files: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.snap
+            dist/*.tar.gz
+            dist/*.yml
+            dist/*.blockmap
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          generate_release_notes: true
+          draft: true
+          prerelease: false
+          files: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.snap
+            dist/*.tar.gz
+            dist/*.yml
+            dist/*.blockmap

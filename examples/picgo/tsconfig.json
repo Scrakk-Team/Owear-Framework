@@ -1,13 +1,68 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node", "vite/client"],
+    "target": "esnext", // https://github.com/TypeStrong/ts-loader/issues/1061
+    "module": "esnext",
     "strict": true,
+    "jsx": "react-jsx",
+    "importHelpers": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "types": [
+      "vite/client",
+      "electron"
+    ],
+    "typeRoots": [
+      "./src/universal/types/",
+      "./node_modules/@types",
+      "./node_modules"
+    ],
+    "paths": {
+      "@/*": [
+        "src/renderer/*"
+      ],
+      "~/*": [
+        "src/*"
+      ],
+      "root/*": [
+        "./*"
+      ],
+      "#/*": [
+        "src/universal/*"
+      ],
+      "apis/*": [
+        "src/main/apis/*"
+      ],
+      "@core/*": [
+        "src/main/apis/core/*"
+      ]
+    },
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable",
+      "scripthost"
+    ]
   },
-  "include": ["src", "app"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "electron.vite.config.ts",
+    "electron-builder.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/renderer/temp-vue/**"
+  ],
+  "vueCompilerOptions": {
+    "target": 3,
+  }
 }
