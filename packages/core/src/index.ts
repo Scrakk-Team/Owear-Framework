@@ -143,6 +143,38 @@ export type { MessagePortMain } from './port.js'
 export { app } from './app.js'
 export { readyPromise } from './app.js'
 
+// ── instalador (D1): bridge + API del modo instalador/desinstalador ──────────
+
+export { installer } from './installer.js'
+export type {
+  InstallerMode,
+  PayloadEntry,
+  InstallerInfo,
+  PlanOptions,
+  InstallOptions,
+  InstallResult,
+  UninstallResult,
+  VerifyResult,
+  StateResult,
+  ShortcutOptions,
+  LaunchOptions,
+} from './installer.js'
+
+export { defineBridge } from './bridge.js'
+export type {
+  OwearBridge,
+  BridgeApp,
+  BridgeTarget,
+  BridgePlatform,
+  BridgeFormat,
+  BridgeLayout,
+  BridgePreset,
+  BridgeGroup,
+  BridgeProtect,
+  BridgeNode,
+  BridgeHooks,
+} from './bridge.js'
+
 // ── workers Node (utilityProcess.fork) ──────────────────────────────────────
 
 export { forkWorker, resolveWorkerEntry } from './node/worker.js'
