@@ -44,7 +44,14 @@ namespace fs = std::filesystem;
 static Value Args(const ow_request_t* req) {
     if (!req || !req->json || req->json_len == 0) return Value(nullptr);
     auto parsed = ow::json::Parse(std::string_view(req->json, req->json_len));
-    return parsed.value ? *parsed.value : Value(nullptr);
+    if (!parsed.value) return Value(nullptr);
+    const Value& v = *parsed.value;
+    // El dispatcher pasa los argumentos como ARRAY: usamos el primero (objeto).
+    if (v.IsArray()) {
+        const auto& arr = v.AsArray();
+        return arr.empty() ? Value(nullptr) : arr[0];
+    }
+    return v;
 }
 
 static std::string Str(const Value& o, const char* k, std::string def = {}) {
