@@ -8,4 +8,7 @@ packages:
 # Sin esto, pnpm 11 aborta el install con ERR_PNPM_IGNORED_BUILDS y
 # `verify-deps-before-run` tumba también `pnpm dev`.
 allowBuilds:
+  core-js: true
   esbuild: true
+  msw: true
+  vue-demi: true
