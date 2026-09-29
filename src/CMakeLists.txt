@@ -47,6 +47,7 @@ set(OW_KERNEL_SOURCES
     Bridge/BridgeScript.cpp
     Bridge/Dispatcher.cpp
     Bridge/Shm.cpp
+    Bridge/Shm/Helpers.cpp
     Control/ControlServer.cpp
     Control/Commands/Util.cpp
     Control/Commands/App.cpp
@@ -71,6 +72,7 @@ set(OW_KERNEL_SOURCES
     Runtime/TarGz.cpp
     Runtime/TarGz/Helpers.cpp
     Pack/Pack.cpp
+    Pack/Helpers.cpp
     ${OW_HTTP_SOURCE}
     Runtime/NodeManager.cpp
     Runtime/NodeManager/Semver.cpp

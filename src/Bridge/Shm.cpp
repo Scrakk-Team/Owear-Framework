@@ -9,6 +9,7 @@
 // SIN copiar (g_bytes_new_static / IStream sobre memoria / NSData bytesNoCopy).
 //
 #include "Shm.hpp"
+#include "Shm/Internal.hpp"
 
 #include "../Core/Log.hpp"
 
@@ -31,6 +32,8 @@
 
 namespace ow::shm {
 
+using namespace shm_detail;
+
 namespace {
 
 struct Region {
@@ -47,45 +50,6 @@ struct Region {
 
 std::mutex g_mu;
 std::unordered_map<std::string, Region> g_regions;
-
-std::string RuntimeDir() {
-    const char* xdg = std::getenv("XDG_RUNTIME_DIR");
-    if (xdg && *xdg) return xdg;
-#ifdef _WIN32
-    const char* la = std::getenv("LOCALAPPDATA");
-    if (la && *la) return std::string(la) + "\\Temp";
-#endif
-    const char* tmp = std::getenv("TMPDIR");
-    return (tmp && *tmp) ? tmp : "/tmp";
-}
-
-std::string GenId() {
-    static thread_local std::mt19937_64 rng{std::random_device{}()};
-    char buf[17];
-    std::snprintf(buf, sizeof(buf), "%016llx",
-                  static_cast<unsigned long long>(rng()));
-    return buf;
-}
-
-/// Limpia regiones huérfanas de procesos anteriores (crash ⇒ Shutdown no corrió
-/// y el fichero quedaba en disco; llenaba tmpfs ⇒ SIGBUS en mmap). Es seguro:
-/// cada proceso sirve sus regiones por el mmap (shm::Data), no por el nombre.
-void SweepStaleRegions() {
-    static bool done = false;
-    if (done) return;
-    done = true;
-    std::error_code ec;
-    const std::string dir = RuntimeDir();
-    for (std::filesystem::directory_iterator it(dir, ec), end; it != end;
-         it.increment(ec)) {
-        if (ec) break;
-        const std::string name = it->path().filename().string();
-        if (name.rfind("owear-shm-", 0) == 0) {
-            std::error_code e2;
-            std::filesystem::remove(it->path(), e2);
-        }
-    }
-}
 
 } // namespace
 
@@ -175,7 +139,6 @@ size_t Count() {
 }
 
 } // namespace ow::shm
-
 // ── ABI-C pública para módulos ──────────────────────────────────────────────
 
 extern "C" {
@@ -187,5 +150,6 @@ const uint8_t* ow_shm_data(const char* id, size_t* out_len) {
     return ow::shm::Data(id, out_len);
 }
 void ow_shm_shutdown(void) { ow::shm::Shutdown(); }
+
 
 } // extern "C"
