@@ -157,11 +157,16 @@ function printHelp() {
   console.log(`
 ${C.cyan}owear${C.reset} — framework desktop nativo
 
-  ${C.green}ow create <dir>${C.reset}   crea una app nueva
-  ${C.green}ow dev${C.reset}            desarrollo: vite + kernel + sidecar node
-  ${C.green}ow build${C.reset}          build de producción
-  ${C.green}ow api list${C.reset}       lista las APIs del repo y sus manifiestos
-  ${C.green}ow api new <nombre>${C.reset}  scaffoldea una API (api/<nombre>/ + manifiesto)
+  ${C.green}ow create <dir>${C.reset}              crea una app nueva
+  ${C.green}ow create installer <dir>${C.reset}    scaffoldea el instalador
+  ${C.green}ow create uninstaller <dir>${C.reset}  scaffoldea el desinstalador
+  ${C.green}ow dev${C.reset}                       desarrollo: vite + kernel + sidecar node
+  ${C.green}ow build${C.reset}                     build de producción (dist/)
+  ${C.green}ow build app${C.reset}                 payload de la app (--format binary|deb|appimage)
+  ${C.green}ow build installer${C.reset}           binario instalador (linux) / .exe (win)
+  ${C.green}ow build uninstaller${C.reset}         binario desinstalador
+  ${C.green}ow api list${C.reset}                  lista las APIs del repo y sus manifiestos
+  ${C.green}ow api new <nombre>${C.reset}          scaffoldea una API (api/<nombre>/ + manifiesto)
 
 Variables útiles:
   OW_KERNEL_BIN     ruta al binario owear
@@ -169,23 +174,36 @@ Variables útiles:
 }
 
 function cmdCreate(args) {
-  const dir = args[0]
-  if (!dir) die('uso: ow create <dir>')
+  const sub = args[0]
+  if (sub === 'installer') {
+    return scaffold('template-installer', args[1] ?? 'installer', 'instalador')
+  }
+  if (sub === 'uninstaller') {
+    return scaffold('template-installer/uninstaller', args[1] ?? 'uninstaller', 'desinstalador')
+  }
+  const dir = sub
+  if (!dir) die('uso: ow create [installer|uninstaller] <dir>')
+  const target = scaffold('template', dir, 'app')
+  log('siguientes pasos:')
+  console.log(`  cd ${path.basename(target)}`)
+  console.log('  npm install')
+  console.log('  npm run dev')
+}
+
+/** Copia un template del CLI a `dir` y sustituye placeholders. */
+function scaffold(templateRel, dir, what) {
   const target = path.resolve(dir)
   if (fs.existsSync(target) && fs.readdirSync(target).length) {
     die(`el directorio ya existe y no está vacío: ${target}`)
   }
-  const templateDir = path.resolve(__dirname, '../template')
+  const templateDir = path.resolve(__dirname, '..', templateRel)
   if (!fs.existsSync(templateDir)) {
     die(`template no encontrado en ${templateDir} (instala @owear/cli completo)`)
   }
   fs.cpSync(templateDir, target, { recursive: true })
   applyAppName(target)
-  log(`app creada en ${target}`)
-  log('siguientes pasos:')
-  console.log(`  cd ${path.basename(target)}`)
-  console.log('  npm install')
-  console.log('  npm run dev')
+  log(`${what} en ${target}`)
+  return target
 }
 
 /**
@@ -504,8 +522,18 @@ async function cmdDev() {
   })
 }
 
-async function cmdBuild() {
-  const cwd = process.cwd()
+// ── ow build [app|installer|uninstaller] ─────────────────────────────────────
+
+async function cmdBuild(args) {
+  const sub = args[0]
+  if (sub === 'installer') return cmdBuildInstaller(process.cwd(), args.slice(1), false)
+  if (sub === 'uninstaller') return cmdBuildInstaller(process.cwd(), args.slice(1), true)
+  if (sub === 'app') return cmdBuildApp(process.cwd(), args.slice(1))
+  return cmdBuildBundle(process.cwd())
+}
+
+/** Build de la app → dist/ (vite + main.js + workers + módulos nativos). */
+async function cmdBuildBundle(cwd) {
   log('vite build…')
   const code = await runProc('npx', ['vite', 'build'], { cwd, shell: process.platform === 'win32' })
   if (code !== 0) die('vite build falló')
@@ -538,6 +566,207 @@ async function cmdBuild() {
       `${workersDir ? ' OW_APP_WORKERS=dist/workers' : ''}` +
       `${runMods ? ` OW_MODULES_DIR="${runMods}"` : ''} ./owear`
   )
+  return { dist: path.join(cwd, 'dist'), mainJs, workersDir }
+}
+
+// ── empaquetado (D1) ─────────────────────────────────────────────────────────
+
+/** Ruta a un script de tools/ del repo de Owear (dev/monorepo). */
+function repoTool(name) {
+  const root = owearRepoRoot()
+  if (!root) die(`\`ow build installer\` necesita el repo de Owear (no encuentro tools/${name})`)
+  return path.join(root, 'tools', name)
+}
+
+/** Plataforma del destino (para elegir target del bridge). */
+function platformKey() {
+  return process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : 'linux'
+}
+
+/** Slug del proyecto (nombre de package.json sin scope). */
+function appSlug(cwd) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'))
+    return (pkg.name ?? 'app').replace(/^@[^/]+\//, '')
+  } catch {
+    return path.basename(cwd)
+  }
+}
+
+function flag(args, name, def = null) {
+  return args.includes(name) ? args[args.indexOf(name) + 1] : def
+}
+
+function readPackConfig(cwd) {
+  const p = path.join(cwd, 'owear.pack.json')
+  if (!fs.existsSync(p)) return {}
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'))
+  } catch (e) {
+    die(`owear.pack.json inválido: ${e.message}`)
+  }
+}
+
+/** Ensambla el bundle `{app/,modules/,manifest.json}` que espera el kernel. */
+function assembleAppBundle(cwd, built) {
+  const bundle = path.join(cwd, '.owear', 'app-bundle')
+  fs.rmSync(bundle, { recursive: true, force: true })
+  fs.mkdirSync(bundle, { recursive: true })
+  fs.cpSync(built.dist, path.join(bundle, 'app'), { recursive: true })
+  const mods = path.join(built.dist, 'modules')
+  if (fs.existsSync(mods)) fs.cpSync(mods, path.join(bundle, 'modules'), { recursive: true })
+  fs.writeFileSync(
+    path.join(bundle, 'manifest.json'),
+    JSON.stringify({ name: appSlug(cwd), createdAt: Date.now() }, null, 2) + '\n'
+  )
+  return bundle
+}
+
+function packDir(kernel, inDir, out) {
+  const r = spawnSync(
+    process.execPath,
+    [repoTool('owear-pack.mjs'), '--kernel', kernel, '--in', inDir, '--out', out],
+    { stdio: 'inherit' }
+  )
+  if (r.status !== 0) die('falló owear-pack')
+}
+
+/** Compila `owear.bridge.ts` → `.owear/bridge.json` y devuelve el objeto. */
+async function buildBridge(cwd) {
+  const { pathToFileURL } = await import('node:url')
+  const src = ['owear.bridge.ts', 'owear.bridge.mts', 'owear.bridge.js', 'owear.bridge.mjs']
+    .map((n) => path.join(cwd, n))
+    .find((p) => fs.existsSync(p))
+  if (!src) die('no encuentro owear.bridge.ts — el instalador necesita el bridge de la app')
+  const outMjs = path.join(cwd, '.owear', 'bridge.mjs')
+  fs.mkdirSync(path.dirname(outMjs), { recursive: true })
+  log(`compilando ${path.basename(src)}…`)
+  const r = spawnSync(
+    'npx',
+    ['esbuild', src, '--bundle', '--platform=node', '--format=esm', '--packages=external',
+      `--outfile=${outMjs}`, '--log-level=warning'],
+    { cwd, stdio: 'inherit', shell: process.platform === 'win32' }
+  )
+  if (r.status !== 0) die('no se pudo compilar owear.bridge')
+  const mod = await import(`${pathToFileURL(outMjs).href}?t=${Date.now()}`)
+  const obj = mod.default ?? mod
+  const jsonPath = path.join(cwd, '.owear', 'bridge.json')
+  fs.writeFileSync(jsonPath, JSON.stringify(obj, null, 2) + '\n')
+  return { obj, jsonPath }
+}
+
+/** Compila la UI del instalador/desinstalador → `ui-dist/` (+ sidecar main.js). */
+async function buildInstallerUI(cwd, which) {
+  const dir =
+    which === 'uninstaller' ? path.join(cwd, 'installer', 'uninstaller') : path.join(cwd, 'installer')
+  if (!fs.existsSync(dir)) {
+    die(`no existe ${path.relative(cwd, dir)} — créalo con: ow create installer`)
+  }
+  log(`vite build (${which})…`)
+  const code = await runProc('npx', ['vite', 'build'], { cwd: dir, shell: process.platform === 'win32' })
+  if (code !== 0) die(`vite build del ${which} falló`)
+  const uiDist = path.join(dir, 'ui-dist')
+
+  // sidecar del instalador (Node): se empaqueta dentro del propio ui/
+  const entry = path.join(dir, 'app', 'main.ts')
+  if (fs.existsSync(entry)) {
+    const out = path.join(uiDist, 'main.js')
+    log(`compilando ${which}/app/main.ts…`)
+    const r = spawnSync(
+      'npx',
+      ['esbuild', entry, '--bundle', '--platform=node', '--format=esm', `--outfile=${out}`, '--log-level=warning'],
+      { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32' }
+    )
+    if (r.status !== 0) die(`no se pudo compilar ${which}/app/main.ts`)
+  }
+  return uiDist
+}
+
+/** `ow build app --format binary|deb|appimage` (payload de la app). */
+async function cmdBuildApp(cwd, args) {
+  const fmt = flag(args, '--format', 'binary')
+  const built = await cmdBuildBundle(cwd)
+  const slug = appSlug(cwd)
+  const outDir = path.join(cwd, 'release')
+  fs.mkdirSync(outDir, { recursive: true })
+
+  if (fmt === 'binary') {
+    const kernel = ensureKernelBuilt(cwd)
+    const bundle = assembleAppBundle(cwd, built)
+    const exe = process.platform === 'win32' ? `${slug}.exe` : slug
+    const out = path.join(outDir, exe)
+    packDir(kernel, bundle, out)
+    log(`binario único: ${out}`)
+    return
+  }
+  if (fmt === 'deb' || fmt === 'appimage') {
+    die(`formato ${fmt} aún no implementado (fase 2). Usa --format binary.`)
+  }
+  die(`formato desconocido: ${fmt} (binary|deb|appimage)`)
+}
+
+/** `ow build installer|uninstaller` → binario instalador/desinstalador. */
+async function cmdBuildInstaller(cwd, args, isUninstaller) {
+  const kernel = ensureKernelBuilt(cwd)
+  const slug = appSlug(cwd)
+  const pack = readPackConfig(cwd)
+  const bridge = await buildBridge(cwd)
+  const target = bridge.obj?.targets?.[platformKey()] ?? {}
+  const mode = flag(args, '--mode', target.layout ?? pack.modes?.default ?? 'minimal')
+
+  const exe = process.platform === 'win32' ? '.exe' : ''
+  const outDir = path.join(cwd, 'release')
+  fs.mkdirSync(outDir, { recursive: true })
+
+  // 1) payload de la app (sólo para el instalador)
+  let payloadDir = null
+  if (!isUninstaller) {
+    const built = await cmdBuildBundle(cwd)
+    payloadDir = path.join(cwd, '.owear', 'installer-payload', 'payload')
+    fs.rmSync(payloadDir, { recursive: true, force: true })
+    const bundle = assembleAppBundle(cwd, built)
+    if (mode === 'minimal') {
+      fs.mkdirSync(payloadDir, { recursive: true })
+      packDir(kernel, bundle, path.join(payloadDir, `${slug}${exe}`))
+    } else {
+      fs.cpSync(bundle, payloadDir, { recursive: true })
+    }
+  }
+
+  // 2) UI del instalador/desinstalador
+  const ui = await buildInstallerUI(cwd, isUninstaller ? 'uninstaller' : 'installer')
+
+  // 3) metadatos (installer.json / uninstaller.json) — el kernel los detecta
+  const meta = {
+    appId: bridge.obj?.app?.id ?? slug,
+    appName: bridge.obj?.app?.name ?? slug,
+    version: bridge.obj?.app?.version ?? '0.0.0',
+    publisher: bridge.obj?.app?.publisher ?? null,
+    mode: isUninstaller ? 'uninstaller' : mode,
+    layout: target.layout ?? mode,
+    order: bridge.obj?.order ?? null,
+    targets: bridge.obj?.targets ?? null,
+  }
+  const metaPath = path.join(cwd, '.owear', isUninstaller ? 'uninstaller.json' : 'installer.json')
+  fs.mkdirSync(path.dirname(metaPath), { recursive: true })
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n')
+
+  // 4) ensambla el binario (kernel + payload + footer OWPK1)
+  const kind = isUninstaller ? 'uninstaller' : 'installer'
+  const out = path.join(outDir, `${slug}-${kind}${exe}`)
+  const toolArgs = [
+    repoTool('owear-installer.mjs'),
+    '--kernel', kernel,
+    '--out', out,
+    '--ui', ui,
+    '--bridge', bridge.jsonPath,
+    '--meta', metaPath,
+    '--name', slug,
+  ]
+  if (payloadDir) toolArgs.push('--payload', payloadDir)
+  const r = spawnSync(process.execPath, toolArgs, { stdio: 'inherit' })
+  if (r.status !== 0) die(`falló owear-installer (${kind})`)
+  log(`${kind}: ${out}`)
 }
 
 main().catch((e) => die(e?.stack ?? String(e)))

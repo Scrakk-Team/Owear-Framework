@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://owear.dev/schemas/owear.bridge.json",
+  "title": "Owear installer bridge",
+  "description": "Contrato app ↔ installer ↔ uninstaller. Se escribe como `owear.bridge.ts` (defineBridge de @owear/core) y `ow build installer` lo embebe como bridge.json en el binario instalador.",
+  "type": "object",
+  "required": ["app", "targets"],
+  "additionalProperties": false,
+  "properties": {
+    "bridgeVersion": { "type": "integer", "minimum": 1 },
+    "app": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Id estable (reverse-DNS recomendado)." },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "publisher": { "type": "string" },
+        "icon": { "type": "string" }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "array",
+            "items": { "enum": ["binary", "deb", "appimage", "exe", "msi"] }
+          },
+          "layout": { "enum": ["minimal", "layout"] },
+          "preset": { "enum": ["electron-like", "tauri-like", "flat", "custom"] },
+          "dir": { "type": "string" },
+          "shortcuts": {
+            "type": "array",
+            "items": { "enum": ["desktop", "menu", "startup", "startMenu"] }
+          },
+          "scope": { "enum": ["user", "system"] }
+        }
+      }
+    },
+    "order": {
+      "type": "array",
+      "items": {
+        "enum": ["kernel", "node", "modules:stock", "modules:app", "app:main", "app:workers", "app:assets", "resources"]
+      }
+    },
+    "protect": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "integrity": { "type": "boolean" },
+          "readonly": { "type": "boolean" },
+          "hidden": { "type": "boolean" },
+          "signed": { "type": "boolean" }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "mode": { "enum": ["system", "download", "embed"] } }
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preInstall": { "type": "string" },
+        "postInstall": { "type": "string" },
+        "preUninstall": { "type": "string" },
+        "postUninstall": { "type": "string" }
+      }
+    }
+  }
+}

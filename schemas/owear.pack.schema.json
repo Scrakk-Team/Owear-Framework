@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://owear.dev/schemas/owear.pack.json",
+  "title": "Owear packaging config",
+  "description": "Config opcional de empaquetado (owear.pack.json en la raíz de la app). Complementa a owear.bridge.ts; si falta, se derivan valores por defecto.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "installer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string", "description": "Carpeta del proyecto instalador (default: ./installer)." },
+        "template": { "type": "string", "description": "Template a usar si no existe ./installer." }
+      }
+    },
+    "out": { "type": "string", "description": "Directorio de salida (default: release/)." },
+    "modes": {
+      "type": "object",
+      "description": "Presets de cada modo de payload (el usuario puede pasar --mode).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "embed": {
+            "type": "array",
+            "items": { "enum": ["kernel", "node", "modules:stock", "modules:app", "app:main", "app:workers", "app:assets", "resources"] }
+          },
+          "order": {
+            "type": "array",
+            "items": { "enum": ["kernel", "node", "modules:stock", "modules:app", "app:main", "app:workers", "app:assets", "resources"] }
+          },
+          "preset": { "enum": ["electron-like", "tauri-like", "flat", "custom"] }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "mode": { "enum": ["system", "download", "embed"] } }
+    },
+    "protect": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "integrity": { "type": "boolean" },
+          "readonly": { "type": "boolean" },
+          "hidden": { "type": "boolean" },
+          "signed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
