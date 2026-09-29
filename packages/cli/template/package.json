@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "App de escritorio construida con Owear.",
+  "description": "App de escritorio construida con Owear (Starter: titlebar propia, módulos nativos y UI real).",
   "scripts": {
     "dev": "ow dev",
     "build": "ow build",

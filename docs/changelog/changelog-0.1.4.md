@@ -44,6 +44,12 @@ publica en npm** todavía.
 
 ## Changed
 
+- **El template por defecto de `ow create` ahora es el Starter**: las apps
+  generadas salen con la UI del Starter (One Dark Pro + acento rosado, JetBrains
+  Mono + Dancing Script self-hosted, titlebar propia, cards/consola) y el
+  showcase de módulos nativos C1–C10 (app, dialog, fs, webContents, nativeImage,
+  menu, tray, nativeTheme, print/printToPDF, BrowserWindow, screen, power) +
+  navegador embebido (webview nativa).
 - **Template del instalador sin emojis hardcoded**: el plan de instalación
   muestra ruta + tamaño (antes `📁`/`📄`), y los controles de ventana
   (min/max/close) se cablean en el renderer.
