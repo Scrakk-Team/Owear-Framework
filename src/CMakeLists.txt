@@ -94,6 +94,7 @@ if(OW_PLATFORM STREQUAL "linux")
     Window/Platform/linux/Webviews.cpp
         Webview/linux/WebKitGTKBackend.cpp
         Webview/linux/Helpers.cpp
+        Webview/linux/Backend/Protocols.cpp
         Webview/linux/BuiltinUtil_linux.cpp
         Control/ControlServer_linux.cpp
         Runtime/NodeManager_linux.cpp
@@ -133,7 +134,9 @@ elseif(OW_PLATFORM STREQUAL "win")
     )
     if(OW_WITH_WEBVIEW2)
         list(APPEND OW_KERNEL_SOURCES Webview/win/Webview2Backend.cpp
-                                     Webview/win/Helpers.cpp)
+                                     Webview/win/Helpers.cpp
+                                     Webview/win/Backend/Controller.cpp
+                                     Webview/win/Backend/Handlers.cpp)
     else()
         # Stub sin WebView2 SDK: CreateWebviewBackend() → nullptr con log claro.
         list(APPEND OW_KERNEL_SOURCES Webview/win/Webview2Stub_win.cpp)
