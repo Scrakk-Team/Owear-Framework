@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // src/Window/Platform/win/Methods.cpp — estado/geometria/titulo/drags (C9, Win32).
-#include "Internal.hpp"
-#include "PlatformData.hpp"
+#include "../Internal.hpp"
+#include "../PlatformData.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -11,6 +11,7 @@
 #include <shobjidl.h>
 
 #include <string>
+
 
 namespace ow {
 
@@ -143,96 +144,5 @@ void Window::Impl::PSetAspectRatio(double ratio, int extraW, int extraH) {
     opts.aspectExtraW = extraW;
     opts.aspectExtraH = extraH;
 }
-Window::Bounds Window::Impl::PGetContentBounds() const {
-    Bounds b;
-    if (!pdata || !pdata->hwnd) return b;
-    RECT rc;
-    GetClientRect(pdata->hwnd, &rc);
-    POINT tl{rc.left, rc.top};
-    ClientToScreen(pdata->hwnd, &tl);
-    b.x = tl.x;
-    b.y = tl.y;
-    b.w = rc.right - rc.left;
-    b.h = rc.bottom - rc.top;
-    return b;
-}
-void Window::Impl::PSetContentSize(int w, int h) {
-    if (!pdata || !pdata->hwnd) return;
-    RECT rc{0, 0, w, h};
-    AdjustWindowRectEx(&rc, static_cast<DWORD>(GetWindowLongPtrW(pdata->hwnd, GWL_STYLE)),
-                       FALSE, static_cast<DWORD>(GetWindowLongPtrW(pdata->hwnd, GWL_EXSTYLE)));
-    SetWindowPos(pdata->hwnd, nullptr, 0, 0, rc.right - rc.left, rc.bottom - rc.top,
-                 SWP_NOMOVE | SWP_NOZORDER);
-}
-Window::Size Window::Impl::PGetContentSize() const {
-    Size s;
-    if (!pdata || !pdata->hwnd) return s;
-    RECT rc;
-    GetClientRect(pdata->hwnd, &rc);
-    s.width = rc.right - rc.left;
-    s.height = rc.bottom - rc.top;
-    return s;
-}
-Window::Size Window::Impl::PGetMinimumSize() const {
-    return Size{opts.minWidth, opts.minHeight};
-}
-Window::Size Window::Impl::PGetMaximumSize() const {
-    return Size{opts.maxWidth, opts.maxHeight};
-}
-void Window::Impl::PSetMinimumSize(int w, int h) {
-    opts.minWidth = w;
-    opts.minHeight = h;
-}
-void Window::Impl::PSetMaximumSize(int w, int h) {
-    opts.maxWidth = w;
-    opts.maxHeight = h;
-}
-
-void Window::Impl::PSetTitle(const std::string& t) {
-    if (!pdata) return;
-    std::wstring w = Utf8ToWide(t);
-    SetWindowTextW(pdata->hwnd, w.c_str());
-}
-std::string Window::Impl::PGetTitle() const {
-    if (!pdata) return {};
-    wchar_t buf[512]{};
-    GetWindowTextW(pdata->hwnd, buf, 512);
-    return WideToUtf8(buf);
-}
-
-
-void Window::Impl::PSetColorScheme(int mode) {
-    if (webview) webview->SetPreferredColorScheme(mode);
-}
-
-void Window::Impl::PPrintToPDF(std::function<void(bool, const std::string&)> cb) {
-    if (webview) webview->PrintToPDF(std::move(cb));
-    else if (cb) cb(false, {});
-}
-
-void Window::Impl::PApplyTitleBar() {
-    // Hidden/Custom ya son frameless desde PCreate; cambios en caliente (F3)
-}
-
-void Window::Impl::PBeginMoveDrag() {
-    if (!pdata) return;
-    ReleaseCapture();
-    PostMessageW(pdata->hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-}
-
-void Window::Impl::PBeginResizeDrag(const std::string& edge) {
-    if (!pdata) return;
-    static const std::map<std::string, UINT> kEdges = {
-        {"left", HTLEFT}, {"right", HTRIGHT},
-        {"top", HTTOP}, {"bottom", HTBOTTOM},
-        {"top-left", HTTOPLEFT}, {"top-right", HTTOPRIGHT},
-        {"bottom-left", HTBOTTOMLEFT}, {"bottom-right", HTBOTTOMRIGHT},
-    };
-    auto it = kEdges.find(edge);
-    if (it == kEdges.end()) return;
-    ReleaseCapture();
-    PostMessageW(pdata->hwnd, WM_NCLBUTTONDOWN, it->second, 0);
-}
-
 
 } // namespace ow

@@ -101,6 +101,8 @@ if(OW_PLATFORM STREQUAL "linux")
         Webview/linux/WebKitGTKBackend.cpp
         Webview/linux/Helpers.cpp
         Webview/linux/Backend/Protocols.cpp
+        Webview/linux/Backend/Schemes.cpp
+        Webview/linux/Backend/Rpc.cpp
         Webview/linux/BuiltinUtil_linux.cpp
         Control/ControlServer_linux.cpp
         Runtime/NodeManager_linux.cpp
@@ -135,7 +137,9 @@ elseif(OW_PLATFORM STREQUAL "win")
     Window/Platform/win/Webviews/Helpers.cpp
     Window/Platform/win/Events.cpp
     Window/Platform/win/Create.cpp
-    Window/Platform/win/Methods.cpp
+    Window/Platform/win/Methods/State.cpp
+    Window/Platform/win/Methods/Geometry.cpp
+    Window/Platform/win/Methods/Title.cpp
         Control/ControlServer_win.cpp
         Runtime/NodeManager_win.cpp
         Webview/win/BuiltinUtil_win.cpp
