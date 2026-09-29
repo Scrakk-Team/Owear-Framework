@@ -632,12 +632,15 @@ function packDir(kernel, inDir, out) {
 }
 
 /** Compila `owear.bridge.ts` → `.owear/bridge.json` y devuelve el objeto. */
-async function buildBridge(cwd) {
+async function buildBridge(cwd, optional = false) {
   const { pathToFileURL } = await import('node:url')
   const src = ['owear.bridge.ts', 'owear.bridge.mts', 'owear.bridge.js', 'owear.bridge.mjs']
     .map((n) => path.join(cwd, n))
     .find((p) => fs.existsSync(p))
-  if (!src) die('no encuentro owear.bridge.ts — el instalador necesita el bridge de la app')
+  if (!src) {
+    if (optional) return null
+    die('no encuentro owear.bridge.ts — el instalador necesita el bridge de la app')
+  }
   const outMjs = path.join(cwd, '.owear', 'bridge.mjs')
   fs.mkdirSync(path.dirname(outMjs), { recursive: true })
   log(`compilando ${path.basename(src)}…`)
@@ -682,27 +685,154 @@ async function buildInstallerUI(cwd, which) {
   return uiDist
 }
 
-/** `ow build app --format binary|deb|appimage` (payload de la app). */
+/** Ejecuta un script de tools/ del repo con Node. */
+function runTool(name, args) {
+  const r = spawnSync(process.execPath, [repoTool(name), ...args], { stdio: 'inherit' })
+  if (r.status !== 0) die(`falló ${name}`)
+}
+
+function readPkg(cwd) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+async function appMeta(cwd) {
+  const bridge = await buildBridge(cwd, true)
+  const pkg = readPkg(cwd)
+  const slug = appSlug(cwd)
+  return {
+    bridge,
+    slug,
+    appId: bridge?.obj?.app?.id ?? slug,
+    appName: bridge?.obj?.app?.name ?? pkg.name ?? slug,
+    version: bridge?.obj?.app?.version ?? pkg.version ?? '0.0.0',
+    publisher: bridge?.obj?.app?.publisher ?? 'unknown',
+    icon: bridge?.obj?.app?.icon ?? null,
+  }
+}
+
+/** Copia kernel + dist + modules + main/workers a `dir` (layout de app). */
+function stageAppLayout(cwd, built, dir, kernel) {
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  const exe = process.platform === 'win32' ? 'owear.exe' : 'owear'
+  fs.copyFileSync(kernel, path.join(dir, exe))
+  fs.chmodSync(path.join(dir, exe), 0o755)
+  fs.cpSync(built.dist, path.join(dir, 'app'), { recursive: true })
+  const mods = path.join(built.dist, 'modules')
+  if (fs.existsSync(mods)) fs.cpSync(mods, path.join(dir, 'modules'), { recursive: true })
+  if (built.mainJs) fs.copyFileSync(built.mainJs, path.join(dir, 'main.js'))
+  const workers = path.join(built.dist, 'workers')
+  if (fs.existsSync(workers)) fs.cpSync(workers, path.join(dir, 'workers'), { recursive: true })
+  return exe
+}
+
+function desktopEntry(meta, execLine, iconName) {
+  return (
+    `[Desktop Entry]\nType=Application\nName=${meta.appName}\n` +
+    `Comment=${meta.appName}\nExec=${execLine}\n` +
+    (iconName ? `Icon=${iconName}\n` : '') +
+    `Terminal=false\nCategories=Utility;\n`
+  )
+}
+
+function copyIcon(cwd, meta, dstBase) {
+  if (!meta.icon) return null
+  const src = path.isAbsolute(meta.icon) ? meta.icon : path.join(cwd, meta.icon)
+  if (!fs.existsSync(src)) return null
+  const ext = path.extname(src) || '.png'
+  const dst = dstBase + ext
+  fs.mkdirSync(path.dirname(dst), { recursive: true })
+  fs.copyFileSync(src, dst)
+  return path.basename(dst)
+}
+
+/** `ow build app --format binary|deb|appimage|msi` (payload de la app). */
 async function cmdBuildApp(cwd, args) {
   const fmt = flag(args, '--format', 'binary')
   const built = await cmdBuildBundle(cwd)
-  const slug = appSlug(cwd)
+  const meta = await appMeta(cwd)
+  const slug = meta.slug
   const outDir = path.join(cwd, 'release')
   fs.mkdirSync(outDir, { recursive: true })
+  const kernel = ensureKernelBuilt(cwd)
+  const isWin = process.platform === 'win32'
 
   if (fmt === 'binary') {
-    const kernel = ensureKernelBuilt(cwd)
     const bundle = assembleAppBundle(cwd, built)
-    const exe = process.platform === 'win32' ? `${slug}.exe` : slug
+    const exe = isWin ? `${slug}.exe` : slug
     const out = path.join(outDir, exe)
     packDir(kernel, bundle, out)
     log(`binario único: ${out}`)
     return
   }
-  if (fmt === 'deb' || fmt === 'appimage') {
-    die(`formato ${fmt} aún no implementado (fase 2). Usa --format binary.`)
+
+  if (fmt === 'deb') {
+    const stage = path.join(cwd, '.owear', 'linux-stage')
+    const opt = path.join(stage, 'opt', slug)
+    stageAppLayout(cwd, built, opt, kernel)
+    const bin = path.join(stage, 'usr', 'bin', slug)
+    fs.mkdirSync(path.dirname(bin), { recursive: true })
+    fs.writeFileSync(
+      bin,
+      `#!/bin/sh\nAPPDIR="/opt/${slug}"\n` +
+        `export OW_ASSETS_DIR="$APPDIR/app"\n` +
+        `[ -f "$APPDIR/main.js" ] && export OW_APP_MAIN="$APPDIR/main.js"\n` +
+        `[ -d "$APPDIR/workers" ] && export OW_APP_WORKERS="$APPDIR/workers"\n` +
+        `[ -d "$APPDIR/modules" ] && export OW_MODULES_DIR="$APPDIR/modules"\n` +
+        `exec "$APPDIR/owear" "$@"\n`,
+    )
+    fs.chmodSync(bin, 0o755)
+    const apps = path.join(stage, 'usr', 'share', 'applications')
+    fs.mkdirSync(apps, { recursive: true })
+    const icons = path.join(stage, 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps')
+    const iconName = copyIcon(cwd, meta, path.join(icons, meta.appId))
+    fs.writeFileSync(path.join(apps, `${meta.appId}.desktop`), desktopEntry(meta, slug, iconName ? meta.appId : null))
+    const out = path.join(outDir, `${slug}_${meta.version}_amd64.deb`)
+    runTool('owear-linux.mjs', ['deb', '--stage', stage, '--out', out, '--name', slug,
+      '--version', meta.version, '--maintainer', meta.publisher, '--description', meta.appName])
+    log(`.deb: ${out}`)
+    return
   }
-  die(`formato desconocido: ${fmt} (binary|deb|appimage)`)
+
+  if (fmt === 'appimage') {
+    const appDir = path.join(cwd, '.owear', `${slug}.AppDir`)
+    fs.rmSync(appDir, { recursive: true, force: true })
+    fs.mkdirSync(appDir, { recursive: true })
+    const usr = path.join(appDir, 'usr')
+    stageAppLayout(cwd, built, usr, kernel)
+    fs.writeFileSync(
+      path.join(appDir, 'AppRun'),
+      `#!/bin/sh\nAPPDIR="$(dirname "$(readlink -f "$0")")"\n` +
+        `export OW_ASSETS_DIR="$APPDIR/usr/app"\n` +
+        `[ -f "$APPDIR/usr/main.js" ] && export OW_APP_MAIN="$APPDIR/usr/main.js"\n` +
+        `[ -d "$APPDIR/usr/workers" ] && export OW_APP_WORKERS="$APPDIR/usr/workers"\n` +
+        `[ -d "$APPDIR/usr/modules" ] && export OW_MODULES_DIR="$APPDIR/usr/modules"\n` +
+        `exec "$APPDIR/usr/owear" "$@"\n`,
+    )
+    fs.chmodSync(path.join(appDir, 'AppRun'), 0o755)
+    const iconName = copyIcon(cwd, meta, path.join(appDir, meta.appId))
+    fs.writeFileSync(path.join(appDir, `${meta.appId}.desktop`), desktopEntry(meta, slug, iconName ? meta.appId : null))
+    const out = path.join(outDir, `${slug}-${meta.version}-x86_64.AppImage`)
+    runTool('owear-linux.mjs', ['appimage', '--appdir', appDir, '--out', out, '--arch', 'x86_64'])
+    log(`AppImage: ${out}`)
+    return
+  }
+
+  if (fmt === 'msi') {
+    const stage = path.join(cwd, '.owear', 'win-stage')
+    stageAppLayout(cwd, built, stage, kernel)
+    const out = path.join(outDir, `${slug}-${meta.version}.msi`)
+    runTool('owear-msi.mjs', ['--stage', stage, '--out', out, '--name', slug,
+      '--version', meta.version, '--publisher', meta.publisher, '--appId', meta.appId])
+    log(`.MSI: ${out}`)
+    return
+  }
+
+  die(`formato desconocido: ${fmt} (binary|deb|appimage|msi)`)
 }
 
 /** `ow build installer|uninstaller` → binario instalador/desinstalador. */
@@ -753,6 +883,9 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
     mode: isUninstaller ? 'uninstaller' : mode,
     layout: target.layout ?? mode,
     order: bridge.obj?.order ?? null,
+    protect: bridge.obj?.protect ?? null,
+    hooks: bridge.obj?.hooks ?? null,
+    node: bridge.obj?.node ?? null,
     targets: bridge.obj?.targets ?? null,
   }
   const metaPath = path.join(cwd, '.owear', isUninstaller ? 'uninstaller.json' : 'installer.json')

@@ -49,6 +49,21 @@ el mismo bridge. Todo se conecta por una API dedicada y un fichero puente.
   su sub-template `uninstaller/` (mismo bridge, desinstala).
 - **Schemas**: `schemas/owear.bridge.schema.json` y
   `schemas/owear.pack.schema.json`.
+- **Formatos Linux de la app** (`ow build app --format`):
+  - `deb`: `.deb` real (ar + `control.tar.gz` + `data.tar.gz`) generado en Node,
+    sin dependencias externas; instala en `/opt/<slug>` + launcher en
+    `/usr/bin` + `.desktop`.
+  - `appimage`: `AppDir` (AppRun + `.desktop` + icono) y empaquetado con
+    `appimagetool` si está disponible.
+- **`.MSI` de Windows**: `ow build app --format msi` genera un fuente **WiX v3**
+  desde el stage y lo compila con `wixl` (msitools) o `wix`; si no hay
+  toolchain, deja el `.wxs` listo.
+- **`protect`** (integridad + flags) aplicado por el builtin `installer`:
+  `hidden` oculta grupos del plan/listado y `readonly` fija permisos de solo
+  lectura al instalar (además de los hashes de integridad del manifiesto).
+- **Hooks del bridge**: `preInstall`/`postInstall`/`preUninstall`/
+  `postUninstall` se emiten como evento `installer.hook` durante la instalación
+  y desinstalación.
 
 ### Modos de payload
 
@@ -74,6 +89,7 @@ el mismo bridge. Todo se conecta por una API dedicada y un fichero puente.
 ## Notas
 
 - Verificado end-to-end por el control socket: `mode → plan → install → state →
-  verify → uninstall` (instala/desinstala de verdad en el destino).
-- Pendiente (fases 2–3): formatos `.deb`/`.AppImage` de la app, `.MSI` de
-  Windows, `protect` con cifrado real, y hooks del bridge.
+  verify → uninstall` (instala/desinstala de verdad en el destino), y
+  `protect`/`hooks` (oculta + solo-lectura + eventos `installer.hook`).
+- Pendiente: **cifrado real** opcional del payload (hoy `protect` es integridad
+  + flags), y **macOS** (sin toolchain en el entorno de desarrollo).

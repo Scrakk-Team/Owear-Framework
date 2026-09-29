@@ -14,6 +14,7 @@
 //
 #include "../../../Pack/Pack.hpp"
 #include "../../../Runtime/Sha256.hpp"
+#include "../../../Control/ControlServer.hpp"
 #include "Internal.hpp"
 #include "ow/Base64.h"
 #include "ow/Json.h"
@@ -77,6 +78,70 @@ static std::string AppName() { return EnvOr("OW_APP_NAME", "Owear App"); }
 /// Raíz del payload embebido (extraído a caché, idempotente).
 static std::string PayloadRoot() { return ow::pack::EnsureExtracted(); }
 
+// ── metadatos (installer.json): protect + hooks ─────────────────────────────
+
+struct InstallerMeta {
+    bool valid = false;
+    Value root{nullptr};
+};
+
+static const InstallerMeta& Meta() {
+    static const InstallerMeta m = [] {
+        InstallerMeta r;
+        std::ifstream f(PayloadRoot() + "/installer.json", std::ios::binary);
+        if (f) {
+            std::string raw((std::istreambuf_iterator<char>(f)),
+                            std::istreambuf_iterator<char>());
+            auto parsed = ow::json::Parse(raw);
+            if (parsed.value) {
+                r.root = *parsed.value;
+                r.valid = true;
+            }
+        }
+        return r;
+    }();
+    return m;
+}
+
+/// Grupo lógico de una ruta del payload (para `protect`).
+static std::string GroupForRel(const std::string& rel) {
+    const auto inDir = [&](const char* d) {
+        return rel == d || rel.rfind(std::string(d) + "/", 0) == 0;
+    };
+    if (inDir("app")) return "app:assets";
+    if (inDir("workers")) return "app:workers";
+    if (rel == "main.js") return "app:main";
+    if (inDir("modules")) return "modules:app";
+    if (inDir("resources")) return "resources";
+    if (inDir("node")) return "node";
+    return "kernel";
+}
+
+static bool ProtectFlag(const std::string& rel, const char* flag) {
+    const auto& m = Meta();
+    if (!m.valid) return false;
+    const Value* pr = m.root.Find("protect");
+    if (!pr || !pr->IsObject()) return false;
+    const Value* g = pr->Find(GroupForRel(rel));
+    if (!g || !g->IsObject()) return false;
+    const Value* f = g->Find(flag);
+    return f && f->IsBool() && f->AsBool();
+}
+
+static void EmitHook(const char* phase) {
+    const auto& m = Meta();
+    if (!m.valid) return;
+    const Value* h = m.root.Find("hooks");
+    if (!h || !h->IsObject()) return;
+    const Value* name = h->Find(phase);
+    if (!name || !name->IsString()) return;
+    Object o;
+    o.emplace_back("phase", Value(std::string(phase)));
+    o.emplace_back("hook", *name);
+    ow::ControlServer::Get().BroadcastEvent("installer.hook",
+                                        Value(std::move(o)).Serialize());
+}
+
 /// Carpeta con lo que se instala: `<root>/payload` (o la raíz si no existe).
 static std::string PayloadDir() {
     const std::string root = PayloadRoot();
@@ -118,6 +183,7 @@ static std::vector<PlanEntry> ListPayload() {
         if (ec) break;
         const std::string rel = fs::relative(it->path(), dir, ec).generic_string();
         if (rel.empty() || rel == ".") continue;
+        if (ProtectFlag(rel, "hidden")) continue; // protegido: no se lista
         PlanEntry e;
         e.rel = rel;
         e.dir = it->is_directory(ec);
@@ -248,6 +314,8 @@ static void install(const ow_request_t* req, ow_response_t* res) {
     fs::create_directories(dir, ec);
     if (ec) { RespondError(res, "no se pudo crear " + dir); return; }
 
+    EmitHook("preInstall");
+
     Array done;
     for (const auto& e : entries) {
         const fs::path src = fs::path(payload) / e.rel;
@@ -260,12 +328,22 @@ static void install(const ow_request_t* req, ow_response_t* res) {
         fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
         if (ec) { RespondError(res, "fallo copiando " + e.rel + ": " + ec.message()); return; }
         fs::permissions(dst,
-                        IsExecutable(e.dst)
-                            ? (fs::perms::owner_all | fs::perms::group_read |
-                               fs::perms::group_exec | fs::perms::others_read |
-                               fs::perms::others_exec)
-                            : (fs::perms::owner_read | fs::perms::owner_write |
-                               fs::perms::group_read | fs::perms::others_read),
+                        ([&] {
+                            const bool ex = IsExecutable(e.dst);
+                            if (ProtectFlag(e.dst, "readonly"))
+                                return ex
+                                           ? (fs::perms::owner_read | fs::perms::owner_exec |
+                                              fs::perms::group_read | fs::perms::group_exec |
+                                              fs::perms::others_read | fs::perms::others_exec)
+                                           : (fs::perms::owner_read | fs::perms::group_read |
+                                              fs::perms::others_read);
+                            return ex
+                                       ? (fs::perms::owner_all | fs::perms::group_read |
+                                          fs::perms::group_exec | fs::perms::others_read |
+                                          fs::perms::others_exec)
+                                       : (fs::perms::owner_read | fs::perms::owner_write |
+                                          fs::perms::group_read | fs::perms::others_read);
+                        })(),
                         fs::perm_options::replace, ec);
         Object fe;
         fe.emplace_back("path", Value(e.dst));
@@ -299,6 +377,8 @@ static void install(const ow_request_t* req, ow_response_t* res) {
                                     Str(a, "publisher"), dir, uninstaller);
     }
 
+    EmitHook("postInstall");
+
     Object r;
     r.emplace_back("installed", Value(true));
     r.emplace_back("dir", Value(dir));
@@ -313,6 +393,8 @@ static void uninstall(const ow_request_t* req, ow_response_t* res) {
     const bool keepData = Bool(a, "keepData", false);
     (void)keepData; // reservado: datos de usuario en la caché se conservan siempre en v1
     if (dir.empty()) { RespondError(res, "dir requerido"); return; }
+
+    EmitHook("preUninstall");
 
     std::ifstream f(fs::path(dir) / ".owear-install.json", std::ios::binary);
     if (!f) { RespondError(res, "no instalado en " + dir); return; }
@@ -343,6 +425,8 @@ static void uninstall(const ow_request_t* req, ow_response_t* res) {
     }
     platform::RemoveShortcuts(AppId(), AppName());
     platform::UnregisterUninstall(AppId());
+
+    EmitHook("postUninstall");
 
     Object r;
     r.emplace_back("removed", Value(removed));

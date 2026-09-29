@@ -437,7 +437,7 @@ ow create installer [dir]    # scaffoldea el instalador (app Owear en modo insta
 ow create uninstaller [dir]  # scaffoldea el desinstalador
 ow dev              # kernel + vite dev server + sidecar node (hot reload)
 ow build            # vite build + native/*.cpp → dist/modules/*.owm
-ow build app        # payload de la app (--format binary|deb|appimage)
+ow build app        # payload de la app (--format binary|deb|appimage|msi)
 ow build installer  # binario instalador (linux) / .exe (win)
 ow build uninstaller
 owear-build-native  # compila native/*.cpp → .owm (usado por dev/build/plugin)
