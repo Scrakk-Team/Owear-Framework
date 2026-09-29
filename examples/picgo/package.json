@@ -149,6 +149,5 @@
     "cz-customizable": {
       "config": "./node_modules/@picgo/bump-version/.cz-config.cjs"
     }
-  },
-  "type": "module"
+  }
 }
