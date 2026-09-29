@@ -31,7 +31,6 @@
 
     <main class="page">
       <section class="hero">
-        <span class="eyebrow">Owear</span>
         <h1>Demo</h1>
         <p class="lead">
           Frontend web, sistema nativo. Estos botones llaman <strong>directo</strong> a los
@@ -39,6 +38,28 @@
         </p>
         <div class="actions">
           <button class="btn btn--primary" data-action="open">Abrir archivo…</button>
+          <button class="btn" data-action="multi">Abrir varios…</button>
+          <button class="btn" data-action="save">Guardar como…</button>
+          <button class="btn" data-action="capture">Capturar página</button>
+          <button class="btn" data-action="nimage">nativeImage</button>
+          <button class="btn" data-action="menu">Menú contextual</button>
+          <button class="btn" data-action="tray">Tray</button>
+          <button class="btn btn--ghost" data-action="theme-system">Tema: sistema</button>
+          <button class="btn btn--ghost" data-action="theme-light">Claro</button>
+          <button class="btn btn--ghost" data-action="theme-dark">Oscuro</button>
+          <button class="btn" data-action="pdf">Exportar PDF</button>
+          <button class="btn" data-action="print">Imprimir</button>
+          <button class="btn" data-action="child">Ventana 2</button>
+          <button class="btn" data-action="ontop">AlwaysOnTop</button>
+          <button class="btn" data-action="prog">Progreso</button>
+          <button class="btn" data-action="ignore">Ignorar ratón</button>
+          <button class="btn" data-action="wins">Ventanas</button>
+          <button class="btn" data-action="screens">Pantallas</button>
+          <button class="btn" data-action="nearest">Monitor del cursor</button>
+          <button class="btn btn--ghost" data-action="power-on">Escuchar energía</button>
+          <button class="btn btn--ghost" data-action="blocker">Bloqueador ON/OFF</button>
+          <button class="btn btn--ghost" data-action="idle">Idle</button>
+          <button class="btn" data-action="ask">Diálogo con botones</button>
           <button class="btn" data-action="notify">Notificar</button>
           <button class="btn" data-action="copy">Copiar ruta</button>
           <button class="btn" data-action="reveal">Mostrar en carpeta</button>
@@ -46,37 +67,105 @@
         </div>
       </section>
 
-      <section class="grid">
-        <article class="card">
-          <header class="card__head">
-            <h2>Entorno</h2>
-            <span class="badge" id="env-window">—</span>
-          </header>
-          <dl class="kv">
-            <div><dt>Plataforma</dt><dd id="env-platform">—</dd></div>
-            <div><dt>Motor</dt><dd id="env-engine">—</dd></div>
-            <div><dt>Escala</dt><dd id="env-dpr">—</dd></div>
-          </dl>
-          <p class="ua" id="env-ua">—</p>
-        </article>
+      <!-- Contenedor con fondo propio que agrupa las cards -->
+      <section class="board">
+        <section class="grid">
+          <article class="card">
+            <header class="card__head">
+              <h2>Entorno</h2>
+              <span class="badge" id="env-window">—</span>
+            </header>
+            <dl class="kv">
+              <div><dt>Plataforma</dt><dd id="env-platform">—</dd></div>
+              <div><dt>Motor</dt><dd id="env-engine">—</dd></div>
+              <div><dt>Escala</dt><dd id="env-dpr">—</dd></div>
+            </dl>
+            <p class="ua" id="env-ua">—</p>
+          </article>
 
-        <article class="card card--grow">
-          <header class="card__head">
-            <h2>Consola</h2>
-            <button class="linkbtn" data-action="clear">Limpiar</button>
-          </header>
-          <pre id="console" class="console">Listo. Pulsa «Abrir archivo…» para invocar un módulo nativo.</pre>
-        </article>
-      </section>
+          <article class="card">
+            <header class="card__head">
+              <h2>App <span class="hint">C1</span></h2>
+              <span class="badge" id="app-version">—</span>
+            </header>
+            <dl class="kv">
+              <div><dt>Nombre</dt><dd id="app-name">—</dd></div>
+              <div><dt>Empaquetada</dt><dd id="app-packaged">—</dd></div>
+              <div><dt>userData</dt><dd id="app-path-userData" class="mono">—</dd></div>
+              <div><dt>exe</dt><dd id="app-path-exe" class="mono">—</dd></div>
+              <div><dt>appPath</dt><dd id="app-path-appPath" class="mono">—</dd></div>
+            </dl>
+          </article>
 
-      <section class="card">
-        <header class="card__head"><h2>Cómo funciona</h2></header>
-        <p class="hint">
-          Cada botón invoca un módulo nativo con <code>ow.invoke()</code>.
-        </p>
-        <pre class="code"><code>const path = await ow.invoke('dialog', 'open', 'open', 'Abrir archivo')
+          <article class="card card--grow">
+            <header class="card__head">
+              <h2>Consola</h2>
+              <button class="linkbtn" data-action="clear">Limpiar</button>
+            </header>
+            <pre id="console" class="console">Listo. Pulsa «Abrir archivo…» para invocar un módulo nativo.</pre>
+          </article>
+        </section>
+
+        <section class="card">
+          <header class="card__head"><h2>Cómo funciona</h2></header>
+          <p class="hint">
+            Cada botón invoca un módulo nativo con <code>ow.invoke()</code>.
+          </p>
+          <pre class="code"><code>const path = await ow.invoke('dialog', 'open', 'open', 'Abrir archivo')
 const text = await ow.invoke('fs', 'readText', path)
 await ow.invoke('notification', 'show', 'Listo', 'Leídos ' + text.length + ' bytes')</code></pre>
+        </section>
+      </section>
+
+      <!-- C10: pantallas (multi-monitor) y energía -->
+      <section class="board">
+        <header class="card__head">
+          <h2>Pantallas y energía <span class="hint">C10</span></h2>
+          <span class="badge" id="mon-count">—</span>
+        </header>
+        <section class="grid">
+          <article class="card">
+            <header class="card__head">
+              <h2>Monitores</h2>
+              <span class="badge" id="mon-primary">—</span>
+            </header>
+            <div id="mon-map" class="monmap">
+              <span class="monmap__hint">Pulsa «Pantallas» para mapear los monitores.</span>
+            </div>
+            <div id="mon-list" class="monlist"></div>
+          </article>
+          <article class="card card--grow">
+            <header class="card__head">
+              <h2>Energía</h2>
+              <span class="badge" id="power-status">—</span>
+            </header>
+            <p class="hint">
+              Escucha suspend/resume, AC/batería y bloqueo de sesión. El bloqueador
+              impide que se apague la pantalla.
+            </p>
+            <pre id="power-log" class="console console--short">Sin eventos todavía.</pre>
+          </article>
+        </section>
+      </section>
+
+      <!-- Webview embebida: un navegador nativo hijo de la ventana (proceso
+           propio), controlado por la API webview.* y colocado sobre #wv-slot. -->
+      <section class="board">
+        <header class="card__head">
+          <h2>Navegador embebido</h2>
+          <span class="badge" id="wv-status">—</span>
+        </header>
+        <div class="browser">
+          <div class="browser__bar">
+            <button class="iconbtn" id="wv-back" title="Atrás" aria-label="Atrás">‹</button>
+            <button class="iconbtn" id="wv-fwd" title="Adelante" aria-label="Adelante">›</button>
+            <button class="iconbtn" id="wv-reload" title="Recargar" aria-label="Recargar">⟳</button>
+            <input id="wv-url" class="browser__url" type="text"
+                   value="https://scrakk.art" spellcheck="false" />
+            <button class="btn btn--primary" id="wv-go">Ir</button>
+          </div>
+          <div id="wv-slot" class="browser__slot"></div>
+        </div>
       </section>
     </main>
 

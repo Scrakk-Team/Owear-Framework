@@ -30,7 +30,7 @@ publica en npm** todavía.
   selector de carpeta nativo (GTK en Linux, `IFileOpenDialog` en Windows).
 - **Template del instalador con los estilos del Starter**: el instalador por
   defecto (`packages/cli/template-installer/`) usa ahora los tokens y
-  componentes del app Starter de Owear — **One Dark Pro** + acento rosado,
+  componentes del app Starter de Owear — paleta oscura + acento rosado,
   **JetBrains Mono** y **Dancing Script** (self-hosted, con `@font-face`),
   titlebar con `brand__mark`, `.btn` con hover interno, `.card`/`.board`/
   `.console`/`.badge`. Se aplica también al sub-template del **desinstalador**.
@@ -45,7 +45,7 @@ publica en npm** todavía.
 ## Changed
 
 - **El template por defecto de `ow create` ahora es el Starter**: las apps
-  generadas salen con la UI del Starter (One Dark Pro + acento rosado, JetBrains
+  generadas salen con la UI del Starter (paleta oscura + acento rosado, JetBrains
   Mono + Dancing Script self-hosted, titlebar propia, cards/consola) y el
   showcase de módulos nativos C1–C10 (app, dialog, fs, webContents, nativeImage,
   menu, tray, nativeTheme, print/printToPDF, BrowserWindow, screen, power) +

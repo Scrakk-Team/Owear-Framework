@@ -2,13 +2,13 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Estilos del instalador — mismos tokens/componentes que el Starter de Owear
- * (One Dark Pro + acento rosado, JetBrains Mono + Dancing Script).
+ * (paleta oscura + acento rosado, JetBrains Mono + Dancing Script).
  */
 
 :root {
   color-scheme: dark;
 
-  /* One Dark Pro */
+  /* colores base */
   --bg: #282c34;
   --bg-deep: #21252b;
   --panel: #2c313a;
