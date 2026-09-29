@@ -50,6 +50,8 @@ set(OW_KERNEL_SOURCES
     Bridge/Shm.cpp
     Bridge/Shm/Helpers.cpp
     Control/ControlServer.cpp
+    Control/Server/Events.cpp
+    Control/Server/Router.cpp
     Control/Commands/Util.cpp
     Control/Commands/App.cpp
     Control/Commands/Node.cpp
