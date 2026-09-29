@@ -203,6 +203,17 @@ def run_sdk_checks(conn):
             return "error propagado correctamente"
         raise AssertionError("un módulo inexistente no devolvió error")
 
+    def t_updater_state():
+        mods = [m["name"] for m in c.call("module.list")]
+        if "updater" not in mods:
+            return "módulo ausente (OW_WITH_OPENSSL=OFF) — omitido"
+        st = c.call("module.invoke", {"module": "updater", "method": "state",
+                                      "args": []})
+        assert st.get("exe"), f"updater.state sin exe: {st}"
+        assert st.get("platform"), f"updater.state sin platform: {st}"
+        assert st.get("arch"), f"updater.state sin arch: {st}"
+        return f"v{st.get('version')} {st['platform']}/{st['arch']} exe={st['exe'][-18:]}"
+
     def t_veto():
         c.call("window.close", {"windowId": state["wid"]})
         ev = c.wait_event("closeRequested")
@@ -228,6 +239,7 @@ def run_sdk_checks(conn):
     check("sdk.window.create", t_create)
     check("sdk.module.invoke", t_invoke)
     check("sdk.module.invoke.error", t_invoke_err)
+    check("sdk.updater.state", t_updater_state)
     check("sdk.closeRequested.veto", t_veto)
     check("sdk.closeRequested.allow", t_allow)
     return ok, fail, lines

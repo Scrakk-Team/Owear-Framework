@@ -18,7 +18,7 @@
     "template-installer"
   ],
   "scripts": {
-    "typecheck": "node --check src/ow.js && node --check src/owear-build-native.js && node --check tools/owear-pack.mjs && node --check tools/owear-installer.mjs && node --check tools/owear-linux.mjs && node --check tools/owear-msi.mjs"
+    "typecheck": "node --check src/ow.js && node --check src/owear-build-native.js && node --check tools/owear-pack.mjs && node --check tools/owear-installer.mjs && node --check tools/owear-linux.mjs && node --check tools/owear-msi.mjs && node --check tools/owear-update.mjs"
   },
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",

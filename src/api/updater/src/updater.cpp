@@ -117,6 +117,80 @@ void installAndRelaunch(const ow_request_t*, ow_response_t* res) {
     }
 }
 
+// ── estado + apply (auto-update estilo electron-updater) ────────────────────
+
+static std::string EnvOr(const char* k, const char* def) {
+    const char* v = std::getenv(k);
+    return (v && *v) ? v : def;
+}
+
+static std::string AppId() { return EnvOr("OW_APP_ID", "default"); }
+
+/// Ruta del registro de apps instaladas (misma lógica que el builtin installer).
+static std::string RegistryFile() {
+#ifdef _WIN32
+    const char* ad = std::getenv("APPDATA");
+    std::string base = (ad && *ad) ? std::string(ad) : EnvOr("USERPROFILE", ".");
+    return base + "\\owear\\installed\\" + AppId() + ".json";
+#else
+    const char* xdg = std::getenv("XDG_CONFIG_HOME");
+    std::string base = (xdg && *xdg) ? std::string(xdg)
+                                     : (std::string(EnvOr("HOME", ".")) + "/.config");
+    if (!base.empty() && base.back() != '/') base += "/";
+    return base + "owear/installed/" + AppId() + ".json";
+#endif
+}
+
+static Value ReadRegistry() {
+    std::ifstream f(RegistryFile(), std::ios::binary);
+    if (!f) return Value(nullptr);
+    std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    auto parsed = ow::json::Parse(raw);
+    return (parsed.value && parsed.value->IsObject()) ? *parsed.value : Value(nullptr);
+}
+
+// state() → { version, exe, dir, mode, platform, arch }
+void state(const ow_request_t*, ow_response_t* res) {
+    Object o;
+    o.emplace_back("version", Value(std::string(EnvOr("OW_APP_VERSION", "0.0.0"))));
+    o.emplace_back("exe", Value(CurrentExePath()));
+#if defined(_WIN32)
+    o.emplace_back("platform", Value(std::string("win")));
+    o.emplace_back("arch", Value(std::string("x64")));
+#elif defined(__APPLE__)
+    o.emplace_back("platform", Value(std::string("mac")));
+    o.emplace_back("arch", Value(std::string("arm64")));
+#else
+    o.emplace_back("platform", Value(std::string("linux")));
+    o.emplace_back("arch", Value(std::string("x64")));
+#endif
+    const Value reg = ReadRegistry();
+    if (reg.IsObject()) {
+        if (const Value* d = reg.Find("dir"); d && d->IsString()) o.emplace_back("dir", *d);
+        if (const Value* m = reg.Find("mode"); m && m->IsString()) o.emplace_back("mode", *m);
+        if (const Value* v = reg.Find("version"); v && v->IsString()) {
+            // la versión instalada manda sobre el env si existe
+            for (auto& kv : o) if (kv.first == "version") kv.second = *v;
+        }
+    }
+    RespondOk(res, Value(std::move(o)).Serialize().c_str());
+}
+
+// apply({ path }) → reemplazo atómico del binario + relaunch (no vuelve en éxito)
+void apply(const ow_request_t* req, ow_response_t* res) {
+    auto parsed = ow::json::Parse(std::string_view(req->json, req->json_len));
+    const Value* a = parsed.value && parsed.value->IsArray() && !parsed.value->AsArray().empty()
+                         ? &parsed.value->AsArray()[0]
+                         : nullptr;
+    const Value* p = a ? a->Find("path") : nullptr;
+    if (!p || !p->IsString()) return RespondError(res, "path requerido");
+    const std::string exe = CurrentExePath();
+    if (exe.empty()) return RespondError(res, "no se resolvió el exe actual");
+    std::string err;
+    if (!ReplaceAndRelaunch(p->AsString(), exe, err)) return RespondError(res, err);
+    RespondOk(res, "null");
+}
+
 } // namespace upd
 
 extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
@@ -124,6 +198,8 @@ extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
         {"checkForUpdates", &upd::checkForUpdates},
         {"downloadUpdate", &upd::downloadUpdate},
         {"installAndRelaunch", &upd::installAndRelaunch},
+        {"state", &upd::state},
+        {"apply", &upd::apply},
     };
     static const ow_module_desc_t d{
         "updater", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};

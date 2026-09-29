@@ -85,7 +85,7 @@ E2E en Linux (19/19 pruebas en verde).
 | notification (sistema: org.freedesktop.Notifications) | ✅ E2E (id real) | toast/UNUser — pendiente |
 | power (logind sleep/shutdown/lock + UPower + Xss; **idle/batería**, eventos) | ✅ E2E | PowerBroadcast + WTS — VERIFICAR |
 | shell (openExternal/openPath/showItemInFolder via FileManager1 D-Bus) | ✅ validación+launch | IShellLink — VERIFICAR |
-| updater (manifest+semver+sha256+replace atómico+execv relaunch) | ✅ E2E check/download | igual |
+| updater (**auto-update: delta por bloques + firma Ed25519 + manifiesto YAML**; state/apply reemplazo atómico+relaunch) | ✅ E2E check/download + unit (YAML/delta/firma) | igual |
 | menu (popup JSON declarativo opcional; setApplicationMenu noop en Linux por diseño) | ✅ | NSMenu/HMENU — pendiente |
 | globalshortcut (X11 XGrabKey; **opcional**, Wayland no soportado) | ✅ registrado | RegisterHotKey — pendiente |
 | tray (libayatana-appindicator — requiere `libayatana-appindicator3-dev`) | ⏸ omitida sin deps | Shell_NotifyIcon/NSStatusItem — pendiente |

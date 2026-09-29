@@ -7,6 +7,34 @@ Mejoras del **sistema de instaladores (D1)** y de su **template por defecto**, m
 el port de **draw.io** como ejemplo con instalador propio. Todo en local; **no se
 publica en npm** todavía.
 
+## Auto-update
+
+Sistema de actualización completo, con **delta**, **firma** y **manifiesto YAML**
+(ver `docs/UPDATES.md`):
+
+- **`autoUpdater` en el SDK** (`@owear/core`, proceso principal): `setFeedURL`,
+  `checkForUpdates()`, `downloadUpdate()`, `quitAndInstall()` y eventos
+  (`checking-for-update`, `update-available`, `update-not-available`,
+  `download-progress`, `update-downloaded`, `error`). Providers `generic` y
+  `github`; canales (`latest`, `beta`, …) y `mandatory`.
+- **Delta por bloques** (estilo blockmap): el artefacto se parte en bloques y solo
+  se descargan los **bloques cuyo sha256 cambia** (`Range: bytes=…`), reutilizando
+  el resto del binario instalado. Agrupa bloques contiguos y cae a descarga
+  completa si no hay blockmap.
+- **Firma Ed25519** del manifiesto (sobre `"<version>:<sha256>"`), verificada con
+  la clave pública del bridge (`updater.publicKey`); **integridad** sha256+sha512
+  del artefacto (y por bloque al ensamblar).
+- **Módulo nativo `updater`**: nuevas funciones `state()` (versión, `exe`, `dir`,
+  `mode`, plataforma/arch, leyendo el **registro** de apps instaladas) y
+  `apply({ path })` (reemplazo **atómico** del binario + **relaunch** del proceso).
+- **Comando `ow update`** (+ `tools/owear-update.mjs`): `--gen-key` (par Ed25519) y
+  publicación del canal → `<file>.blockmap` + `<channel>.yml` firmado. Flags:
+  `--file`, `--version`, `--channel`, `--url`, `--key`, `--notes`, `--block-size`,
+  `--mandatory`, `--out-dir`.
+- **Tests**: `packages/core/test/updater.test.mjs` (YAML, semver, delta, firma) y
+  `updater-feed.test.mjs` (tool real + HTTP `Range` + ensamblado y verificación);
+  E2E `sdk.updater.state`.
+
 ## Added
 
 - **Registro de apps instaladas** (capacidad de Owear, en el builtin `installer`):

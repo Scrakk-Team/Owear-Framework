@@ -165,6 +165,17 @@ export type {
   LaunchOptions,
 } from './installer.js'
 
+// ── auto-update ─────────────────────────────────────────────────────────────
+
+export { autoUpdater } from './updater.js'
+export type {
+  FeedOptions,
+  UpdateInfo,
+  UpdateFile,
+  ProgressInfo,
+  UpdateCheckResult,
+} from './updater.js'
+
 export { defineBridge } from './bridge.js'
 export type {
   OwearBridge,

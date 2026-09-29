@@ -148,6 +148,7 @@ async function main() {
     case 'dev':    return cmdDev(rest)
     case 'build':  return cmdBuild(rest)
     case 'api':    return cmdApi(rest)
+    case 'update': return cmdUpdate(rest)
     default:
       die(`comando desconocido: ${cmd} (usa --help)`)
   }
@@ -167,6 +168,8 @@ ${C.cyan}owear${C.reset} — framework desktop nativo
   ${C.green}ow build uninstaller${C.reset}         binario desinstalador
   ${C.green}ow api list${C.reset}                  lista las APIs del repo y sus manifiestos
   ${C.green}ow api new <nombre>${C.reset}          scaffoldea una API (api/<nombre>/ + manifiesto)
+  ${C.green}ow update --file <bin> --version <v>${C.reset}  publica un update (blockmap + manifiesto YAML firmado)
+  ${C.green}ow update --gen-key <ruta>${C.reset}   genera un par de claves Ed25519 para firmar
 
 Variables útiles:
   OW_KERNEL_BIN     ruta al binario owear
@@ -697,6 +700,31 @@ async function buildInstallerUI(cwd, which) {
 function runTool(name, args) {
   const r = spawnSync(process.execPath, [packTool(name), ...args], { stdio: 'inherit' })
   if (r.status !== 0) die(`falló ${name}`)
+}
+
+/**
+ * ow update — publica un update del auto-updater: calcula el blockmap (delta
+ * por bloques), genera el manifiesto YAML del canal y lo firma (Ed25519).
+ * Delega en tools/owear-update.mjs (mismos flags).
+ */
+function cmdUpdate(args) {
+  if (!args.length) {
+    console.log(`
+${C.cyan}ow update${C.reset} — publica un update (delta + manifiesto YAML firmado)
+
+  ${C.green}ow update --gen-key owear-signing${C.reset}
+      genera el par de claves Ed25519 (privada <ruta>.pem; pública <ruta>.pub.b64,
+      que va en el bridge como ${C.dim}updater.publicKey${C.reset})
+
+  ${C.green}ow update --file release/MiApp-1.4.0 --version 1.4.0 --key owear-signing.pem${C.reset} \\
+      [--channel latest] [--url https://up.miapp.dev] [--notes "…"|--notes @notas.md] \\
+      [--block-size 262144] [--mandatory] [--out-dir release]
+
+  Salidas: ${C.dim}<file>.blockmap${C.reset} (bloques sha256) y ${C.dim}<channel>.yml${C.reset} (manifiesto YAML).
+`)
+    return
+  }
+  runTool('owear-update.mjs', args)
 }
 
 function readPkg(cwd) {
