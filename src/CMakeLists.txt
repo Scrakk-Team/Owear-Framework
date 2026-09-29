@@ -97,6 +97,7 @@ if(OW_PLATFORM STREQUAL "linux")
     Window/Platform/linux/Titlebar/Overlay.cpp
     Window/Platform/linux/Titlebar/Edges.cpp
     Window/Platform/linux/Create.cpp
+    Window/Platform/linux/Create/Setup.cpp
     Window/Platform/linux/Webviews/Create.cpp
     Window/Platform/linux/Webviews/Commands.cpp
         Webview/linux/WebKitGTKBackend.cpp
