@@ -66,6 +66,8 @@ set(OW_KERNEL_SOURCES
     Pack/Pack.cpp
     ${OW_HTTP_SOURCE}
     Runtime/NodeManager.cpp
+    Runtime/NodeManager/Semver.cpp
+    Runtime/NodeManager/Resolve.cpp
 )
 
 # Nota: las fuentes de los builtins (app/session/crashreporter/window-extras)
