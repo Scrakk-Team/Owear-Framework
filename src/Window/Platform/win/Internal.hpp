@@ -9,6 +9,8 @@
 #include "ow/detail/minjson.hpp"
 
 #include <cstdint>
+#include <map>
+#include <string_view>
 #include <string>
 
 namespace ow {
@@ -20,5 +22,10 @@ void PositionCaptionBar(Window::Impl::PlatformData* pd);
 void DrawCaptionBar(HWND hwnd, Window::Impl::PlatformData* pd);
 void RegisterCaptionClassOnce();
 COLORREF ParseHexColorRef(const std::string& in, COLORREF def);
+
+std::wstring Utf8ToWide(std::string_view s);
+std::string WideToUtf8(const wchar_t* w);
+std::map<HWND, Window::Impl*>& HwndMap();
+Window::Impl* ImplFromHwnd(HWND hwnd);
 
 } // namespace ow
