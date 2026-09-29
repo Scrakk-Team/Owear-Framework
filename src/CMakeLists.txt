@@ -28,7 +28,7 @@ find_package(Threads REQUIRED)
 # (p.ej. cross-compile Linux→Windows) → se usa Runtime/Http_nossl.cpp.
 option(OW_WITH_OPENSSL "Compilar con OpenSSL (HTTPS y módulos net/updater)" ON)
 
-set(OW_HTTP_SOURCE Runtime/Http.cpp Runtime/Http/Transport.cpp)
+set(OW_HTTP_SOURCE Runtime/Http.cpp Runtime/Http/Transport.cpp Runtime/Http/Url.cpp)
 if(NOT OW_WITH_OPENSSL)
     set(OW_HTTP_SOURCE Runtime/Http_nossl.cpp)
 endif()
@@ -141,6 +141,7 @@ elseif(OW_PLATFORM STREQUAL "win")
     Window/Platform/win/Methods/Geometry.cpp
     Window/Platform/win/Methods/Title.cpp
         Control/ControlServer_win.cpp
+        Control/Platform/win/SameUser.cpp
         Runtime/NodeManager_win.cpp
         Webview/win/BuiltinUtil_win.cpp
     )
