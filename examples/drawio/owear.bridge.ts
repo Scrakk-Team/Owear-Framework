@@ -15,7 +15,7 @@ export default defineBridge({
     name: 'draw.io',
     version: '1.0.0',
     publisher: 'jgraph',
-    icon: 'webapp/favicon.ico',
+    icon: 'webapp/images/drawlogo256.png',
   },
   targets: {
     linux: {

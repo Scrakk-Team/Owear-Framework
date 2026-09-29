@@ -3,7 +3,8 @@
 //
 // @owear/core/src/browserwindow.ts — BrowserWindow (C9).
 import { EventEmitter } from 'node:events'
-import { channel } from './channel.js'
+import { channel, invokeNative } from './channel.js'
+import { windowIcon } from './appicon.js'
 import { app, readyPromise } from './app.js'
 import type { WindowOptions, Bounds } from './index.js'
 import { WebContents, WIN_EVENT_NAMES, WC_EVENT_NAMES } from './webcontents.js'
@@ -47,13 +48,23 @@ export class BrowserWindow extends EventEmitter {
   }
 
   private async _create(): Promise<void> {
-    const params: Record<string, unknown> = { ...this._options }
-    const res = await channel.call<{ windowId: number }>('window.create', params)
+    const { icon, ...rest } = this._options
+    const res = await channel.call<{ windowId: number }>('window.create', { ...rest })
     this._id = res.windowId
     this._wc._setWindowId(res.windowId)
     windowsById.set(res.windowId, this)
     this._wireEvents()
+    // Icono: el de la opción o el global (app.setIcon). PNG/JPEG.
+    const ic = icon ?? windowIcon()
+    if (ic) await this.setIcon(ic).catch(() => undefined)
     this.emit('ready-to-show', this._id)
+  }
+
+  /** Fija el icono de ESTA ventana (ruta a PNG/JPEG). */
+  async setIcon(path: string): Promise<void> {
+    const { readFileSync } = await import('node:fs')
+    const pngB64 = readFileSync(path).toString('base64')
+    await invokeNative('window', 'setIcon', this.requireId(), pngB64)
   }
 
   private _wireEvents() {

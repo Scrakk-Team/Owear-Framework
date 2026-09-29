@@ -558,9 +558,21 @@ static void chooseDir(const ow_request_t* req, ow_response_t* res) {
 
 static void shortcuts(const ow_request_t* req, ow_response_t* res) {
     const Value a = Args(req);
+    std::string iconPath = ExpandPath(Str(a, "iconPath"));
+    if (iconPath.empty()) {
+        // Default: el icono embebido junto al payload (installer.json → "icon").
+        const auto& m = Meta();
+        if (m.valid) {
+            if (const Value* ic = m.root.Find("icon"); ic && ic->IsString()) {
+                const std::string candidate = PayloadRoot() + "/" + ic->AsString();
+                std::error_code ec;
+                if (fs::is_regular_file(candidate, ec)) iconPath = candidate;
+            }
+        }
+    }
     const bool ok = platform::CreateShortcuts(
         Str(a, "appId", AppId()), Str(a, "appName", AppName()),
-        ExpandPath(Str(a, "execPath")), ExpandPath(Str(a, "iconPath")),
+        ExpandPath(Str(a, "execPath")), iconPath,
         Bool(a, "desktop", true), Bool(a, "menu", true), Bool(a, "startup", false));
     Ok(res, Value(ok));
 }

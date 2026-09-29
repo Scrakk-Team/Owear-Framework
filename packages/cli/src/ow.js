@@ -883,11 +883,15 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
   const ui = await buildInstallerUI(cwd, isUninstaller ? 'uninstaller' : 'installer')
 
   // 3) metadatos (installer.json / uninstaller.json) — el kernel los detecta
+  const iconRel = bridge.obj?.app?.icon
+  const iconAbs = iconRel ? path.resolve(cwd, iconRel) : ''
+  const iconOk = Boolean(iconAbs) && fs.existsSync(iconAbs)
   const meta = {
     appId: bridge.obj?.app?.id ?? slug,
     appName: bridge.obj?.app?.name ?? slug,
     version: bridge.obj?.app?.version ?? '0.0.0',
     publisher: bridge.obj?.app?.publisher ?? null,
+    icon: iconOk ? 'icon' + path.extname(iconAbs) : null,
     mode: isUninstaller ? 'uninstaller' : mode,
     layout: target.layout ?? mode,
     order: bridge.obj?.order ?? null,
@@ -913,6 +917,7 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
     '--name', slug,
   ]
   if (payloadDir) toolArgs.push('--payload', payloadDir)
+  if (iconOk) toolArgs.push('--icon', iconAbs)
   const r = spawnSync(process.execPath, toolArgs, { stdio: 'inherit' })
   if (r.status !== 0) die(`falló owear-installer (${kind})`)
   log(`${kind}: ${out}`)

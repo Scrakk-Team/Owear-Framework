@@ -9,6 +9,10 @@ publica en npm** todavía.
 
 ## Added
 
+- **API de icono de app**: `BrowserWindow({ icon })` (ruta a PNG/JPEG) y
+  `app.setIcon(path)` (icono por defecto de la app, aplicado a las ventanas que
+  se creen). El instalador usa además `owear.bridge.ts → app.icon` para el
+  `.desktop` (`Icon=`) y **copia el icono a `hicolor`**.
 - **`installer.defaultDir()`** y **`installer.chooseDir()`** (nativos en el
   builtin): el UI del instalador ya **no usa `dialog`** (un módulo `.owm`) →
   el instalador es **autocontenido** (solo builtins). `chooseDir` abre el

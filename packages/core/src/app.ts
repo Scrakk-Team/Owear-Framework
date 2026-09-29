@@ -9,6 +9,7 @@ import * as fs from 'node:fs'
 import { channel, socketPathFromEnv, invokeNative } from './channel.js'
 import { forkWorker, type ForkWorkerOptions, type WorkerHandle } from './node/worker.js'
 import { nodeHandlers, nodeContextHandlers } from './ipc/node.js'
+import { setWindowIcon } from './appicon.js'
 import { portRecords, makeMainPort, allocPortId } from './port.js'
 import type { MessagePortMain } from './port.js'
 import { protocolHandlers } from './protocol.js'
@@ -115,6 +116,15 @@ export const app = {
 
   quit(exitCode = 0): Promise<void> {
     return channel.call('app.quit', { exitCode }).catch(() => undefined)
+  },
+
+  /**
+   * Define el icono por defecto de la app (ruta a PNG/JPEG). Se aplica a las
+   * ventanas creadas a partir de entonces y a `new BrowserWindow()` sin `icon`.
+   * (Equivale a `BrowserWindow({ icon })` global.)
+   */
+  setIcon(path: string): void {
+    setWindowIcon(path)
   },
 
   info(): Promise<{ pid: number; version: string; socket: string }> {

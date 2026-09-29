@@ -64,6 +64,11 @@ export interface WindowOptions {
    * Crea la partición con `session.fromPartition(name)`.
    */
   session?: string
+  /**
+   * Icono de la ventana (ruta a un PNG/JPEG). Para un icono por defecto de toda
+   * la app usa `app.setIcon(path)`.
+   */
+  icon?: string
 }
 
 export interface Bounds {

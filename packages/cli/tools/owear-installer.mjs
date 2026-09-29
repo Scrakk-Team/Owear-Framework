@@ -44,6 +44,7 @@ const payload = arg('--payload')
 const bridge = arg('--bridge')
 const meta = arg('--meta')
 const modules = arg('--modules')
+const icon = arg('--icon')
 const name = arg('--name', 'app')
 
 if (!kernel || !out || !ui) die('uso: --kernel <owear> --out <bin> --ui <distUI> [--payload <dir>]')
@@ -62,6 +63,10 @@ if (payload && fs.existsSync(payload)) copyInto(payload, 'payload')
 if (bridge && fs.existsSync(bridge)) fs.copyFileSync(bridge, path.join(stage, 'bridge.json'))
 if (meta && fs.existsSync(meta)) fs.copyFileSync(meta, path.join(stage, 'installer.json'))
 if (modules && fs.existsSync(modules)) copyInto(modules, 'modules')
+// icono de la app (para el .desktop / acceso directo del instalado)
+if (icon && fs.existsSync(icon)) {
+  fs.copyFileSync(icon, path.join(stage, 'icon' + path.extname(icon)))
+}
 
 // manifiesto mínimo del payload del instalador (informativo)
 fs.writeFileSync(
