@@ -16,6 +16,9 @@ const ow_module_desc_t* AppModuleDescriptor();
 #if defined(OW_BUILTINS_GTK)
 const ow_module_desc_t* CrashReporterDescriptor();
 #endif
+#if defined(OW_BUILTINS_GTK) || defined(OW_PLATFORM_WIN)
+const ow_module_desc_t* InstallerModuleDescriptor();
+#endif
 const ow_module_desc_t* NodeBridgeDescriptorImpl();
 #if defined(OW_BUILTINS_GTK)
 const ow_module_desc_t* SessionDescriptor();
@@ -40,6 +43,9 @@ void RegisterGeneratedBuiltins() {
 #endif
 #if defined(OW_BUILTINS_GTK)
     Dispatcher::Get().RegisterModule(CrashReporterDescriptor(), "builtin:crashreporter");
+#endif
+#if defined(OW_BUILTINS_GTK) || defined(OW_PLATFORM_WIN)
+    Dispatcher::Get().RegisterModule(InstallerModuleDescriptor(), "builtin:installer");
 #endif
     Dispatcher::Get().RegisterModule(NodeBridgeDescriptorImpl(), "builtin:node");
 #if defined(OW_BUILTINS_GTK)

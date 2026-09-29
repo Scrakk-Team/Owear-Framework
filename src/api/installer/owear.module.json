@@ -1,0 +1,33 @@
+{
+  "$schema": "../owear.module.schema.json",
+  "name": "installer",
+  "kind": "builtin",
+  "version": "0.1.0",
+  "description": "Modo instalador/desinstalador: lee el payload embebido, planifica el despliegue (minimal/layout), instala, verifica, desinstala y crea accesos directos.",
+  "descriptors": [
+    {
+      "name": "installer",
+      "factory": "InstallerModuleDescriptor",
+      "platforms": ["linux", "win"],
+      "functions": [
+        "mode",
+        "info",
+        "bridge",
+        "payloadList",
+        "payloadRead",
+        "plan",
+        "install",
+        "uninstall",
+        "verify",
+        "state",
+        "shortcuts",
+        "launch",
+        "elevate"
+      ]
+    }
+  ],
+  "sources": {
+    "linux": ["src/installer.cpp", "src/shortcuts_linux.cpp"],
+    "win": ["src/installer.cpp", "src/shortcuts_win.cpp"]
+  }
+}

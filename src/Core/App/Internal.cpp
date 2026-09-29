@@ -12,9 +12,11 @@
 #include "../../Pack/Pack.hpp"
 #include "../../Runtime/NodeManager.hpp"
 #include "../Log.hpp"
+#include "ow/detail/minjson.hpp"
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -59,23 +61,57 @@ bool Bootstrap(int argc, char** argv, const AppOptions& options) {
 
     if (!PlatformInit(argc, argv)) return false;
 
-    // Single binary: si el payload va embebido al final del propio ejecutable,
-    // se extrae una vez y se expone como si fueran ficheros externos (módulos,
-    // assets y main). Así el resto del kernel no cambia.
+    // Payload embebido (footer OWPK1). Dos sabores:
+    //  · instalador/desinstalador: <dir>/{installer.json|uninstaller.json} + ui/
+    //  · app single-binary:       <dir>/{app/,modules/,manifest.json}
     if (pack::HasPayload()) {
         const std::string dir = pack::EnsureExtracted();
         if (!dir.empty()) {
+            const bool isInstaller = std::filesystem::exists(dir + "/installer.json");
+            const bool isUninstaller = std::filesystem::exists(dir + "/uninstaller.json");
+            const std::string ui = dir + "/ui";
+
             std::string mods = dir + "/modules";
             if (const char* cur = std::getenv("OW_MODULES_DIR"); cur && *cur)
                 mods += std::string(":") + cur;
             SetEnv("OW_MODULES_DIR", mods);
-            if (!std::getenv("OW_ASSETS_DIR") &&
-                std::filesystem::is_directory(dir + "/app"))
-                SetEnv("OW_ASSETS_DIR", dir + "/app");
-            if (!std::getenv("OW_APP_MAIN") &&
-                std::filesystem::exists(dir + "/app/main.js"))
-                SetEnv("OW_APP_MAIN", dir + "/app/main.js");
-            log::Info("app", "single-binary: payload en " + dir);
+
+            if (isInstaller || isUninstaller) {
+                SetEnv("OW_MODE", isInstaller ? "installer" : "uninstaller");
+                if (!std::getenv("OW_ASSETS_DIR") && std::filesystem::is_directory(ui))
+                    SetEnv("OW_ASSETS_DIR", ui);
+                if (!std::getenv("OW_APP_MAIN") &&
+                    std::filesystem::exists(ui + "/main.js"))
+                    SetEnv("OW_APP_MAIN", ui + "/main.js");
+                std::ifstream mf(dir + (isInstaller ? "/installer.json" : "/uninstaller.json"),
+                                 std::ios::binary);
+                if (mf) {
+                    std::string raw((std::istreambuf_iterator<char>(mf)),
+                                    std::istreambuf_iterator<char>());
+                    auto parsed = json::Parse(raw);
+                    if (parsed.value && parsed.value->IsObject()) {
+                        if (const auto* v = parsed.value->Find("version");
+                            v && v->IsString())
+                            SetEnv("OW_APP_VERSION", v->AsString());
+                        if (const auto* v = parsed.value->Find("appId"); v && v->IsString())
+                            SetEnv("OW_APP_ID", v->AsString());
+                        if (const auto* v = parsed.value->Find("appName");
+                            v && v->IsString())
+                            SetEnv("OW_APP_NAME", v->AsString());
+                    }
+                }
+                log::Info("app", std::string("payload ") +
+                                     (isInstaller ? "installer" : "uninstaller") +
+                                     " en " + dir);
+            } else {
+                if (!std::getenv("OW_ASSETS_DIR") &&
+                    std::filesystem::is_directory(dir + "/app"))
+                    SetEnv("OW_ASSETS_DIR", dir + "/app");
+                if (!std::getenv("OW_APP_MAIN") &&
+                    std::filesystem::exists(dir + "/app/main.js"))
+                    SetEnv("OW_APP_MAIN", dir + "/app/main.js");
+                log::Info("app", "single-binary: payload en " + dir);
+            }
         }
     }
 
