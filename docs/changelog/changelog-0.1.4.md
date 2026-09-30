@@ -149,5 +149,11 @@ A complete update system with **delta**, **signing** and a **YAML manifest**
 
 - Verified end-to-end: `ow build installer` produces installer + uninstaller; it
   installs and **the installed app boots with its own payload**.
+- **npm packaging:** the first `@owear/cli` / `@owear/vite-plugin` tarballs were
+  published with `workspace:*` dependencies (an `npm publish` from a pnpm
+  workspace), which broke `npm install`. They were republished as **0.1.6** with
+  the dependencies resolved — npm does not allow reusing a version number, so the
+  registry carries `0.1.6` while the project stays at **0.1.4**. `npm i -g
+  @owear/cli` (and a scaffolded app's `npm install`) work from 0.1.6 on.
 - Still to polish (in progress): per-file progress, mode picker
   (`minimal`/`layout`) in the UI, app icon, and fine-tuning the layout/window.
