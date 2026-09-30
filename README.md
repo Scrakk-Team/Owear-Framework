@@ -1,6 +1,8 @@
 <!-- Copyright 2026 Owear Contributors
      SPDX-License-Identifier: Apache-2.0 -->
 
+<p align="center"><img src="assets/logo.svg" width="96" alt="Owear"></p>
+
 # Owear
 
 Native desktop framework for **Linux and Windows**. **No bundled browser**: it
@@ -9,7 +11,7 @@ Linux).
 
 ```
 ┌─────────────────────────────────────────────┐
-│  App process (native, ~5-10 MB)             │
+│  App process (native kernel)                │
 │  kernel: app · windows · bridge · loader    │
 │  .owm modules: fs · dialog · yours          │
 └──────────────┬──────────────────────────────┘
@@ -20,32 +22,48 @@ Linux).
        └── app/main.ts — Electron-like API
 ```
 
-## Why not Electron/Tauri
+## Benchmarks
 
-| | Electron | Tauri | **Owear** |
-|---|---|---|---|
-| Core RAM | ~150–200 MB | ~30–60 MB | **~5–10 MB** |
-| Embedded Node | yes (pinned V8+Node) | no | **no — sidecar auto-installed on demand** |
-| IPC | preload + pipe + V8 serialize | JSON-RPC | **direct host object + raw binary** |
-| Modules | all loaded | all | **dlopen only what you use (.owm)** |
+Real numbers, measured with our own harness (`benchmarks/`) on the same app and
+machine (Linux, Xvfb, software rendering; medians of 3 interleaved runs, memory
+in **PSS**). Full data, methodology and charts: [`benchmarks/`](benchmarks/README.md).
+
+| Metric | Owear | Electron | Tauri | Neutralino |
+|---|---:|---:|---:|---:|
+| Startup (ms) | 1,438 | 1,028 | 1,001 | 958 |
+| Idle RAM (MB, PSS) | **105** | 248 | 120 | 129 |
+| Peak RAM (MB, PSS) | 334 | 408 | 255 | 308 |
+| Footprint (MB) | **1.8** | 262 | 11.6 | 3.0 |
+| Sequential IPC (ops/s) | 1,496 | **3,192** | 1,127 | 23 |
+| Concurrent IPC (ops/s) | 4,211 | **10,449** | 2,886 | 876 |
+| Payload 1 MB (ms) | 28 | **11.5** | 27 | 111 |
+| Native → render events (ev/s) | **250,000** | 34,990 | 1,371 | 10,438 |
+| JS loop 20M (ms) | 27 | 32 | 24 | 24 |
+
+**Owear's net score vs Electron: 70%** (geometric mean of 11 zones; lower is
+better). Owear wins on **memory (~2.4× less idle), footprint (~140× smaller) and
+native → renderer events (~7× faster)**; it is behind on **IPC and startup**.
+
+> Electron bundles Chromium; Owear/Tauri/Neutralino use the OS WebView. Neutralino
+> is measured through its own extension. See the caveats in
+> [`benchmarks/README.md`](benchmarks/README.md).
 
 ## Quick start
 
-> **Status:** the `@owear/*` packages are not published on npm yet. The Linux
-> runtime (`@owear/linux-x64-gnu`) is already packaged by `tools/pack-runtime.mjs`
-> (kernel + stock modules + headers) and ready to publish; Windows is
-> packaged from native runners. Until then, work from a monorepo checkout:
-> `ow dev` compiles the kernel the first time (it needs the system dependencies
-> from `.github/workflows/ci.yml`).
+Published on npm (`@owear/*` **0.1.4**):
 
 ```bash
-# from an Owear checkout
+npm i -g @owear/cli
+ow create my-app
+cd my-app && npm install && ow dev
+```
+
+Working on the framework itself (monorepo checkout):
+
+```bash
 pnpm install
 node packages/cli/src/ow.js create my-app   # scaffold from the template
 ```
-
-The published flow (pending release) is the usual one:
-`pnpm dlx @owear/cli create my-app && cd my-app && pnpm install && pnpm dev`.
 
 Write native C++ next to your frontend:
 
