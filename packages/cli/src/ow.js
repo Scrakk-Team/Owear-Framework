@@ -935,7 +935,14 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
     // 1b) desinstalador (si existe installer/uninstaller) → se instala junto a la app
     if (fs.existsSync(path.join(cwd, 'installer', 'uninstaller'))) {
       log('build del desinstalador…')
-      await cmdBuildInstaller(cwd, [], true)
+      // propaga solo los flags de firma (no --mode/--format, que no aplican)
+      const signArgs = []
+      for (const f of ['--sign-key', '--pfx', '--pfx-password-env', '--timestamp']) {
+        const v = flag(args, f, null)
+        if (v) signArgs.push(f, v)
+      }
+      if (args.includes('--require-sign')) signArgs.push('--require-sign')
+      await cmdBuildInstaller(cwd, signArgs, true)
       const un = path.join(outDir, `${slug}-uninstaller${exe}`)
       if (fs.existsSync(un)) fs.copyFileSync(un, path.join(payloadDir, path.basename(un)))
     }

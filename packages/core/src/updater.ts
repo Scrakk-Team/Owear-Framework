@@ -202,6 +202,8 @@ class AutoUpdater extends EventEmitter {
       try {
         const res = await fetch(url, { ...init, signal: ctrl.signal })
         if (RETRYABLE.has(res.status) && attempt < this.maxRetries) {
+          // libera la conexión antes de reintentar (si no, se filtra el socket)
+          await res.body?.cancel().catch(() => undefined)
           await this.backoff(attempt + 1)
           continue
         }
@@ -229,6 +231,7 @@ class AutoUpdater extends EventEmitter {
       const version = String(doc.version ?? '')
       const filePath = String(doc.path ?? '')
       const base = this.manifestUrl().replace(/\/[^/]+$/, '')
+      const rawBlockmap = doc.blockmap != null ? String(doc.blockmap) : undefined
       const info: UpdateInfo = {
         version,
         notes: doc.notes != null ? String(doc.notes) : undefined,
@@ -238,7 +241,8 @@ class AutoUpdater extends EventEmitter {
         sha512: doc.sha512 != null ? String(doc.sha512) : undefined,
         size: typeof doc.size === 'number' ? doc.size : undefined,
         blockSize: typeof doc.blockSize === 'number' ? doc.blockSize : undefined,
-        blockmap: doc.blockmap != null ? String(doc.blockmap) : undefined,
+        // un blockmap relativo se resuelve contra el directorio del manifiesto
+        blockmap: rawBlockmap && !/^https?:\/\//i.test(rawBlockmap) ? `${base}/${rawBlockmap}` : rawBlockmap,
         signature: doc.signature != null ? String(doc.signature) : undefined,
         binarySig: doc.binarySig != null ? String(doc.binarySig) : undefined,
         file: {
@@ -249,7 +253,8 @@ class AutoUpdater extends EventEmitter {
 
       if (!version) throw new Error('manifiesto sin version')
       if (!this.verifyManifest(info)) throw new Error('firma del manifiesto inválida')
-      if (info.binarySig && !this.publicKey()) throw new Error('binarySig sin clave pública con la que verificar')
+      // sin clave pública la firma es best-effort (documentado): no abortamos.
+      // Si hay clave, `verifyManifest` ya exigió `signature`.
 
       this.info = info
       const isNew = semverGt(version, this.currentVersion)
@@ -286,7 +291,7 @@ class AutoUpdater extends EventEmitter {
     this.emit('download-progress', { total: plan.totalBytes, transferred: 0, percent: 0, bytesPerSecond: 0 })
     const started = Date.now()
     let done = 0
-    return assemble(local, bm.blocks, plan, bm.size, async (r) => {
+    const out = await assemble(local, bm.blocks, plan, bm.size, async (r) => {
       const buf = await this.fetchRange(info.file.url, r)
       done += buf.length
       const elapsed = (Date.now() - started) / 1000 || 0.001
@@ -298,6 +303,16 @@ class AutoUpdater extends EventEmitter {
       })
       return buf
     })
+    // cierre: el "100%" del delta es sobre los bloques descargados, no sobre el
+    // total del artefacto; al terminar lo reflejamos explícitamente.
+    const elapsed = (Date.now() - started) / 1000 || 0.001
+    this.emit('download-progress', {
+      total: plan.totalBytes,
+      transferred: plan.totalBytes,
+      percent: 100,
+      bytesPerSecond: Math.round(plan.totalBytes / elapsed),
+    })
+    return out
   }
 
   /**
@@ -392,8 +407,11 @@ class AutoUpdater extends EventEmitter {
     }
     if (info.binarySig) {
       const key = this.publicKey()
-      const ok = key && crypto.verify(null, data, key, Buffer.from(info.binarySig, 'base64'))
-      if (!ok) throw new Error('firma del binario (binarySig) inválida')
+      if (key) {
+        const ok = crypto.verify(null, data, key, Buffer.from(info.binarySig, 'base64'))
+        if (!ok) throw new Error('firma del binario (binarySig) inválida')
+      }
+      // sin clave pública: best-effort (el sha256 ya garantiza integridad)
     }
 
     fs.writeFileSync(dest, data)

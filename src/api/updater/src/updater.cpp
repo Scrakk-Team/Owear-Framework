@@ -208,7 +208,18 @@ void apply(const ow_request_t* req, ow_response_t* res) {
     }
 
     std::string err;
-    if (!ReplaceAndRelaunch(p->AsString(), exe, err)) return RespondError(res, err);
+    if (!ReplaceAndRelaunch(p->AsString(), exe, err)) {
+        // el binario nuevo no llegó a relanzar (execv falló): restaura el backup
+        // para no dejar el ejecutable en un estado que no arranca.
+        if (backup) {
+            std::error_code ec;
+            if (fs::exists(exe + ".owprev", ec)) {
+                std::error_code ec2;
+                fs::rename(exe + ".owprev", exe, ec2);
+            }
+        }
+        return RespondError(res, err);
+    }
     RespondOk(res, "null");
 }
 

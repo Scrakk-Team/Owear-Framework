@@ -106,6 +106,22 @@ Sistema de actualización completo, con **delta**, **firma** y **manifiesto YAML
 
 ## Fixed
 
+- **Auto-update (auditoría)**: se corrigieron varios fallos encontrados al
+  revisar el updater:
+  - un feed firmado (`binarySig`) **rompía** `checkForUpdates()` en apps sin
+    `publicKey` configurada; ahora la firma es *best-effort* sin clave y
+    obligatoria con clave (coherente con la doc);
+  - `request()` **no liberaba la conexión** al reintentar un `5xx` (fuga de
+    socket); ahora cancela el cuerpo antes del backoff;
+  - un **blockmap relativo** no se resolvía contra el directorio del manifiesto;
+  - el **desinstalador** interno del instalador se compilaba **sin los flags de
+    firma** (`--sign-key`/`--pfx` no se propagaban);
+  - `apply()` ahora **restaura el backup** si el relanzamiento (`execv`) falla,
+    para no dejar el ejecutable en un estado que no arranca;
+  - los hashes/firmas del manifiesto se citan siempre (evita que un valor “solo
+    de dígitos” se reinterprete como número al parsear el YAML);
+  - el delta emite un `download-progress` final al 100 %.
+
 - **Rutas con `~`**: `install`/`uninstall`/`verify`/`state`/`shortcuts` ahora
   **expanden `~`** (`$HOME`/`%USERPROFILE%`) y normalizan a **absoluto** — antes
   se creaba literalmente una carpeta `~` (instalación “en el sitio equivocado”).

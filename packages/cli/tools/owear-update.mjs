@@ -117,14 +117,16 @@ const manifest = [
   `version: ${version}`,
   `releaseDate: '${releaseDate}'`,
   `path: ${yamlEscape(artifactName)}`,
-  `sha256: ${sha256}`,
-  `sha512: ${sha512}`,
+  // hashes y firmas se citan siempre: un valor "numérico" (p. ej. un hash solo
+  // de dígitos) no debe reinterpretarse como número al parsear el YAML.
+  `sha256: '${sha256}'`,
+  `sha512: '${sha512}'`,
   `size: ${data.length}`,
   `blockSize: ${blockSize}`,
   `blockmap: ${yamlEscape(blockmapUrl)}`,
   mandatory ? 'mandatory: true' : null,
-  signature ? `signature: ${signature}` : null,
-  binarySig ? `binarySig: ${binarySig}` : null,
+  signature ? `signature: '${signature}'` : null,
+  binarySig ? `binarySig: '${binarySig}'` : null,
   notesBlock || null,
   '',
 ]

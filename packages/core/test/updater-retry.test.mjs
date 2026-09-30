@@ -130,6 +130,34 @@ test('timeout: una petición que no responde se aborta y se reintenta', async (t
   assert.ok(hits >= 2, `debe haber reintentado (hits=${hits})`)
 })
 
+test('binarySig sin clave pública no aborta el check (best-effort)', async (t) => {
+  const { server, port } = await start((req, res) => {
+    res.writeHead(200).end(`version: 9.9.9\npath: app.bin\nsha256: ${'0'.repeat(64)}\nsize: 1\nbinarySig: c2ln\n`)
+  })
+  t.after(() => server.close())
+
+  autoUpdater.setFeedURL({ provider: 'generic', url: `http://127.0.0.1:${port}` })
+  autoUpdater.autoDownload = false
+  const res = await autoUpdater.checkForUpdates()
+  assert.ok(res, 'un feed firmado no debe romper apps sin publicKey')
+  assert.equal(res.updateInfo.binarySig, 'c2ln')
+})
+
+test('blockmap relativo se resuelve contra el manifiesto', async (t) => {
+  const { server, port } = await start((req, res) => {
+    res.writeHead(200).end(
+      `version: 9.9.9\npath: app.bin\nsha256: ${'0'.repeat(64)}\nsize: 1\nblockSize: 4096\nblockmap: app.bin.blockmap\n`,
+    )
+  })
+  t.after(() => server.close())
+
+  autoUpdater.setFeedURL({ provider: 'generic', url: `http://127.0.0.1:${port}` })
+  autoUpdater.autoDownload = false
+  const res = await autoUpdater.checkForUpdates()
+  assert.ok(res)
+  assert.equal(res.updateInfo.blockmap, `http://127.0.0.1:${port}/app.bin.blockmap`)
+})
+
 test('sha256 incorrecto en el manifiesto → la descarga falla', async (t) => {
   const payload = crypto.randomBytes(4096)
   const { server, port } = await start((req, res) => {
