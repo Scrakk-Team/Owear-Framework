@@ -59,7 +59,7 @@ jobs:
       - run: ctest --test-dir build/linux-release --output-on-failure
       - name: E2E headless (suites all/builtins bajo Xvfb)
         run: |
-          sudo apt-get install -y dbus dunst || true
+          sudo apt-get install -y dbus-x11 dunst upower || true
           export $(dbus-launch)   # session bus para notification/power
           # dunst crashea puntual en runners (Trace/breakpoint trap):
           # reintentos con espera activa; si tras 3 intentos no vive, el
