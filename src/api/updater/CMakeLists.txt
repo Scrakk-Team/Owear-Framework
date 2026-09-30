@@ -12,6 +12,11 @@ ow_add_module(updater
         src/updater.cpp
         src/updater_platform_${OW_PLATFORM}.${OW_SRC_EXT}
         ${CMAKE_SOURCE_DIR}/src/Runtime/Http.cpp
+        ${CMAKE_SOURCE_DIR}/src/Runtime/Http/Url.cpp
+        ${CMAKE_SOURCE_DIR}/src/Runtime/Http/Transport.cpp
+        ${CMAKE_SOURCE_DIR}/src/Runtime/Http/Transport/Shims.cpp
+        ${CMAKE_SOURCE_DIR}/src/Runtime/Http/Transport/Tls.cpp
+        ${CMAKE_SOURCE_DIR}/src/Runtime/Http/Transport/Plain.cpp
         ${CMAKE_SOURCE_DIR}/src/Runtime/Sha256.cpp
     LIBS OpenSSL::SSL OpenSSL::Crypto ZLIB::ZLIB Threads::Threads
     INCLUDES ${CMAKE_SOURCE_DIR}/src)
