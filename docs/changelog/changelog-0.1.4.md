@@ -71,6 +71,11 @@ Sistema de actualización completo, con **delta**, **firma** y **manifiesto YAML
   `app.setIcon(path)` (icono por defecto de la app, aplicado a las ventanas que
   se creen). El instalador usa además `owear.bridge.ts → app.icon` para el
   `.desktop` (`Icon=`) y **copia el icono a `hicolor`**.
+- **El template Starter trae icono y lo usa**: `ow create` genera ahora
+  `public/favicon.svg` (la marca de Owear) y `app/main.ts` lo aplica con
+  `app.setIcon(...)` — resolviendo la ruta tanto en dev (`public/`) como
+  empaquetado (`dist/` → `app/`). Es el **icono base de la app**; el SVG lo
+  decodifica el kernel vía `window.setIcon` (GdkPixbuf, con soporte SVG).
 - **`installer.defaultDir()`** y **`installer.chooseDir()`** (nativos en el
   builtin): el UI del instalador ya **no usa `dialog`** (un módulo `.owm`) →
   el instalador es **autocontenido** (solo builtins). `chooseDir` abre el

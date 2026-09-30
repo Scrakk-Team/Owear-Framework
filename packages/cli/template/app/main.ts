@@ -12,6 +12,15 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 app.whenReady().then(() => {
+  // Icono de la app: `favicon.svg` del proyecto (Vite lo copia a dist/ en build).
+  // `app.setIcon` fija el icono por defecto de las ventanas creadas después.
+  // (API de icono del kernel: `window.setIcon`.)
+  const iconPath = [
+    path.join(app.getAppPath(), 'favicon.svg'), // empaquetado: dist/ → app/
+    path.join(process.cwd(), 'public', 'favicon.svg'), // dev: public/ del proyecto
+  ].find((p) => fs.existsSync(p))
+  if (iconPath) app.setIcon(iconPath)
+
   const win = new BrowserWindow({
     title: '__APP_NAME__',
     width: 1080,
