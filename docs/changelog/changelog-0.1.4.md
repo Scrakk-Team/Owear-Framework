@@ -34,6 +34,25 @@ Sistema de actualización completo, con **delta**, **firma** y **manifiesto YAML
 - **Tests**: `packages/core/test/updater.test.mjs` (YAML, semver, delta, firma) y
   `updater-feed.test.mjs` (tool real + HTTP `Range` + ensamblado y verificación);
   E2E `sdk.updater.state`.
+- **Firma del binario** (`tools/owear-sign.mjs`, cableado en
+  `ow build app|installer|uninstaller`): Ed25519 desprendida (`<file>.sig`) en
+  cualquier plataforma y **Authenticode** (PE/MSI) vía `osslsigncode`/`signtool`
+  si hay `--pfx`. Flags `--sign-key`, `--pfx`, `--pfx-password-env`,
+  `--timestamp`, `--require-sign` (env `OW_SIGN_*`). El manifiesto añade
+  `binarySig` (firma Ed25519 del artefacto completo), verificado por el updater.
+- **Reintentos y reanudación**: `autoUpdater.maxRetries` / `retryDelay` /
+  `requestTimeout`; backoff exponencial con jitter ante `408/425/429/5xx` y
+  errores de red; descarga completa **reanudable** con `Range: bytes=<recibido>-`.
+- **Rollback**: `updater.apply({ path, backup })` guarda `<exe>.owprev`;
+  `updater.rollback()` restaura y relanza; `updater.commit()` confirma y borra el
+  backup; `state().hasRollback`. En el SDK: `autoUpdater.rollback()`,
+  `commitUpdate()`, `quitAndInstall({ backup })` y **guard de arranque**
+  `armBootGuard()` (detecta crash loop y revierte). `autoInstallOnAppQuit` y
+  `allowPrerelease` ya cableados.
+- **Tests nuevos**: `updater-boot.test.mjs` (crash loop/rollback),
+  `updater-sign.test.mjs` (Authenticode + Ed25519) y `updater-retry.test.mjs`
+  (reintentos, resume por `Range`, timeout); E2E `tests/e2e/update_apply.py`
+  (apply + backup + rollback + commit reales sobre copia del kernel).
 
 ## Added
 

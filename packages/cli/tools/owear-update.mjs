@@ -87,14 +87,18 @@ const artifactName = path.basename(file)
 const blockmapPath = path.join(outDir, `${artifactName}.blockmap`)
 fs.writeFileSync(blockmapPath, JSON.stringify({ blockSize, size: data.length, sha256, blocks }))
 
-// ── firma Ed25519 (sobre "<version>:<sha256>") ──────────────────────────────
+// ── firma Ed25519 (del manifiesto y del binario) ────────────────────────────
+//   signature:  sobre "<version>:<sha256>" (autentica metadata)
+//   binarySig:  sobre los bytes del artefacto (autentica el payload)
 let signature = ''
+let binarySig = ''
 if (keyPath) {
   if (!fs.existsSync(keyPath)) die(`no existe la clave: ${keyPath}`)
   const privateKey = crypto.createPrivateKey(fs.readFileSync(keyPath))
   signature = crypto
     .sign(null, Buffer.from(`${version}:${sha256}`), privateKey)
     .toString('base64')
+  binarySig = crypto.sign(null, data, privateKey).toString('base64')
 }
 
 // ── manifiesto YAML ─────────────────────────────────────────────────────────
@@ -120,6 +124,7 @@ const manifest = [
   `blockmap: ${yamlEscape(blockmapUrl)}`,
   mandatory ? 'mandatory: true' : null,
   signature ? `signature: ${signature}` : null,
+  binarySig ? `binarySig: ${binarySig}` : null,
   notesBlock || null,
   '',
 ]

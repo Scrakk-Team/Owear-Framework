@@ -64,14 +64,17 @@ size: 12345678
 blockSize: 262144            # 256 KiB (tamaño de bloque del delta)
 blockmap: https://up.miapp.dev/MiApp-1.4.0.blockmap
 mandatory: false
-signature: hMyb+IVSla…       # Ed25519 sobre "<version>:<sha256>" (base64)
+signature: hMyb+IVSla…       # Ed25519 sobre "<version>:<sha256>" (metadata)
+binarySig: Vf3k…             # Ed25519 sobre los bytes del artefacto (payload)
 notes: |
   Arreglos varios
 ```
 
 La firma cubre `"<version>:<sha256>"` (no el YAML completo): evita problemas de
-canonicalización y ata versión + contenido. Sin clave pública configurada la
-firma no se exige, pero **el sha256 siempre se verifica**.
+canonicalización y ata versión + contenido. `binarySig` firma el **artefacto
+completo** (defensa en profundidad: permite verificar el binario de forma
+independiente del feed). Sin clave pública configurada la firma no se exige,
+pero **el sha256 siempre se verifica**.
 
 ## Usar el auto-updater (proceso principal)
 
@@ -121,31 +124,103 @@ await autoUpdater.quitAndInstall()    // reemplaza el binario y relanza
 
 Si no hay blockmap (o falla), cae a **descarga completa** con progreso.
 
+## Firma del binario
+
+Dos mecanismos (`packages/cli/tools/owear-sign.mjs`, cableado en
+`ow build app|installer|uninstaller`):
+
+```bash
+# Ed25519 desprendida → <artifact>.sig  (cualquier plataforma, sin deps)
+ow build app --format binary --sign-key owear-signing.pem
+
+# Authenticode (Windows PE/MSI) con un PFX; requiere osslsigncode o signtool
+ow build installer --pfx cert.p12 --pfx-password-env OW_SIGN_PFX_PASSWORD \
+  --timestamp http://timestamp.digicert.com
+
+# o por entorno
+export OW_SIGN_KEY=owear-signing.pem
+export OW_SIGN_PFX=cert.p12 OW_SIGN_PFX_PASSWORD=…
+export OW_SIGN_TIMESTAMP=http://timestamp.digicert.com
+ow build app
+```
+
+- `--require-sign` convierte "no se pudo firmar" en error de build.
+- Sin material de firma el build **no se rompe** (solo avisa).
+- Authenticode ancla la confianza de **editor** en el SO (SmartScreen,
+  "Unknown publisher"); Ed25519 da verificación criptográfica portable.
+- La firma Ed25519 del artefacto es la misma clave que firma el manifiesto;
+  `ow update --key <pem>` emite `signature` (metadata) y `binarySig` (payload).
+
+## Reintentos y reanudación
+
+`autoUpdater` reintenta con **backoff exponencial** (con jitter) ante errores de
+red y estados transitorios (`408/425/429/5xx`), y aplica **timeout por petición**:
+
+```ts
+autoUpdater.maxRetries = 3        // reintentos por petición
+autoUpdater.retryDelay = 800      // ms base (×2 cada intento, tope 15 s)
+autoUpdater.requestTimeout = 60_000
+```
+
+Si una **descarga completa** se corta a mitad, se reanuda con
+`Range: bytes=<recibido>-` (no reinicia); si el servidor ignora el `Range`,
+reinicia limpiamente. En el delta, cada rango se reintenta igual. Si el blockmap
+o el `Range` fallan, cae a descarga completa.
+
+## Rollback
+
+En `apply()` se guarda el binario actual en `<exe>.owprev` (por defecto) y solo
+se borra al **confirmar** el update. Si el binario nuevo entra en crash loop, se
+revierte:
+
+```ts
+// al arrancar (tras un update), arma el guard
+app.whenReady().then(() => autoUpdater.armBootGuard({ threshold: 3, healthDelayMs: 10_000 }))
+// → 'idle' | 'armed' | 'rolled-back'
+```
+
+- `armBootGuard()` solo actúa si hay un update pendiente (`state().hasRollback`).
+- Cuenta arranques sin confirmar en `<userData>/update-boot.json`; al llegar al
+  umbral llama a `rollback()` (restaura `<exe>.owprev` y relanza).
+- Si el arranque se mantiene sano `healthDelayMs`, confirma (`commit()`) y borra
+  el backup.
+- Manual: `autoUpdater.rollback()` y `autoUpdater.commitUpdate()`.
+
+Aplicación: `autoUpdater.quitAndInstall({ backup: true })` (por defecto) o
+`{ backup: false }` para no dejar copia.
+
 ## Seguridad
 
 - **Firma Ed25519** del manifiesto: aunque el feed sea HTTP, un atacante no puede
   publicar un update sin la clave privada (que nunca sale de tu CI/local).
-- **Integridad** sha256 + sha512 del artefacto; cada bloque se valida al
-  ensamblar (el ensamblado final se verifica entero).
+- **binarySig** (Ed25519 del artefacto) e **integridad** sha256 + sha512; cada
+  bloque se valida al ensamblar (y el ensamblado final entero).
+- **Authenticode** (opcional) ancla la confianza de editor en Windows.
 - Guarda la clave privada fuera del repo (`owear-signing.pem`) y rota la pública
   en una release nueva si se compromete.
-- En Windows, además, se recomienda **Authenticode** sobre el artefacto
-  (pendiente de hook de firma).
 
 ## Tests
 
 ```bash
 cd packages/core
 npm run build
-node --test test/updater.test.mjs        # YAML, semver, delta, Ed25519
-node --test test/updater-feed.test.mjs   # feed real: tool + HTTP Range + delta
+npm test   # incluye updater.test / updater-feed.test / updater-boot.test /
+           # updater-sign.test / updater-retry.test
 ```
 
 - `test/updater.test.mjs`: parser YAML, comparación semver, plan de delta
   (bloques cambiados / reutilizados) y firma Ed25519 (SPKI base64).
 - `test/updater-feed.test.mjs`: genera artefacto + blockmap + manifiesto firmado
   con `ow update`, los sirve por HTTP con soporte `Range` y comprueba que se
-  descargan **solo los bloques cambiados** y que el artefacto ensamblado coincide
-  con el `sha256` del manifiesto.
+  descargan **solo los bloques cambiados**, el `binarySig` del payload y que el
+  artefacto ensamblado coincide con el `sha256` del manifiesto.
+- `test/updater-boot.test.mjs`: contador de arranques, detección de crash loop
+  (rollback) y confirmación de salud.
+- `test/updater-sign.test.mjs`: comando Authenticode (osslsigncode/signtool),
+  detección PE/MSI y firma/verificación Ed25519 desprendida.
+- `test/updater-retry.test.mjs`: reintentos (500 transitorios), reanudación de
+  descarga con `Range` y timeout por petición.
 - E2E: `tests/e2e/run_suites.py --sdk` incluye `sdk.updater.state` (módulo nativo
-  vivo contra el kernel).
+  vivo contra el kernel); `tests/e2e/update_apply.py` prueba **apply + backup +
+  rollback + commit** sobre una copia del kernel (reemplazo atómico y relaunch
+  reales).

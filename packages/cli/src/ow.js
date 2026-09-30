@@ -173,6 +173,15 @@ ${C.cyan}owear${C.reset} — framework desktop nativo
 
 Variables útiles:
   OW_KERNEL_BIN     ruta al binario owear
+  OW_SIGN_KEY       clave privada Ed25519 para firmar artefactos (→ <file>.sig)
+  OW_SIGN_PFX       certificado PKCS#12 para Authenticode (Windows PE/MSI)
+  OW_SIGN_PFX_PASSWORD  contraseña del PFX (o --pfx-password-env)
+
+Firma (ow build app|installer|uninstaller):
+  --sign-key <pem>           firma Ed25519 desprendida del artefacto
+  --pfx <p12>                Authenticode (requiere osslsigncode/signtool)
+  --timestamp <url>          sellado de tiempo Authenticode
+  --require-sign             falla el build si no se firma
 `)
 }
 
@@ -703,6 +712,27 @@ function runTool(name, args) {
 }
 
 /**
+ * Firma un artefacto recién construido. Authenticode si hay `--pfx`
+ * (`OW_SIGN_PFX`), Ed25519 desprendida (`<file>.sig`) si hay `--sign-key`
+ * (`OW_SIGN_KEY`). Nunca rompe el build: sin material de firma no hace nada;
+ * con `--require-sign` la firma pasa a ser obligatoria.
+ */
+function signArtifact(args, file) {
+  const key = flag(args, '--sign-key', process.env.OW_SIGN_KEY ?? '')
+  const pfx = flag(args, '--pfx', process.env.OW_SIGN_PFX ?? '')
+  if (!key && !pfx) return
+  const extra = []
+  if (key) extra.push('--ed25519-key', key)
+  if (pfx) {
+    extra.push('--pfx', pfx, '--pfx-password-env', flag(args, '--pfx-password-env', 'OW_SIGN_PFX_PASSWORD'))
+  }
+  const ts = flag(args, '--timestamp', process.env.OW_SIGN_TIMESTAMP ?? '')
+  if (ts) extra.push('--timestamp', ts)
+  if (args.includes('--require-sign')) extra.push('--require')
+  runTool('owear-sign.mjs', ['--file', file, ...extra])
+}
+
+/**
  * ow update — publica un update del auto-updater: calcula el blockmap (delta
  * por bloques), genera el manifiesto YAML del canal y lo firma (Ed25519).
  * Delega en tools/owear-update.mjs (mismos flags).
@@ -803,6 +833,7 @@ async function cmdBuildApp(cwd, args) {
     const out = path.join(outDir, exe)
     packDir(kernel, bundle, out)
     log(`binario único: ${out}`)
+    signArtifact(args, out)
     return
   }
 
@@ -831,6 +862,7 @@ async function cmdBuildApp(cwd, args) {
     runTool('owear-linux.mjs', ['deb', '--stage', stage, '--out', out, '--name', slug,
       '--version', meta.version, '--maintainer', meta.publisher, '--description', meta.appName])
     log(`.deb: ${out}`)
+    signArtifact(args, out)
     return
   }
 
@@ -855,6 +887,7 @@ async function cmdBuildApp(cwd, args) {
     const out = path.join(outDir, `${slug}-${meta.version}-x86_64.AppImage`)
     runTool('owear-linux.mjs', ['appimage', '--appdir', appDir, '--out', out, '--arch', 'x86_64'])
     log(`AppImage: ${out}`)
+    signArtifact(args, out)
     return
   }
 
@@ -865,6 +898,7 @@ async function cmdBuildApp(cwd, args) {
     runTool('owear-msi.mjs', ['--stage', stage, '--out', out, '--name', slug,
       '--version', meta.version, '--publisher', meta.publisher, '--appId', meta.appId])
     log(`.MSI: ${out}`)
+    signArtifact(args, out)
     return
   }
 
@@ -949,6 +983,7 @@ async function cmdBuildInstaller(cwd, args, isUninstaller) {
   const r = spawnSync(process.execPath, toolArgs, { stdio: 'inherit' })
   if (r.status !== 0) die(`falló owear-installer (${kind})`)
   log(`${kind}: ${out}`)
+  signArtifact(args, out)
 }
 
 main().catch((e) => die(e?.stack ?? String(e)))

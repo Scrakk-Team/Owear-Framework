@@ -149,7 +149,13 @@ static Value ReadRegistry() {
     return (parsed.value && parsed.value->IsObject()) ? *parsed.value : Value(nullptr);
 }
 
-// state() → { version, exe, dir, mode, platform, arch }
+/// Copia de seguridad del binario anterior para el rollback (`<exe>.owprev`).
+static std::string PrevPath() {
+    const std::string exe = CurrentExePath();
+    return exe.empty() ? std::string() : exe + ".owprev";
+}
+
+// state() → { version, exe, dir, mode, platform, arch, hasRollback }
 void state(const ow_request_t*, ow_response_t* res) {
     Object o;
     o.emplace_back("version", Value(std::string(EnvOr("OW_APP_VERSION", "0.0.0"))));
@@ -173,10 +179,14 @@ void state(const ow_request_t*, ow_response_t* res) {
             for (auto& kv : o) if (kv.first == "version") kv.second = *v;
         }
     }
+    const std::string prev = PrevPath();
+    o.emplace_back("hasRollback", Value(!prev.empty() && fs::exists(prev)));
     RespondOk(res, Value(std::move(o)).Serialize().c_str());
 }
 
-// apply({ path }) → reemplazo atómico del binario + relaunch (no vuelve en éxito)
+// apply({ path, backup? }) → reemplazo atómico + relaunch (no vuelve en éxito).
+// Con `backup` (por defecto sí) guarda el binario actual en `<exe>.owprev`
+// para poder revertir con rollback() si el arranque falla.
 void apply(const ow_request_t* req, ow_response_t* res) {
     auto parsed = ow::json::Parse(std::string_view(req->json, req->json_len));
     const Value* a = parsed.value && parsed.value->IsArray() && !parsed.value->AsArray().empty()
@@ -184,10 +194,44 @@ void apply(const ow_request_t* req, ow_response_t* res) {
                          : nullptr;
     const Value* p = a ? a->Find("path") : nullptr;
     if (!p || !p->IsString()) return RespondError(res, "path requerido");
+    const Value* b = a ? a->Find("backup") : nullptr;
+    const bool backup = b ? b->AsBool(true) : true;
+
     const std::string exe = CurrentExePath();
     if (exe.empty()) return RespondError(res, "no se resolvió el exe actual");
+
+    if (backup) {
+        std::error_code ec;
+        fs::copy_file(exe, exe + ".owprev", fs::copy_options::overwrite_existing, ec);
+        // si el backup falla seguimos: mejor actualizar que bloquear;
+        // simplemente no habrá rollback disponible.
+    }
+
     std::string err;
     if (!ReplaceAndRelaunch(p->AsString(), exe, err)) return RespondError(res, err);
+    RespondOk(res, "null");
+}
+
+// rollback() → restaura el binario anterior y relanza (no vuelve en éxito).
+void rollback(const ow_request_t*, ow_response_t* res) {
+    const std::string exe = CurrentExePath();
+    if (exe.empty()) return RespondError(res, "no se resolvió el exe actual");
+    const std::string prev = exe + ".owprev";
+    std::error_code ec;
+    if (!fs::exists(prev, ec)) return RespondError(res, "no hay update pendiente de confirmar");
+
+    std::string err;
+    if (!ReplaceAndRelaunch(prev, exe, err)) return RespondError(res, err);
+    RespondOk(res, "null");
+}
+
+// commit() → confirma el update (borra la copia de seguridad → desarma rollback).
+void commit(const ow_request_t*, ow_response_t* res) {
+    const std::string prev = PrevPath();
+    if (!prev.empty()) {
+        std::error_code ec;
+        fs::remove(prev, ec);
+    }
     RespondOk(res, "null");
 }
 
@@ -200,6 +244,8 @@ extern "C" OW_MODULE_EXPORT const ow_module_desc_t* ow_module_descriptor(void) {
         {"installAndRelaunch", &upd::installAndRelaunch},
         {"state", &upd::state},
         {"apply", &upd::apply},
+        {"rollback", &upd::rollback},
+        {"commit", &upd::commit},
     };
     static const ow_module_desc_t d{
         "updater", OW_VERSION_STRING, fns, sizeof(fns) / sizeof(fns[0])};

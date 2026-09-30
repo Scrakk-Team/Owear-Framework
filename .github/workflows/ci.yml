@@ -86,6 +86,11 @@ jobs:
             --pages all.html builtins.html veto.html --port 8123 --sdk || \
           { echo "::group::log del kernel"; cat /tmp/owear-e2e.log; echo "::endgroup::"; exit 1; }
 
+      - name: Auto-update nativo (apply + rollback + commit sobre copia)
+        run: |
+          sudo apt-get install -y xvfb || true
+          timeout 180 python3 tests/e2e/update_apply.py
+
   windows:
     name: Windows · compile + smoke (MSVC + vcpkg zlib/openssl)
     runs-on: windows-2022

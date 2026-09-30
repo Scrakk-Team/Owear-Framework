@@ -120,6 +120,21 @@ test('feed: manifiesto YAML + firma + delta por HTTP Range', async (t) => {
   )
   assert.equal(ok, true, 'firma del manifiesto debe verificar')
 
+  // firma del binario (binarySig): autentica el payload completo
+  assert.ok(manifest.binarySig, 'el manifiesto debe traer binarySig')
+  assert.equal(
+    crypto.verify(null, newBuf, publicKey, Buffer.from(manifest.binarySig, 'base64')),
+    true,
+    'la firma del binario debe verificar',
+  )
+  const tampered = Buffer.from(newBuf)
+  tampered[0] ^= 0xff
+  assert.equal(
+    crypto.verify(null, tampered, publicKey, Buffer.from(manifest.binarySig, 'base64')),
+    false,
+    'un binario manipulado no debe verificar',
+  )
+
   // 2. delta: solo 2 de 8 bloques cambian
   const plan = planDelta(blockHashes(oldBuf, blockSize), bm.blocks, blockSize, bm.size)
   assert.equal(plan.changed, 2)
