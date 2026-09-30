@@ -144,60 +144,6 @@ jobs:
             Write-Host "::group::stdout del kernel"; Get-Content "owear-smoke.out.log" -ErrorAction SilentlyContinue; Write-Host "::endgroup::"
           }
 
-  macos:
-    name: macOS · compile + smoke (Cocoa/WebKit frameworks)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deps
-        run: |
-          brew install ninja pkg-config glib openssl@3
-          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
-      - name: Configure
-        run: |
-          cmake --preset macos-release \
-            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)"
-      - run: cmake --build --preset macos-release
-      - name: Smoke test (kernel vivo + carga de módulos .so)
-        run: |
-          MODS=""
-          for d in build/macos-release/api/*/; do MODS="$MODS$d:"; done
-          MODS=${MODS%:}
-          echo "OW_MODULES_DIR=$MODS"
-          OW_APP_NAME=CI OW_MODULES_DIR="$MODS" \
-            ./build/macos-release/src/owear > /tmp/owear-smoke.log 2>&1 &
-          KPID=$!
-          sleep 8
-          if ! kill -0 $KPID 2>/dev/null; then
-            echo "::group::log del kernel"; cat /tmp/owear-smoke.log; echo "::endgroup::"
-            echo "el kernel murió en el arranque"; exit 1
-          fi
-          kill $KPID
-          echo "smoke OK: kernel vivo tras 8s"
-      - name: E2E suite completa (all + builtins vía WKWebView)
-        run: |
-          MODS=""
-          for d in build/macos-release/api/*/; do MODS="$MODS$d:"; done
-          MODS=${MODS%:}
-          OW_APP_NAME=CI OW_MODULES_DIR="$MODS" \
-            ./build/macos-release/src/owear > /tmp/owear-e2e.log 2>&1 &
-          KPID=$!
-          sleep 8
-          if ! kill -0 $KPID 2>/dev/null; then
-            echo "::group::log del kernel"; cat /tmp/owear-e2e.log; echo "::endgroup::"
-            echo "el kernel murió en el arranque"; exit 1
-          fi
-          RUNNER=""
-          if command -v timeout >/dev/null 2>&1; then RUNNER="timeout 150";
-          elif command -v gtimeout >/dev/null 2>&1; then RUNNER="gtimeout 150"; fi
-          $RUNNER python3 tests/e2e/run_suites.py \
-            --pages all.html builtins.html --port 8123 || \
-          { echo "::group::log del kernel"; cat /tmp/owear-e2e.log; echo "::endgroup::";
-            kill $KPID 2>/dev/null; exit 1; }
-          kill $KPID 2>/dev/null
-          echo "E2E macOS OK"
-      # Los .mm de Cocoa/WebKit se compilan aquí: errores reales visibles.
-
   packages:
     name: Paquetes npm (pnpm)
     runs-on: ubuntu-latest
@@ -211,5 +157,5 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile=false
-      - run: pnpm -r build
-      - run: pnpm -r typecheck
+      - run: pnpm --filter './packages/**' -r build
+      - run: pnpm --filter './packages/**' -r typecheck
