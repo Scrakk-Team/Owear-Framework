@@ -30,17 +30,14 @@ sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
 support is gated behind `OW_WITH_WEBVIEW2` and needs the
 `Microsoft.Web.WebView2` NuGet package under `deps/webview2/`.
 
-## Option A — from npm (published flow)
+## Option A — from npm (recommended)
 
-> **Status:** the `@owear/*` packages are not published on npm yet. The Linux
-> runtime (`@owear/linux-x64-gnu`) is already packaged by
-> `tools/pack-runtime.mjs` and ready to publish; Windows is packaged from
-> native runners. Until then, use Option B.
-
-Once published:
+The `@owear/*` packages are published on npm (**0.1.4**): `@owear/cli`,
+`@owear/core`, `@owear/vite-plugin` and the per-platform runtime
+(`@owear/linux-x64-gnu`, `@owear/win32-x64`).
 
 ```bash
-pnpm dlx @owear/cli create my-app
+pnpm dlx @owear/cli create my-app    # or: npm i -g @owear/cli && ow create my-app
 cd my-app
 pnpm install
 pnpm dev
@@ -53,7 +50,7 @@ The CLI resolves the kernel from the runtime package for your platform:
 | Linux x64 | `@owear/linux-x64-gnu` |
 | Windows x64 | `@owear/win32-x64` |
 
-## Option B — from a checkout (current)
+## Option B — from a checkout (framework contributors)
 
 ```bash
 git clone <owear-repo> owear

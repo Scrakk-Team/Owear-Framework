@@ -50,18 +50,51 @@ native → renderer events (~7× faster)**; it is behind on **IPC and startup**.
 
 ## Quick start
 
-Published on npm (`@owear/*` **0.1.4**):
+The CLI is published on npm as `@owear/cli` (**0.1.4**):
 
 ```bash
-npm i -g @owear/cli
-ow create my-app
-cd my-app && npm install && ow dev
+pnpm dlx @owear/cli create my-app    # or: npm i -g @owear/cli && ow create my-app
+cd my-app
+pnpm install
+pnpm dev                             # or: npm run dev
 ```
 
-Working on the framework itself (monorepo checkout):
+You get a working **Starter**: a Vite + TypeScript frontend, a Node main process,
+a custom title bar, and demos of most native APIs. The two files you edit first:
+
+- `src/renderer.ts` — the UI. It runs inside the WebView and calls native code
+  through `window.ow`:
+
+  ```ts
+  const hostname = await window.ow.invoke<string>('fs', 'readText', '/etc/hostname')
+  ```
+
+- `app/main.ts` — the Node main process. It creates windows and exposes Node to
+  the UI:
+
+  ```ts
+  import { app, BrowserWindow } from '@owear/core'
+
+  app.whenReady().then(() => {
+    new BrowserWindow({ title: 'My App', width: 900, height: 600 })
+  })
+  ```
+
+Then build:
+
+```bash
+pnpm build        # frontend + main.js + modules → dist/
+ow build app      # a single self-contained binary → release/
+```
+
+Full walkthrough: [Quick start](docs/getting-started/quickstart.md) ·
+[Your first app](docs/getting-started/your-first-app.md).
+
+Working on the **framework** itself (from a checkout):
 
 ```bash
 pnpm install
+pnpm build:native                           # build the kernel for your platform
 node packages/cli/src/ow.js create my-app   # scaffold from the template
 ```
 
