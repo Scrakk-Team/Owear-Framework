@@ -76,7 +76,8 @@ a custom title bar, and demos of most native APIs. The two files you edit first:
   import { app, BrowserWindow } from '@owear/core'
 
   app.whenReady().then(() => {
-    new BrowserWindow({ title: 'My App', width: 900, height: 600 })
+    const win = new BrowserWindow({ title: 'My App', width: 900, height: 600 })
+    win.loadURL(process.env.OW_DEV_SERVER_URL!)
   })
   ```
 
@@ -98,39 +99,24 @@ pnpm build:native                           # build the kernel for your platform
 node packages/cli/src/ow.js create my-app   # scaffold from the template
 ```
 
-Write native C++ next to your frontend:
+## Native when you need it
 
-```cpp
-// native/files.cpp
-#include <ow/Json.h>
-#include <ow/Module.h>
+Most desktop features are **built in** (`fs`, `dialog`, `menu`, `tray`, `screen`…),
+so you write TypeScript and call them directly — no native code needed:
 
-static void readText(const ow_request_t* req, ow_response_t* res) {
-    // JSON args → JSON response. No exceptions across the host boundary.
-}
-
-OW_MODULE_BEGIN(files, "1.0.0")
-OW_FN(readText)
-OW_MODULE_END()
+```ts
+const entries = await window.ow.invoke('fs', 'readDir', '/etc')
 ```
 
-Call it from the renderer with generated types:
+When a hot path really needs native code, drop C++ in `native/`: the CLI compiles
+it to a `.owm` module and `@owear/vite-plugin` generates typed bindings.
 
 ```ts
 import { files } from '@owear/native'
-const txt = await files.readText('/etc/hostname')
+const text = await files.readText('/etc/hostname')
 ```
 
-Or drive the app from the main process, Electron style:
-
-```ts
-// app/main.ts (Node sidecar)
-import { app, BrowserWindow } from '@owear/core'
-
-app.whenReady().then(() => {
-  new BrowserWindow({ width: 1200, height: 800, titleBarStyle: 'custom' })
-})
-```
+See [Native modules](docs/guides/native-modules.md).
 
 ## Building the framework (from this repo)
 
