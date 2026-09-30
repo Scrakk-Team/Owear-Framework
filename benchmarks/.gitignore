@@ -4,3 +4,4 @@ tauri/src-tauri/target/
 owear/assets/bench.js
 electron/bench.js
 tauri/dist/bench.js
+neutralino/resources/bench.js

@@ -26,6 +26,7 @@ fn burst(window: tauri::Window, n: usize) -> Result<(), String> {
 fn ready() {
     let ms = T0.get().map(|t| t.elapsed().as_millis()).unwrap_or(0);
     println!("BENCH_READY internal={}ms", ms);
+    let _ = std::fs::write("/tmp/opencode/bench/out/tauri.ready", "1");
     use std::io::Write;
     let _ = std::io::stdout().flush();
 }

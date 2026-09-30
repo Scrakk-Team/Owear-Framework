@@ -3,54 +3,54 @@
 
 # __APP_NAME__
 
-App de escritorio construida con **[Owear](https://owear.dev)**: el WebView del
-sistema renderiza tu frontend web y el kernel nativo te da el sistema operativo.
+Desktop app built with **[Owear](https://owear.dev)**: the system WebView renders
+your web frontend and the native kernel gives you the operating system.
 
-## Empezar
+## Get started
 
 ```bash
 npm install
 npm run dev     # ≡ ow dev
 ```
 
-Se abre una ventana con el WebView del sistema. Edita `src/renderer.ts` y el
-hot-reload de Vite lo refleja al instante.
+A window with the system WebView opens. Edit `src/renderer.ts` and Vite's
+hot-reload reflects it instantly.
 
 ```bash
 npm run build   # ≡ ow build → dist/
 ```
 
-## Estructura
+## Structure
 
 ```
-├── index.html          UI (titlebar propia, hero, tarjetas)
+├── index.html          UI (custom title bar, hero, cards)
 ├── src/
-│   ├── renderer.ts     lógica del renderer + llamadas a módulos nativos
-│   ├── style.css       estilos
-│   └── ow.d.ts         tipos de window.ow
+│   ├── renderer.ts     renderer logic + calls to native modules
+│   ├── style.css       styles
+│   └── ow.d.ts         types for window.ow
 └── app/
-    └── main.ts         proceso principal (sidecar Node): sólo la ventana
+    └── main.ts         main process (Node sidecar): just the window
 ```
 
-## Cómo se llama al sistema
+## How it talks to the system
 
-Sin `ipcRenderer` ni `ipcMain`: el renderer invoca los módulos nativos del
-kernel directo.
+No `ipcRenderer` and no `ipcMain`: the renderer calls the kernel's native modules
+directly.
 
 ```ts
-const path = await ow.invoke('dialog', 'open', 'open', 'Abrir archivo')
+const path = await ow.invoke('dialog', 'open', 'open', 'Open a file')
 const text = await ow.invoke('fs', 'readText', path)
-await ow.invoke('notification', 'show', 'Listo', `Leídos ${text.length} bytes`)
+await ow.invoke('notification', 'show', 'Done', `Read ${text.length} bytes`)
 ```
 
-Módulos incluidos (stock): `fs` · `path` · `process` (PTY) · `dialog` ·
-`clipboard` · `shell` · `screen` · `net` · `notification` · `power` · `menu` ·
-`globalshortcut` · `updater` · `capturer`, más los builtins `ow-window` (ventana),
-`window` (extras del WebView), `session`, `app` y `crashreporter`.
+Stock modules: `fs` · `path` · `process` (PTY) · `dialog` · `clipboard` ·
+`shell` · `screen` · `net` · `notification` · `power` · `menu` ·
+`globalshortcut` · `updater` · `capturer`, plus the builtins `ow-window`
+(window), `window` (WebView extras), `session`, `app`, and `crashreporter`.
 
-## Añadir un módulo nativo propio (C++)
+## Adding your own native module (C++)
 
-1. Crea `native/mi_modulo.cpp`:
+1. Create `native/my_module.cpp`:
 
    ```cpp
    #include <ow/Json.h>
@@ -61,17 +61,23 @@ Módulos incluidos (stock): `fs` · `path` · `process` (PTY) · `dialog` ·
        ow::Module::RespondOk(res, "\"pong\"");
    }
 
-   OW_MODULE_BEGIN(mi_modulo, "1.0.0")
+   OW_MODULE_BEGIN(my_module, "1.0.0")
    OW_FN(ping)
    OW_MODULE_END()
    ```
 
-2. `ow dev` lo compila a `.owm` y genera el binding. Úsalo en el renderer:
+2. `ow dev` compiles it to `.owm` and generates the binding. Use it in the
+   renderer:
 
    ```ts
-   import { mi_modulo } from '@owear/native'
-   await mi_modulo.ping()
+   import { my_module } from '@owear/native'
+   await my_module.ping()
    ```
 
-> Requiere un compilador de C++ en el sistema. Si no lo tienes, no añadas
-> `native/` y la app sigue funcionando con los módulos stock.
+> Requires a C++ compiler on the system. If you do not have one, do not add
+> `native/` and the app keeps working with the stock modules.
+
+## Learn more
+
+The full documentation lives in the Owear repository under
+[`docs/`](https://github.com/owear/owear/tree/main/docs).

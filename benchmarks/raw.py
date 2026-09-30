@@ -14,7 +14,8 @@ def f(x):
 
 def main():
     with open(os.path.join(ROOT, "results.json")) as fh:
-        d = json.load(fh)
+        data = json.load(fh)
+    d = data.get("frameworks") if isinstance(data, dict) else data
     cols = ["startup", "ram", "seq", "conc", "1k", "64k", "1m", "5m", "dn1m", "dn5m", "ev/s", "jsloop", "jssort"]
     print(f"{'framework':11} {'rep':>3}  " + "  ".join(f"{c:>7}" for c in cols))
     for fw in d:

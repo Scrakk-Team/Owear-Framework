@@ -3,51 +3,51 @@
 
 # Owear
 
-Framework de escritorio nativo multiplataforma. **Sin navegador embebido**:
-usa el WebView del sistema — WebView2 (Windows), WKWebView (macOS),
-WebKitGTK (Linux).
+Native desktop framework for **Linux and Windows**. **No bundled browser**: it
+uses the operating system's own WebView (WebView2 on Windows, WebKitGTK on
+Linux).
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Proceso App (nativo, ~5-10 MB)             │
+│  App process (native, ~5-10 MB)             │
 │  kernel: app · windows · bridge · loader    │
-│  módulos .owm: fs · dialog · los tuyos      │
+│  .owm modules: fs · dialog · yours          │
 └──────────────┬──────────────────────────────┘
-               │ puente directo (sin Node en medio)
-     WebView del SO  ←  tu frontend (Vite/React/…)
+               │ direct bridge (no Node in between)
+     OS WebView  ←  your frontend (Vite/React/…)
                │
-     Sidecar Node (auto-instalado, opcional)
-       └── app/main.ts — API tipo Electron
+     Node sidecar (auto-installed, optional)
+       └── app/main.ts — Electron-like API
 ```
 
-## Por qué no Electron/Tauri
+## Why not Electron/Tauri
 
 | | Electron | Tauri | **Owear** |
 |---|---|---|---|
-| RAM del core | ~150–200 MB | ~30–60 MB | **~5–10 MB** |
-| Node embebido | sí (V8+Node fijos) | no | **no — sidecar auto-instalado bajo demanda** |
-| IPC | preload + pipe + V8 serialize | JSON-RPC | **host object directo + binario crudo** |
-| Módulos | todos cargados | todos | **dlopen solo lo que usas (.owm)** |
+| Core RAM | ~150–200 MB | ~30–60 MB | **~5–10 MB** |
+| Embedded Node | yes (pinned V8+Node) | no | **no — sidecar auto-installed on demand** |
+| IPC | preload + pipe + V8 serialize | JSON-RPC | **direct host object + raw binary** |
+| Modules | all loaded | all | **dlopen only what you use (.owm)** |
 
-## Inicio rápido
+## Quick start
 
-> **Estado:** los paquetes `@owear/*` todavía no se publican en npm. El runtime
-> de Linux (`@owear/linux-x64-gnu`) ya se empaqueta con `tools/pack-runtime.mjs`
-> (kernel + módulos stock + headers) y está listo para publicar; Windows/macOS se
-> empaquetan desde runners nativos. Mientras tanto se trabaja desde un checkout
-> del monorepo: `ow dev` compila el kernel la primera vez (necesita las deps del
-> sistema de `.github/workflows/ci.yml`).
+> **Status:** the `@owear/*` packages are not published on npm yet. The Linux
+> runtime (`@owear/linux-x64-gnu`) is already packaged by `tools/pack-runtime.mjs`
+> (kernel + stock modules + headers) and ready to publish; Windows is
+> packaged from native runners. Until then, work from a monorepo checkout:
+> `ow dev` compiles the kernel the first time (it needs the system dependencies
+> from `.github/workflows/ci.yml`).
 
 ```bash
-# desde un checkout de Owear
+# from an Owear checkout
 pnpm install
-node packages/cli/src/ow.js create mi-app   # scaffoldea desde el template
+node packages/cli/src/ow.js create my-app   # scaffold from the template
 ```
 
-El flujo publicado (pendiente de release) es el habitual:
-`pnpm dlx @owear/cli create mi-app && cd mi-app && pnpm install && pnpm dev`.
+The published flow (pending release) is the usual one:
+`pnpm dlx @owear/cli create my-app && cd my-app && pnpm install && pnpm dev`.
 
-Escribe C++ nativo junto a tu frontend:
+Write native C++ next to your frontend:
 
 ```cpp
 // native/files.cpp
@@ -55,7 +55,7 @@ Escribe C++ nativo junto a tu frontend:
 #include <ow/Module.h>
 
 static void readText(const ow_request_t* req, ow_response_t* res) {
-    // args JSON → respuesta JSON. Sin excepciones hacia el host.
+    // JSON args → JSON response. No exceptions across the host boundary.
 }
 
 OW_MODULE_BEGIN(files, "1.0.0")
@@ -63,17 +63,17 @@ OW_FN(readText)
 OW_MODULE_END()
 ```
 
-Y llámalo desde el renderer con tipos generados:
+Call it from the renderer with generated types:
 
 ```ts
 import { files } from '@owear/native'
 const txt = await files.readText('/etc/hostname')
 ```
 
-O maneja la app desde el main process estilo Electron:
+Or drive the app from the main process, Electron style:
 
 ```ts
-// app/main.ts (sidecar Node)
+// app/main.ts (Node sidecar)
 import { app, BrowserWindow } from '@owear/core'
 
 app.whenReady().then(() => {
@@ -81,29 +81,29 @@ app.whenReady().then(() => {
 })
 ```
 
-## Build del framework (desde este repo)
+## Building the framework (from this repo)
 
 ```bash
-cmake --preset linux-release        # windows-release / macos-release
+cmake --preset linux-release        # or: windows-release
 cmake --build --preset linux-release
 ctest --test-dir build/linux-release --output-on-failure
 ```
 
-## Estructura
+## Structure
 
-- `include/ow/` — contratos públicos (cambiarlos rompe las 3 plataformas: anti-drift)
-- `src/<Módulo>/<archivo>_<plat>.cpp` — una implementación por plataforma, seleccionada por CMake
-- `api/<nombre>/` — **una carpeta por API** con su manifiesto `owear.module.json`
-  (fuente única de verdad). Ver [APIs](docs/APIS.md)
-- `tools/gen-apis.mjs` — genera el descubrimiento (CMake) y el registro de builtins desde los manifiestos
-- `packages/` — SDK npm (`@owear/core`, `@owear/cli`, `@owear/vite-plugin`)
-- `docs/` — [Roadmap](docs/ROADMAP.md) · [Protocolo](docs/BRIDGE.md) · [API](docs/API.md) · [APIs](docs/APIS.md)
+- `include/ow/` — public contracts (changing them breaks every platform: anti-drift)
+- `src/<Module>/<file>_<platform>.cpp` — one implementation per platform, selected by CMake
+- `api/<name>/` — **one folder per API** with its `owear.module.json` manifest
+  (single source of truth). See [manifests](docs/reference/manifests.md)
+- `tools/gen-apis.mjs` — generates CMake discovery and the builtin registry from the manifests
+- `packages/` — npm SDK (`@owear/core`, `@owear/cli`, `@owear/vite-plugin`)
+- `docs/` — [full documentation](docs/README.md): guides, SDK, modules and architecture
 
-## Contribuir
+## Contributing
 
-Reglas de arquitectura, cómo añadir una API y cómo escribir tests E2E:
+Architecture rules, how to add an API, and how to write E2E tests:
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Licencia
+## License
 
-Apache License 2.0 — ver [LICENSE](LICENSE).
+Apache License 2.0 — see [LICENSE](LICENSE).

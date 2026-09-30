@@ -65,7 +65,7 @@ Object Rect(const GdkRectangle& r) {
 }
 
 /// Objeto Display completo (campos que GDK3 puede dar; el resto, defaults
-/// honestos). Véase docs/APIS.md.
+/// honest defaults). See docs/api/modules/screen.md.
 Object DisplayToJson(GdkDisplay* d, GdkMonitor* m) {
     GdkRectangle geo{}, work{};
     gdk_monitor_get_geometry(m, &geo);

@@ -19,6 +19,9 @@ ipcMain.handle('bench:burst', (e, n) => {
 })
 ipcMain.handle('bench:ready', () => {
   process.stdout.write(`BENCH_READY internal=${Date.now() - T0}ms\n`)
+  try {
+    fs.writeFileSync(OUT.replace(/\.json$/, '.ready'), '1')
+  } catch {}
   return null
 })
 ipcMain.handle('bench:report', (_e, json) => {

@@ -1,25 +1,25 @@
 <!-- Copyright 2026 Owear Contributors
      SPDX-License-Identifier: Apache-2.0 -->
 
-# Contribuir a Owear
+# Contributing to Owear
 
-Gracias por el interés. Este documento cubre lo que no se deduce leyendo el
-código: las reglas de arquitectura que sostienen el proyecto y cómo verificar
-un cambio antes de mandarlo.
+Thanks for your interest. This document covers what you cannot infer by reading
+the code: the architecture rules that hold the project together and how to
+verify a change before sending it.
 
-## Requisitos (Linux)
+## Requirements (Linux)
 
-Las mismas del job `linux` de CI:
+The same as the CI `linux` job:
 
 ```bash
 sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
   libssl-dev zlib1g-dev ninja-build xvfb libayatana-appindicator3-dev
 ```
 
-Windows necesita MSVC + vcpkg (zlib/openssl) y el SDK de WebView2 en
+Windows needs MSVC + vcpkg (zlib/openssl) and the WebView2 SDK under
 `deps/webview2/`.
 
-## Compilar y testear
+## Build and test
 
 ```bash
 cmake --preset linux-release
@@ -27,8 +27,8 @@ cmake --build --preset linux-release
 ctest --test-dir build/linux-release --output-on-failure
 ```
 
-Las suites E2E arrancan el kernel de verdad y le hablan por el Control Socket,
-así que necesitan un display (en CI se usa Xvfb):
+The E2E suites start a real kernel and talk to it over the Control Socket, so
+they need a display (CI uses Xvfb):
 
 ```bash
 MODS=""
@@ -42,65 +42,64 @@ sleep 5
 python3 tests/e2e/run_suites.py --pages all.html builtins.html veto.html --port 8123
 ```
 
-En los paquetes npm: `pnpm -r typecheck` y `pnpm -r build`.
+For the npm packages: `pnpm -r typecheck` and `pnpm -r build`.
 
-## Reglas de arquitectura
+## Architecture rules
 
-Estas cuatro reglas explican la mayoría de las decisiones del repo. Romperlas
-rompe la compilación o, peor, rompe una plataforma en silencio.
+These four rules explain most decisions in the repo. Breaking them breaks the
+build or, worse, silently breaks a platform.
 
-1. **Anti-drift: los contratos público viven en `include/ow/`.** Los usan las
-   tres plataformas y los módulos de usuario. Si cambias una firma, el cambio
-   duele en compilación — que es exactamente lo que se busca.
+1. **Anti-drift: public contracts live in `include/ow/`.** They are used by all
+   three platforms and by user modules. If you change a signature, the change
+   hurts at compile time — which is exactly what we want.
 
-2. **Una implementación por plataforma, elegida por CMake, nunca por `#ifdef`.**
-   Los `src/**/*_linux.cpp` / `*_win.cpp` / `*.mm` se seleccionan en el
-   `CMakeLists.txt` correspondiente. No metas ramas de plataforma dentro de un
-   archivo común.
+2. **One implementation per platform, chosen by CMake, never by `#ifdef`.**
+   `src/**/*_linux.cpp` / `*_win.cpp` are selected in the corresponding
+   `CMakeLists.txt`. Do not put platform branches inside a common file.
 
-3. **Todo el trabajo de UI pasa por el main loop, vía `App::Post`.** Es lo que
-   hace seguro que un módulo con hilo propio toque ventanas. `App::Post` es
-   thread-safe; el resto de la API de ventana no lo es.
+3. **All UI work goes through the main loop, via `App::Post`.** That is what makes
+   it safe for a module with its own thread to touch windows. `App::Post` is
+   thread-safe; the rest of the window API is not.
 
-4. **El ABI de módulos (`ow_api.h`) es C y con contrato de memoria explícito.**
-   Los buffers de `ow_response_t` viven sólo durante la llamada: el host copia
-   al instante. Nunca lances una excepción hacia el host.
+4. **The module ABI (`ow_api.h`) is C, with an explicit memory contract.**
+   `ow_response_t` buffers live only during the call: the host copies them
+   immediately. Never throw an exception across the host boundary.
 
-## Añadir una API
+## Adding an API
 
-Cada carpeta `api/<nombre>/` es una API independiente con su propio target:
+Each `api/<name>/` folder is an independent API with its own target:
 
 ```
-api/<nombre>/
-  CMakeLists.txt          # ow_add_module(<nombre> SOURCES … LIBS …)
-  src/basic.cpp           # tabla ow_fn_entry_t + ow_module_descriptor()
+api/<name>/
+  CMakeLists.txt          # ow_add_module(<name> SOURCES … LIBS …)
+  src/basic.cpp           # ow_fn_entry_t table + ow_module_descriptor()
 ```
 
-y una línea `add_subdirectory(<nombre>)` en `api/CMakeLists.txt`. Declara la
-funcionalidad en la tabla del descriptor, no en un `if` de nombre de función.
+and one `add_subdirectory(<name>)` line in `api/CMakeLists.txt`. Declare the
+functionality in the descriptor table, not in an `if` on the function name.
 
-Antes de “arreglar” algo que parece roto, mira si hay un test que lo cubra y
-añade el que falte: el proyecto ha tenido bugs vivos detrás de una suite verde
-porque el camino afectado no estaba cubierto (por ejemplo, el bridge de
-`ow-window` sólo se probaba por el Control Socket, no desde el renderer).
+Before "fixing" something that looks broken, check whether a test covers it and
+add the missing one: the project has had live bugs behind a green suite because
+the affected path was not covered (for example, the `ow-window` bridge was only
+tested through the Control Socket, not from the renderer).
 
-## Escribir tests E2E
+## Writing E2E tests
 
-Las páginas viven en `tests/e2e/www/`. El contrato con el runner
-(`tests/e2e/run_suites.py`) es:
+Test pages live in `tests/e2e/www/`. The contract with the runner
+(`tests/e2e/run_suites.py`) is:
 
-- la página deja los resultados en `window.__R` (`{nombre: string}`) y marca
-  `window.__done = 1` al terminar;
-- el runner marca **FALLO** si el valor empieza por `ERR`, `timeout` o `FAIL`,
-  y si la página no deja resultados. Para fallar hay que **lanzar** una
-  excepción (o usar ese prefijo): resolver la promesa con un string `'ERR …'`
-  no sirve, porque el `JSON.stringify` de `__R` lo deja entre comillas y no
-  empieza por `ERR`;
-- verifica que tu test falla sin el arreglo antes de dar el cambio por bueno.
+- the page leaves its results in `window.__R` (`{ name: string }`) and sets
+  `window.__done = 1` when finished;
+- the runner marks **FAIL** if a value starts with `ERR`, `timeout`, or `FAIL`,
+  and if the page leaves no results. To fail, you must **throw** an exception
+  (or use that prefix): resolving a promise with the string `'ERR …'` does not
+  work, because `JSON.stringify` of `__R` wraps it in quotes so it no longer
+  starts with `ERR`;
+- verify your test fails without the fix before declaring the change good.
 
-## Roadmap y `VERIFICAR-EN-DESKTOP-REAL`
+## Roadmap and `VERIFY ON REAL DESKTOP`
 
-`ROADMAP.md` marca con esa etiqueta lo que CI comprueba sólo parcialmente
-(diálogos modales, tray, atajos globales). Si tocas esas áreas, actualiza la
-etiqueta con la versión del SO donde lo probaste — el valor está en que la
-etiqueta signifique algo.
+[`docs/roadmap.md`](docs/roadmap.md) marks with that label what CI checks only
+partially (modal dialogs, tray, global shortcuts). If you touch those areas,
+update the label with the OS version where you tested it — its value lies in it
+meaning something.

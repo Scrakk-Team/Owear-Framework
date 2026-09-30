@@ -11,7 +11,10 @@ window.BENCH = {
   on: (ev, cb) => window.ow.on(ev, cb),
   burst: (n) => window.ow.invoke('bench', 'burst', n),
   big: (n) => window.ow.invoke('bench', 'big', n),
-  ready: () => window.ow.invoke('bench', 'ready'),
+  ready: async () => {
+    await window.ow.invoke('bench', 'mark', OUT.replace(/\.json$/, '.ready'))
+    return window.ow.invoke('bench', 'ready')
+  },
   report: (json) => window.ow.invoke('bench', 'report', OUT, json),
   readFile: async () => {
     const r = await window.ow.invoke('fs', 'readFile', BLOB)

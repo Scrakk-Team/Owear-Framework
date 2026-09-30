@@ -1,23 +1,27 @@
+---
+title: 0.1.3
+description: Windows window fix (blank / "not responding"), the Linux → Windows cross-compilation toolchain, titleBarOverlay, a Node bridge, and the C1–C10 app shell.
+order: 4
+---
 <!-- Copyright 2026 Owear Contributors
      SPDX-License-Identifier: Apache-2.0 -->
 
 # 0.1.3
 
-Arreglo de la ventana de Windows (en blanco / "no responde"), toolchain de
-compilación cruzada Linux → Windows, **`titleBarOverlay`** (botones nativos de
-ventana dentro de la titlebar custom) en Linux, y un **puente Node** para
-exponer Node a la UI sin IPC por defecto. Se añade el **Bloque A de
-ejecución/IPC**: workers Node con canal, `windowId` en los handlers, envío
-dirigido `webContents.send` y `MessageChannel`/`MessagePort`. Se suma el
-**Bloque B**: `protocol` (esquemas personalizados), `safeStorage` (DPAPI /
-AES-GCM), `theme` (nativeTheme) y permisos de `session`; y el sidecar Node ya
-muere con el kernel. Y el **Bloque C (shell de app)**: **C1** `app` completo
-(rutas/identidad/`commandLine`/eventos), **C2** `dialog` completo, **C3**
-`webContents` (objetos + eventos + `capturePage`), **C4** `nativeImage` (códec
-PNG sin deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme`,
-**C8** `print`/`printToPDF`, **C9** `BrowserWindow` completo (opciones/estado/
-geometría/eventos) y **C10** `screen`/`Display` (multi-monitor + eventos) y
-`powerMonitor` (energía).
+Fixes the Windows window (blank / "not responding"), adds the Linux → Windows
+cross-compilation toolchain, **`titleBarOverlay`** (native window buttons inside
+the custom titlebar) on Linux, and a **Node bridge** to expose Node to the UI
+without IPC by default. It also adds **Block A of execution/IPC**: Node workers
+with a channel, `windowId` in handlers, targeted `webContents.send` and
+`MessageChannel`/`MessagePort`. Plus **Block B**: `protocol` (custom schemes),
+`safeStorage` (DPAPI / AES-GCM), `theme` (nativeTheme) and `session` permissions;
+and the Node sidecar now dies with the kernel. And **Block C (app shell)**: **C1**
+full `app` (paths/identity/`commandLine`/events), **C2** full `dialog`, **C3**
+`webContents` (objects + events + `capturePage`), **C4** `nativeImage` (PNG codec
+with no deps), **C5** `Menu`/`MenuItem`, **C6** `Tray`, **C7** `nativeTheme`,
+**C8** `print`/`printToPDF`, **C9** full `BrowserWindow` (options/state/geometry/
+events) and **C10** `screen`/`Display` (multi-monitor + events) and
+`powerMonitor` (power).
 
 ## Added
 
