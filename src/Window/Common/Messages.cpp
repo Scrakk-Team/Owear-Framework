@@ -5,6 +5,7 @@
 #include "Internal.hpp"
 #include "../Window_p.hpp"
 #include "../../Bridge/Dispatcher.hpp"
+#include "../../Session/Charter.hpp"
 #include "../../Core/App.hpp"
 #include "../../Control/ControlServer.hpp"
 #include "../../Core/Log.hpp"
@@ -70,8 +71,32 @@ void Window::Impl::HandleWebViewMessage(std::string_view text) {
                 if (webview) webview->EvalJS(js);
                 return;
             }
-            ControlServer::Get().ForwardNodeCall(msg.window == 0 ? id : msg.window,
-                                                 msg.id, fn, argsJson);
+            const WindowId origin = msg.window == 0 ? id : msg.window;
+            std::string charterError;
+            if (!GuardRendererCall(origin, "node", "call", charterError)) {
+                json::Object charterFail;
+                charterFail.emplace_back("message", json::Value(charterError));
+                std::string js =
+                    "window.__ow && window.__ow._apply(" + std::to_string(msg.id) +
+                    ",false," +
+                    json::JsLiteral(json::Value(std::move(charterFail)).Serialize()) +
+                    ")";
+                if (webview) webview->EvalJS(js);
+                return;
+            }
+            ControlServer::Get().ForwardNodeCall(origin, msg.id, fn, argsJson);
+            return;
+        }
+
+        // Charter: the renderer path is filtered (the main process is trusted).
+        const WindowId origin = msg.window == 0 ? id : msg.window;
+        std::string charterError;
+        if (!GuardRendererCall(origin, msg.module, msg.method, charterError)) {
+            json::Object charterFail;
+            charterFail.emplace_back("message", json::Value(charterError));
+            std::string js = BuildApplyScript(
+                msg.id, false, json::Value(std::move(charterFail)).Serialize());
+            if (webview) webview->EvalJS(js);
             return;
         }
 
@@ -82,8 +107,7 @@ void Window::Impl::HandleWebViewMessage(std::string_view text) {
         req.bin_len = static_cast<uint32_t>(msg.bin.size());
 
         ow_response_t res{};
-        Dispatcher::Get().Execute(msg.window == 0 ? id : msg.window,
-                                  msg.module, msg.method, &req, &res);
+        Dispatcher::Get().Execute(origin, msg.module, msg.method, &req, &res);
 
         std::string resultJson;
         bool ok = res.status == 0;

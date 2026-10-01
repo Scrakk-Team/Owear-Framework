@@ -8,6 +8,13 @@ import { windowIcon } from './appicon.js'
 import { app, readyPromise } from './app.js'
 import type { WindowOptions, Bounds } from './index.js'
 import { WebContents, WIN_EVENT_NAMES, WC_EVENT_NAMES } from './webcontents.js'
+import {
+  setCharter,
+  getCharter,
+  clearCharter,
+  type Charter,
+  type CharterState,
+} from './charter.js'
 
 // ── BrowserWindow ───────────────────────────────────────────────────────────
 
@@ -48,12 +55,14 @@ export class BrowserWindow extends EventEmitter {
   }
 
   private async _create(): Promise<void> {
-    const { icon, ...rest } = this._options
+    // `charter` is applied after the window exists: the kernel needs its id.
+    const { icon, charter, ...rest } = this._options
     const res = await channel.call<{ windowId: number }>('window.create', { ...rest })
     this._id = res.windowId
     this._wc._setWindowId(res.windowId)
     windowsById.set(res.windowId, this)
     this._wireEvents()
+    if (charter) await this.setCharter(charter).catch((e) => this.emit('error', e))
     // Icono: el de la opción o el global (app.setIcon). PNG/JPEG.
     const ic = icon ?? windowIcon()
     if (ic) await this.setIcon(ic).catch(() => undefined)
@@ -65,6 +74,24 @@ export class BrowserWindow extends EventEmitter {
     const { readFileSync } = await import('node:fs')
     const pngB64 = readFileSync(path).toString('base64')
     await invokeNative('window', 'setIcon', this.requireId(), pngB64)
+  }
+
+  /**
+   * Declares what this window's own document may reach in the kernel. Once a
+   * charter is set, every call it does not grant is refused: deny by default.
+   */
+  async setCharter(charter: Charter): Promise<CharterState> {
+    return setCharter(this, charter)
+  }
+
+  /** Current charter of this window (`enforce:false` when it has none). */
+  getCharter(): Promise<CharterState> {
+    return getCharter(this)
+  }
+
+  /** Removes the charter: the window goes back to the default (no filtering). */
+  clearCharter(): Promise<CharterState> {
+    return clearCharter(this)
   }
 
   private _wireEvents() {

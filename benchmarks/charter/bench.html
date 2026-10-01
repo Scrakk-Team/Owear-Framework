@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>charter bench</title>
+  </head>
+  <body>
+    <h1>charter bench</h1>
+    <p>Runs N sequential `ow.invoke` round-trips. Driven by benchmarks/charter/bench.py.</p>
+    <script>
+      // The point of this file is to measure the *same* round-trip with and
+      // without a charter: a denied call is still a full kernel round-trip, so
+      // the difference is the cost of the policy itself.
+      window.__charterBench = { done: 0, n: 0, ms: 0, denied: 0 }
+
+      window.__charterRun = async function (n) {
+        const out = window.__charterBench
+        out.done = 0
+        out.n = n
+        out.ms = 0
+        out.denied = 0
+        // Cheapest round-trip available to a page (~0.66 ms, same order as the
+        // `bench.echo` used by benchmarks/run.py): the policy cost must not be
+        // hidden behind an expensive module call.
+        const args = [window.__owWindowId]
+        const t0 = performance.now()
+        for (let i = 0; i < n; i++) {
+          try {
+            await ow.invoke('ow-window', 'isMaximized', ...args)
+          } catch (e) {
+            out.denied += 1
+          }
+        }
+        out.ms = performance.now() - t0
+        out.done = 1
+      }
+    </script>
+  </body>
+</html>

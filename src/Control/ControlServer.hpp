@@ -85,6 +85,8 @@ private:
     bool CmdWindowPage(const std::string& cmd, const json::Value& params,
                        uint64_t clientId, uint64_t id, Window* w,
                        std::string& resultJson, std::string& error);
+    bool CmdWindowCharter(const std::string& cmd, const json::Value& params,
+                          Window* w, std::string& resultJson, std::string& error);
     bool CmdMenu(const std::string& cmd, const json::Value& params,
                uint64_t clientId, uint64_t id, std::string& resultJson,
                std::string& error);

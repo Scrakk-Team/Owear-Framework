@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>charter</title>
+  </head>
+  <body>
+    <h1>charter</h1>
+    <p>Probe page for tests/e2e/charter_guard.py.</p>
+    <script>
+      // The charter is installed from the main process (control socket); this
+      // page only reports what the renderer's own document can reach.
+      window.__owCharter = { done: 0, run: 0, results: {} }
+
+      window.__owCharterProbe = async function () {
+        const out = window.__owCharter
+        out.run += 1
+        out.done = 0
+        out.results = {}
+        const attempt = async (label, mod, fn, args) => {
+          try {
+            const r = await ow.invoke(mod, fn, ...(args || []))
+            const shown = r === undefined ? 'null' : JSON.stringify(r)
+            out.results[label] = 'granted:' + String(shown).slice(0, 64)
+          } catch (e) {
+            const msg = (e && e.message) || String(e)
+            out.results[label] = 'denied:' + String(msg).slice(0, 140)
+          }
+        }
+        // fs is the interesting one: it is never part of a minimal charter.
+        await attempt('fs', 'fs', 'readText', ['/etc/hostname'])
+        await attempt('theme', 'theme', 'isDark', [])
+        // The kernel injects the window id into the document; ow-window wants it.
+        await attempt('owWindow', 'ow-window', 'isMaximized', [window.__owWindowId])
+        out.done = 1
+      }
+    </script>
+  </body>
+</html>

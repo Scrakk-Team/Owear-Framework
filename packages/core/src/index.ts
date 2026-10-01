@@ -22,6 +22,7 @@ import * as fs from 'node:fs'
 import { forkWorker, type ForkWorkerOptions, type WorkerHandle } from './node/worker.js'
 import { NativeImage, nativeImage } from './nativeimage.js'
 import { channel, socketPathFromEnv, invokeNative } from './channel.js'
+import type { Charter } from './charter.js'
 
 export { NativeImage, nativeImage } from './nativeimage.js'
 export type { Size as NativeImageSize, Rectangle, ResizeOptions } from './nativeimage.js'
@@ -69,6 +70,11 @@ export interface WindowOptions {
    * la app usa `app.setIcon(path)`.
    */
   icon?: string
+  /**
+   * Capability policy of this window's own document. Once declared, every
+   * kernel call it does not grant is refused. See `charter.ts`.
+   */
+  charter?: Charter
 }
 
 export interface Bounds {
@@ -120,6 +126,25 @@ export type { SafeStorageResult } from './safestorage.js'
 
 export { session } from './session.js'
 export type { PermissionRequest, PermissionHandler } from './session.js'
+
+// ── charter: capability policy of the renderer surface ──────────────────────
+
+export {
+  defineCharter,
+  charterPresets,
+  setCharter,
+  getCharter,
+  clearCharter,
+  onCharterDenied,
+} from './charter.js'
+export type {
+  Charter,
+  CharterEntry,
+  CharterEntries,
+  CharterState,
+  CharterDenied,
+  CharterTarget,
+} from './charter.js'
 
 export { webRequest } from './webrequest.js'
 export type { WebRequestDetails, WebRequestResult, WebRequestHandler } from './webrequest.js'

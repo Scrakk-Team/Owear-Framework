@@ -3,6 +3,7 @@
 //
 // src/Webview/win/Backend/Handlers.cpp — esquemas custom y web-request.
 #include "../Webview2Backend.hpp"
+#include "../../../Session/Charter.hpp"
 
 namespace ow {
 
@@ -70,7 +71,7 @@ void Webview2Backend::AttachProtocolHandlers() {
                         if (mod.empty() || fn.empty()) {
                             out = "{\"ok\":false,\"r\":{\"message\":\"ow-rpc: ruta "
                                   "inválida\"}}";
-                        } else {
+                        } else if (RendererCallAllowed(wid, mod, fn, out)) {
                             ow_request_t oreq{};
                             oreq.json = argsJson.c_str();
                             oreq.json_len = static_cast<uint32_t>(argsJson.size());

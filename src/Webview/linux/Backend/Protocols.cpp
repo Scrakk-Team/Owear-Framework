@@ -3,6 +3,7 @@
 //
 // src/Webview/linux/Backend/Protocols.cpp — registro de esquemas (app/ow-shm/ow-sync).
 #include "../WebKitGTKBackend.hpp"
+#include "../../../Session/Charter.hpp"
 
 namespace ow {
 
@@ -136,7 +137,8 @@ void WebKitGTKBackend::RegisterKernelSchemes() {
                 std::string body;
                 if (!br::DecodeMessage(text, msg)) {
                     body = "{\"ok\":false,\"error\":\"mensaje inválido\"}";
-                } else {
+                } else if (RendererCallAllowed(msg.window, msg.module, msg.method,
+                                               body)) {
                     ow_request_t req{};
                     req.json = msg.json.c_str();
                     req.json_len = static_cast<uint32_t>(msg.json.size());

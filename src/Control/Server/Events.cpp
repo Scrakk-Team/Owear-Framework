@@ -13,6 +13,7 @@
 #include "../../Session/PermissionBroker.hpp"
 #include "../../Session/WebRequestBroker.hpp"
 #include "../../Session/WindowOpenBroker.hpp"
+#include "../../Session/Charter.hpp"
 #include "../../Window/Window_p.hpp"
 #include "../../Core/Log.hpp"
 #include "../../Runtime/NodeManager.hpp"
@@ -131,6 +132,9 @@ void ControlServer::WireWindowEvents(WindowId id, Window* w) {
         if (it == LiveWindows().end()) return;
         Window* dead = it->second;
         LiveWindows().erase(it);
+        // The capability policy dies with its window: keeping it around would
+        // leak grants to a future window that reuses the id.
+        Charter::Get().Forget(static_cast<uint32_t>(id));
         json::Object params;
         params.emplace_back("windowId", json::Value(static_cast<int64_t>(id)));
         params.emplace_back("name", json::Value("closed"));

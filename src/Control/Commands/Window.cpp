@@ -73,6 +73,7 @@ bool ControlServer::CmdWindow(const std::string& cmd, const json::Value& params,
 
     if (CmdWindowState(cmd, params, w, resultJson, error)) return true;
     if (CmdWindowPage(cmd, params, clientId, id, w, resultJson, error)) return true;
+    if (CmdWindowCharter(cmd, params, w, resultJson, error)) return true;
 
     return false;
 }

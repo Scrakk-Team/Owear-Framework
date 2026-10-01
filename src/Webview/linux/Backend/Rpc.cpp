@@ -3,6 +3,7 @@
 //
 // src/Webview/linux/Backend/Rpc.cpp — ejecucion de RPC y pool de hilos.
 #include "../Internal.hpp"
+#include "../../../Session/Charter.hpp"
 
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
@@ -19,6 +20,14 @@ std::string ExecRpc(WindowId wid, const std::string& mod, const std::string& fn,
                     const std::string& args) {
     if (mod.empty() || fn.empty())
         return "{\"ok\":false,\"r\":{\"message\":\"ow-rpc: ruta inválida\"}}";
+    // Charter: ow-rpc:// is a renderer path, so it is filtered like the WebView
+    // message path.
+    std::string charterError;
+    if (!GuardRendererCall(wid, mod, fn, charterError)) {
+        json::Object ce;
+        ce.emplace_back("message", json::Value(charterError));
+        return "{\"ok\":false,\"r\":" + json::Value(std::move(ce)).Serialize() + "}";
+    }
     ow_request_t req{};
     req.json = args.c_str();
     req.json_len = static_cast<uint32_t>(args.size());

@@ -118,7 +118,7 @@ public:
         }
         log::Debug("webview", "inyectando script de " + std::to_string(js.size()) + " bytes");
         WebKitUserScript* script = webkit_user_script_new(
-            js.c_str(), WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+            js.c_str(), WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
             WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, nullptr, nullptr);
         webkit_user_content_manager_add_script(manager_, script);
         webkit_user_script_unref(script);

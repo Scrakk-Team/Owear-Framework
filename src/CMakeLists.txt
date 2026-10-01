@@ -63,6 +63,7 @@ set(OW_KERNEL_SOURCES
     Control/Commands/Window/Create.cpp
     Control/Commands/Window/State.cpp
     Control/Commands/Window/Page.cpp
+    Control/Commands/Window/Charter.cpp
     Control/Commands/Menu.cpp
     Control/Commands/Protocol.cpp
     Control/Commands/Session.cpp
@@ -73,6 +74,7 @@ set(OW_KERNEL_SOURCES
     Session/PermissionBroker.cpp
     Session/WebRequestBroker.cpp
     Session/WindowOpenBroker.cpp
+    Session/Charter.cpp
     Window/Window_common.cpp
     Window/Common/Helpers.cpp
     Window/Common/Messages.cpp

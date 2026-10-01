@@ -17,7 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test test/worker.test.mjs test/port.test.mjs test/app.test.mjs test/nativeimage.test.mjs test/menu.test.mjs test/c10.test.mjs test/updater.test.mjs test/updater-feed.test.mjs test/updater-boot.test.mjs test/updater-sign.test.mjs test/updater-retry.test.mjs"
+    "test": "node --test test/worker.test.mjs test/port.test.mjs test/app.test.mjs test/nativeimage.test.mjs test/menu.test.mjs test/c10.test.mjs test/charter.test.mjs test/updater.test.mjs test/updater-feed.test.mjs test/updater-boot.test.mjs test/updater-sign.test.mjs test/updater-retry.test.mjs"
   },
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",
