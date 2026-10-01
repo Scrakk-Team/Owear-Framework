@@ -114,7 +114,7 @@ jobs:
           if (!(Test-Path "build\windows-release\src\Release\owear.exe") -and !(Test-Path "build\windows-release\src\Debug\owear.exe")) {
             Write-Error "owear.exe no existe"; exit 1
           }
-          $mods = (Get-ChildItem "build\windows-release\api" -Directory | ForEach-Object {
+          $mods = (Get-ChildItem "build\windows-release\src\api" -Directory | ForEach-Object {
               if (Test-Path "$($_.FullName)\Release") { "$($_.FullName)\Release" }
             }) -join ";"
           Write-Host "OW_MODULES_DIR=$mods"
