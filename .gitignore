@@ -31,3 +31,6 @@ __pycache__/
 
 # Web de Owear (WIP, no se commitea)
 owear-web/
+
+# Ejemplos/ports (no se versionan)
+examples/

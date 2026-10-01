@@ -1,6 +1,6 @@
 {
   "name": "@owear/cli",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "CLI de Owear: create, dev, build",
   "type": "module",
   "bin": {

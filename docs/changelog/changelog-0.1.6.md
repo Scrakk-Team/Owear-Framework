@@ -1,15 +1,16 @@
 ---
-title: 0.1.4
-description: Installer system (D1) improvements and its default template, plus the draw.io port as an example with its own installer.
-order: 5
+title: 0.1.6
+description: The installer system (D1) and auto-update release, plus the npm packaging fix. Consolidates 0.1.4.
+order: 6
 ---
 <!-- Copyright 2026 Owear Contributors
      SPDX-License-Identifier: Apache-2.0 -->
 
-# 0.1.4
+# 0.1.6
 
-Improvements to the **installer system (D1)** and its **default template**, plus
-the **draw.io** port as an example with its own installer.
+This is the **first public release**: it consolidates the installer system (D1)
+and auto-update work announced as 0.1.4 with the npm **packaging fix** below, so
+the repository and the published packages are both on **0.1.6**.
 
 ## Auto-update
 
@@ -144,16 +145,17 @@ A complete update system with **delta**, **signing** and a **YAML manifest**
   of the app. They are now cleared (`OW_ASSETS_DIR`, `OW_APP_MAIN`,
   `OW_MODULES_DIR`, `OW_APP_WORKERS`, `OW_MODE`, `OW_APP_ID`, `OW_APP_VERSION`)
   before `execv` / `CreateProcessW`.
+- **npm packaging (`workspace:*`).** The first `@owear/cli` and
+  `@owear/vite-plugin` tarballs shipped `workspace:*` in their dependency
+  manifests (published with `npm publish` from a pnpm workspace, which does not
+  rewrite the protocol), so `npm i -g @owear/cli` and a scaffolded app's
+  `npm install` failed with
+  `EUNSUPPORTEDPROTOCOL Unsupported URL Type "workspace:"`. The packages are now
+  published with the dependencies resolved to real versions.
 
 ## Notes
 
 - Verified end-to-end: `ow build installer` produces installer + uninstaller; it
   installs and **the installed app boots with its own payload**.
-- **npm packaging:** the first `@owear/cli` / `@owear/vite-plugin` tarballs were
-  published with `workspace:*` dependencies (an `npm publish` from a pnpm
-  workspace), which broke `npm install`. They were republished as **0.1.6** with
-  the dependencies resolved — npm does not allow reusing a version number, so the
-  registry carries `0.1.6` while the project stays at **0.1.4**. `npm i -g
-  @owear/cli` (and a scaffolded app's `npm install`) work from 0.1.6 on.
 - Still to polish (in progress): per-file progress, mode picker
   (`minimal`/`layout`) in the UI, app icon, and fine-tuning the layout/window.

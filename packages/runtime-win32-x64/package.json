@@ -1,6 +1,6 @@
 {
   "name": "@owear/win32-x64",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "Owear runtime — kernel nativo + módulos stock (.owm) + headers. Windows x64.",
   "license": "Apache-2.0",
   "homepage": "https://owear.dev",
