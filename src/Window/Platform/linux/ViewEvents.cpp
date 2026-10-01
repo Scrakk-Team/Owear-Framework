@@ -93,7 +93,11 @@ gboolean OnViewLoadFailed(WebKitWebView* view, WebKitLoadEvent, gchar* uri,
 
 // Foco en click: sin esto, al pulsar la webview principal el foco se quedaba en
 // la hija (GTK no lo devolvía) y el teclado seguía yendo a la hija.
+// OJO: las hijas se crean con can_focus=FALSE (para no robar el foco al cargar),
+// y en GTK `grab_focus` sobre un widget NO focusable no hace nada → hay que
+// volver a habilitarlo aquí, si no el teclado nunca llega a la hija.
 gboolean OnViewButtonPress(GtkWidget* w, GdkEventButton*, gpointer) {
+    gtk_widget_set_can_focus(w, TRUE);
     gtk_widget_grab_focus(w);
     return FALSE; // deja que WebKit procese el click
 }
