@@ -47,6 +47,7 @@ function skip(file) {
   if (file.startsWith('benchmarks/neutralino/')) return true // generado por `neu create`
   if (file.startsWith('benchmarks/charts/')) return true // generado (SVG)
   if (file === 'benchmarks/RESULTS.md') return true // generado por make_tables.py
+  if (file === 'benchmarks/charter/RESULTS.md') return true // generado por benchmarks/charter/bench.py
   if (file === 'include/ow/detail/minjson.hpp') return true // tercero
   if (file.includes('.generated.')) return true
   if (file === 'src/api/generated.cmake' || file === 'src/Core/builtins.generated.cmake') return true
