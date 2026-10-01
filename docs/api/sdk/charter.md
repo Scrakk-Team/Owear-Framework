@@ -108,8 +108,13 @@ installed.
 
 Two structural properties complete the picture:
 
-- **The bridge only exists in the top frame.** Subframes (extension panels,
-  embedded pages, remote iframes) cannot reach the kernel at all.
+- **The bridge API only exists in the top frame.** Subframes do not get
+  `window.ow`, so the documented API is out of their reach.
+- **But the native message handler is registered per view**, so a subframe can
+  still post raw messages into the kernel (verified in
+  `tests/e2e/charter_guard.py`). That is precisely why the **charter**, not the
+  injection rule, is the real boundary: declare one whenever the document can
+  host content you do not control.
 - **Embedded webviews are unprivileged by construction.** The `webview` module
   never injects the bridge into its child views.
 

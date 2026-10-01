@@ -19,21 +19,37 @@
         out.run += 1
         out.done = 0
         out.results = {}
-        const attempt = async (label, mod, fn, args) => {
-          try {
-            const r = await ow.invoke(mod, fn, ...(args || []))
-            const shown = r === undefined ? 'null' : JSON.stringify(r)
-            out.results[label] = 'granted:' + String(shown).slice(0, 64)
-          } catch (e) {
-            const msg = (e && e.message) || String(e)
-            out.results[label] = 'denied:' + String(msg).slice(0, 140)
-          }
+        // Every probe is raced against a timeout: in the bare-kernel e2e run
+        // there is no Node sidecar, so an allowed `node.call` never answers.
+        const settle = async (label, promise, ms) => {
+          const value = await Promise.race([
+            promise.then(
+              (v) => 'granted:' + String(v === undefined ? 'null' : JSON.stringify(v)).slice(0, 64),
+              (e) => 'denied:' + String((e && e.message) || e).slice(0, 140),
+            ),
+            new Promise((r) => setTimeout(() => r('timeout: no answer'), ms || 4000)),
+          ])
+          out.results[label] = value
         }
         // fs is the interesting one: it is never part of a minimal charter.
-        await attempt('fs', 'fs', 'readText', ['/etc/hostname'])
-        await attempt('theme', 'theme', 'isDark', [])
+        await settle('fs', ow.invoke('fs', 'readText', '/etc/hostname'))
+        await settle('theme', ow.invoke('theme', 'isDark'))
         // The kernel injects the window id into the document; ow-window wants it.
-        await attempt('owWindow', 'ow-window', 'isMaximized', [window.__owWindowId])
+        await settle('owWindow', ow.invoke('ow-window', 'isMaximized', window.__owWindowId))
+        // invokeSync goes through ow-sync:// (blocking XHR), a separate path.
+        // Note: sync + fs deadlocks the main thread (the ow-sync handler runs
+        // there with JS blocked, and fs is one of the pooled modules), so the
+        // probe uses a pure-CPU module instead.
+        out.results.sync = (() => {
+          try {
+            const v = ow.invokeSync('path', 'normalize', 'a/b/../c')
+            return 'granted:' + String(v).slice(0, 40)
+          } catch (e) {
+            return 'denied:' + String((e && e.message) || e).slice(0, 140)
+          }
+        })()
+        // node.call reaches app.handle() in the main process.
+        await settle('node', ow.invoke('node', 'call', { fn: 'missing.handler', args: [] }), 1500)
         out.done = 1
       }
     </script>

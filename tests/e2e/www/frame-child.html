@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Copyright 2026 Owear Contributors
+     SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>frame child</title>
+  </head>
+  <body>
+    <p>Subframe: reports whether the kernel bridge reached it.</p>
+    <script>
+      // The charter ships the privileged surface to the top frame only, so this
+      // must stay 'undefined' even though the script is injected everywhere.
+      window.__frameProbe = {
+        ow: typeof window.ow,
+        handler: typeof (window.webkit && window.webkit.messageHandlers &&
+                         window.webkit.messageHandlers.ow),
+      }
+    </script>
+  </body>
+</html>

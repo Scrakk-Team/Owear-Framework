@@ -164,6 +164,10 @@ def main():
         # that the kernel did not refuse them.
         check("charter.grants.ow-window", "charter:" not in str(res.get("owWindow", "")),
               res.get("owWindow"))
+        check("charter.refuses.invokeSync", str(res.get("sync", "")).startswith("denied:") and
+              "charter:" in str(res.get("sync", "")), res.get("sync"))
+        check("charter.refuses.node.call", str(res.get("node", "")).startswith("denied:") and
+              "charter:" in str(res.get("node", "")), res.get("node"))
 
         # 2. audit: the kernel tells the main process what it refused.
         denied = c.find_event("charter.denied")
@@ -188,6 +192,45 @@ def main():
         res = probe(c, wid)
         check("charter.cleared.grants.fs", str(res.get("fs", "")).startswith("granted:"),
               res.get("fs"))
+
+        # 5. a subframe must not see the JS API…
+        frame_wid = c.call("window.create", {
+            "width": 420, "height": 260,
+            "url": f"http://localhost:{args.port}/frame-host.html",
+        })["windowId"]
+        time.sleep(2.0)
+        frame = eval_json(c, frame_wid,
+                          "(() => { const f = document.getElementById('probe-frame');"
+                          " const w = f && f.contentWindow;"
+                          " return (w && w.__frameProbe) || { ow: 'missing' } })()")
+        check("bridge.absent.in.iframe", frame.get("ow") == "undefined", frame)
+
+        # 6. …but the native message handler is registered per view, so a
+        #    subframe can still post raw messages into the kernel. The charter is
+        #    the boundary there, so a refused call from an iframe must be
+        #    audited exactly like one from the top document. (Regression test for
+        #    the day the channel itself gets a document token.)
+        c.call("window.setCharter", {
+            "windowId": frame_wid,
+            "allow": ["ow-window", "theme"],
+            "enforce": True,
+        })
+        c.events.clear()
+        raw = (
+            "(() => { const f = document.getElementById('probe-frame');"
+            " const h = f.contentWindow.webkit.messageHandlers.ow;"
+            " h.postMessage(JSON.stringify({t:'invoke',id:4242,m:'fs',f:'readText',"
+            f"a:['/etc/hostname'],w:{frame_wid}}})); return 'posted' }})()"
+        )
+        c.call("window.eval", {"windowId": frame_wid, "js": raw})
+        time.sleep(1.5)
+        raw_denied = c.find_event("charter.denied")
+        check("charter.refuses.raw.iframe.call", raw_denied is not None,
+              "no charter.denied event for the raw iframe call")
+        if raw_denied:
+            check("charter.raw.iframe.capability",
+                  raw_denied.get("capability") == "fs:readText", raw_denied)
+        c.call("window.destroy", {"windowId": frame_wid})
     finally:
         if wid is not None:
             try:

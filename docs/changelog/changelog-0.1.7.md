@@ -53,7 +53,10 @@ trusted and never filtered, so `module.invoke` from `@owear/core` keeps working:
 - **The privileged surface is top-frame only.** The bridge script is injected
   with `WEBKIT_USER_CONTENT_INJECT_TOP_FRAME` (Linux) and self-disables with
   `window.top !== window.self` (all platforms), so subframes — extension
-  panels, embedded pages, remote iframes — can no longer reach the kernel.
+  panels, embedded pages, remote iframes — no longer get `window.ow`.
+  Note that the underlying message handler is registered per view: a subframe
+  can still post raw messages into the kernel, so the **charter is the real
+  boundary** (see `tests/e2e/charter_guard.py`).
 - **The transport is captured at document-start.** `window.webkit` /
   `window.chrome.webview` and `JSON.stringify` are read once, in a closure,
   instead of being looked up on every call. Page scripts can no longer hook the
